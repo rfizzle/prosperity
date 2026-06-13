@@ -1,0 +1,127 @@
+{
+  "nav": "Features",
+  "metaTitle": "Features — Prosperity | Loot Overhaul for Minecraft",
+  "metaDescription": "Every Prosperity feature: per-player instanced loot, unlooted container indicators, five distance-scaled loot tiers, structure overrides, the loot modifier API, and datapack loot injection.",
+  "ogTitle": "Features — Prosperity",
+  "ogDescription": "Detailed breakdown of every Prosperity feature and mechanic.",
+  "title": "Features",
+  "lede": "Everything Prosperity does to make loot fair and worth discovering. Most systems are individually toggleable via <a href='/config.html' class='text-accent hover:text-accent2 underline'>config</a>.",
+  "width": "6xl",
+  "scale": "lg",
+  "sections": [
+    {
+      "id": "instanced-loot",
+      "title": "Instanced Loot",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": [
+            "Every naturally generated container serves each player their own independent loot the first time they open it. The vanilla block, model, block entity, and renderer are never touched — Prosperity attaches per-player loot to vanilla containers via Cardinal Components, intercepting interactions through events.",
+            "After the first generation, the container's vanilla loot table is nullified to prevent hopper and comparator exploits. This replaces the functionality of Lootr."
+          ]
+        },
+        {
+          "type": "cards",
+          "mdColumns": 2,
+          "items": [
+            {
+              "id": "per-player",
+              "title": "Per-Player Loot",
+              "html": ["First visit rolls fresh loot from the container's loot table and the player's context (luck, position), stored under their UUID. Everyone who opens the chest gets their own copy."]
+            },
+            {
+              "id": "hopper",
+              "title": "Hoppers &amp; Comparators",
+              "html": ["Hoppers see an empty container and cannot extract instanced loot; comparators read zero. This is intended — instanced loot lives outside the vanilla inventory."]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "indicators",
+      "title": "Unlooted Indicators",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": [
+            "Containers you have never opened display a small gold sparkle sprite hovering above the block; containers you have looted show nothing. No more re-checking every chest in a stronghold or mansion.",
+            "The indicator is a world-space overlay (not a HUD element), driven client-side from lightweight per-chunk requests as chunks load."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "distance-scaling",
+      "title": "Distance Scaling",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": ["Loot quality scales with Euclidean distance from world origin (0, 0 in the XZ plane). Origin is used rather than world spawn so distance reflects absolute geography, not a movable reference."]
+        },
+        {
+          "type": "table",
+          "nowrapHeaders": true,
+          "headers": ["Tier", "Distance (blocks)", "Quantity", "Quality"],
+          "rows": [
+            ["<span class='text-bone'>Local</span>", "0 – 999", "1.0×", "+0"],
+            ["<span class='text-bone'>Frontier</span>", "1,000 – 2,999", "1.5×", "+1"],
+            ["<span class='text-bone'>Wilderness</span>", "3,000 – 5,999", "2.0×", "+2"],
+            ["<span class='text-bone'>Outlands</span>", "6,000 – 9,999", "2.75×", "+3"],
+            ["<span class='text-bone'>Depths</span>", "10,000+", "3.5×", "+4"]
+          ],
+          "note": "Stack quantities scale by the multiplier (capped at 64); quality adds luck to the loot context. The End is always treated as Depths tier."
+        }
+      ]
+    },
+    {
+      "id": "structure-overrides",
+      "title": "Structure Overrides",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": ["Override the tier used by a specific structure with a fixed, minimum, or maximum mode — e.g. ocean monuments fixed to Wilderness, strongholds at minimum Outlands, or village chests capped at Frontier."]
+        }
+      ]
+    },
+    {
+      "id": "loot-api",
+      "title": "Loot Modifier API &amp; Injection",
+      "blocks": [
+        {
+          "type": "cards",
+          "mdColumns": 2,
+          "items": [
+            {
+              "id": "modifier-api",
+              "title": "Loot Modifier API",
+              "html": ["A Fabric-style <code class='text-accent2'>LootModifierCallback.EVENT</code> fires after distance scaling but before the loot table resolves, handing listeners a mutable context. See the <a href='/api.html' class='text-accent hover:text-accent2 underline'>API page</a>."]
+            },
+            {
+              "id": "injection",
+              "title": "Loot Table Injection",
+              "html": ["A datapack system adds custom items to vanilla loot tables gated by minimum distance tier. Prosperity ships built-in injections so distance scaling feels meaningful out of the box."]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "feedback",
+      "title": "Feedback",
+      "blocks": [
+        {
+          "type": "cards",
+          "mdColumns": 1,
+          "items": [
+            {
+              "id": "action-bar",
+              "title": "Loot Tier Feedback",
+              "html": ["Opening an instanced container shows an action-bar message with the loot tier and active modifiers, so the risk-versus-reward loop of exploration is visible. The shared HUD strip can also display your current distance tier."]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

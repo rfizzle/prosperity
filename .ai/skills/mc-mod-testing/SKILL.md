@@ -1,0 +1,310 @@
+---
+name: mc-mod-testing
+description: Write and maintain tests for Fabric Minecraft mods across the three-tier test spectrum (pure JUnit, fabric-loader-junit, Fabric Gametest). TRIGGER when creating or editing *Test.java, *GameTest.java, or when the user asks about testing a Minecraft mod, fabric-loader-junit, or Fabric Gametest.
+---
+
+The user is writing or modifying tests in a Fabric mod. Apply this guidance whenever test code is being touched.
+
+## Decision tree — pick one tier per test
+
+Ask these in order and stop at the first "yes":
+
+1. **Does the test reference any `net.minecraft.*` or `net.fabricmc.*` class?**
+   No -> **Tier 1: Pure JUnit**. Normal `@Test`, no framework, no bootstrap.
+
+2. **Does the test need a real `ServerLevel`, tick loop, entity behavior, block placement, or redstone?**
+   Yes -> **Tier 3: Gametest**. `@GameTest` with `GameTestHelper`. Runs via `./gradlew runGametest`.
+
+3. **Does the test need the mod's own registered content** (custom items, blocks, block entities)?
+   Yes -> **Tier 3: Gametest**. fabric-loader-junit does not run `onInitialize`.
+
+4. **Everything else** (vanilla registries, enchantments, payload codecs, mixin accessors, AW-widened members) -> **Tier 2: fabric-loader-junit** + explicit `Bootstrap.bootStrap()`.
+
+### Quick routing cheat sheet
+
+| What you're testing | Tier |
+|---------------------|------|
+| Pure math, config parsing, utility methods | 1 |
+| Codec round-trip on vanilla types | 2 |
+| Vanilla registry lookups (`Items.DIAMOND`, `Attributes.MAX_HEALTH`) | 2 |
+| Attribute computation on vanilla `AttributeMap` | 2 |
+| StreamCodec encode/decode for custom payloads | 2 |
+| Mixin accessor reads on vanilla classes | 2 |
+| Block interaction, menu open/close flow | 3 |
+| Hopper transfer into mod block entity | 3 |
+| Custom recipe matching in a real crafting context | 3 |
+| Enchantment behavior on a real entity | 3 |
+| Any test needing mod-registered items/blocks | 3 |
+
+## Tier 1: Pure JUnit
+
+Location: `src/test/java/`
+
+```java
+package com.example.mymod;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class ScalingEngineTest {
+    @Test
+    void timeFactor_cappedBeforeMaxLevel() {
+        assertEquals(2.5, ScalingEngine.computeTimeFactor(500, 0.01, 2.5), 1e-9);
+    }
+}
+```
+
+No Minecraft imports, no framework, no bootstrap. Fast. Run with:
+```bash
+./gradlew test --tests "com.example.mymod.ScalingEngineTest" 2>&1
+```
+
+## Tier 2: fabric-loader-junit
+
+Location: `src/test/java/`
+
+### What it gives you
+- Knot classloader applies mixins and access wideners
+- `Bootstrap.bootStrap()` populates `BuiltInRegistries`, `Attributes`, `Items`, etc.
+- Does **not** run `onInitialize` — mod-registered content is absent
+- Does **not** start a server or create a `Level`
+
+### Template
+```java
+package com.example.mymod;
+
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class EnchantmentCodecTest {
+    @BeforeAll
+    static void bootstrapVanillaRegistries() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+    }
+
+    @Test
+    void vanillaItemsAvailable() {
+        assertNotNull(net.minecraft.world.item.Items.DIAMOND_SWORD);
+    }
+}
+```
+
+### Required dependency
+```groovy
+testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+```
+
+### testRuntimeClasspath exclusion
+
+With `splitEnvironmentSourceSets`, Loom leaves an unmapped fabric-api sibling on `testRuntimeClasspath` that carries an intermediary-namespace access widener. fabric-loader-junit rejects it. Fix:
+
+```groovy
+configurations.testRuntimeClasspath {
+    exclude group: 'net.fabricmc.fabric-api', module: 'fabric-api'
+}
+```
+
+### Tier 2 sweet spot
+
+Bridge tests that prove pure-math results land correctly on real vanilla objects. Example: verifying a computed attribute factor produces the expected `getMaxHealth()` when applied to a real vanilla `AttributeMap`.
+
+## Tier 3: Fabric Gametest
+
+Location: `src/gametest/java/`
+
+### Template
+```java
+package com.example.mymod.gametest;
+
+import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+
+public class MyFeatureGameTest implements FabricGameTest {
+    @GameTest(template = "mymod:empty_3x3")
+    public void placeAndVerifyBlock(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 2, 1);
+        helper.setBlock(pos, MyRegistry.MY_BLOCK);
+        helper.assertBlockPresent(MyRegistry.MY_BLOCK, pos);
+        helper.succeed();
+    }
+}
+```
+
+Register via `fabric-gametest` entrypoint in `fabric.mod.json`:
+```json
+{
+    "entrypoints": {
+        "fabric-gametest": ["com.example.mymod.gametest.MyFeatureGameTest"]
+    }
+}
+```
+
+### Source set setup in build.gradle
+```groovy
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
+configurations {
+    gametestImplementation.extendsFrom implementation
+    gametestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+loom {
+    runs {
+        gametest {
+            server()
+            name "Game Test"
+            source sourceSets.gametest
+            vmArg "-Dfabric-api.gametest"
+            vmArg "-Dfabric-api.gametest.report-file=${layout.buildDirectory.file('junit-gametest.xml').get().asFile}"
+            runDir "build/gametest"
+        }
+    }
+}
+```
+
+### Structure templates
+
+Templates: `src/main/resources/data/<modid>/gametest/structure/<name>.snbt`
+
+Templates must be in `src/main/resources`, not `src/gametest/resources`.
+
+### Runtime patterns
+
+**Mock player positioning:** `makeMockServerPlayerInLevel()` places the player near (0,0,0), not in the test region. Teleport:
+
+```java
+ServerPlayer player = helper.makeMockServerPlayerInLevel();
+BlockPos abs = helper.absolutePos(new BlockPos(0, 2, 1));
+player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
+```
+
+**Synchronous vs deferred assertions:**
+- `helper.succeed()` — immediate success (state is already correct)
+- `helper.succeedWhen(() -> { ... })` — polls every tick until the lambda runs without throwing. Use for state that needs ticks (AI, projectiles, block entity processing).
+
+**Float tolerance:** `helper.assertValueEqual` uses exact equality. For fractional values:
+```java
+helper.assertTrue(Math.abs(actual - expected) < 1e-4, "value within tolerance");
+```
+
+**Deterministic assertions:** Disable randomized systems when asserting a single axis:
+```java
+boolean saved = config.someRandomFeature;
+config.someRandomFeature = false;
+try {
+    // ... deterministic test
+} finally {
+    config.someRandomFeature = saved;
+}
+```
+
+### Running
+```bash
+./gradlew runGametest 2>&1
+```
+
+## Guardrails
+
+- **Never** skip `Bootstrap.bootStrap()` in a Tier 2 test that touches `BuiltInRegistries`. Knot does not call it.
+- **Never** try to register mod items in a Tier 2 `@BeforeAll`. `Bootstrap.bootStrap()` freezes registries. Route to Tier 3.
+- **Never** use reflection on `MappedRegistry` to unfreeze or force-register.
+- **Never** widen production method access just for a test. Test observable behavior or use the public API. If you must access internals, use reflection or same-package placement — not ad-hoc `public` widening.
+- **Never** assume a test needs Tier 2 just because it imports a Minecraft class. `BlockPos` and `RandomSource` are POJOs — try Tier 1 first.
+- **Never** ignore the return value of `ExecutorService.awaitTermination()` in a concurrency test. A `false` return means workers hung — fail the test.
+- **Never** write a concurrency test that only asserts "no exceptions thrown." Assert the actual invariant the concurrent code must maintain.
+- **Always** clean up all static/shared state touched by tests in `@AfterEach`, including state in classes you didn't directly write to but that accumulate entries (caches, registries, name pools).
+- **Always** test persisted-data migrations (legacy→new, idempotency, passthrough) when a serialized format changes.
+- **Always** wrap config mutations in try/finally to restore the original value, even in tests you expect to pass.
+- **Always** write at least one test per config toggle verifying the feature is inert when disabled.
+- **Never** write tests whose only assertion is `assertNotNull`, `assertDoesNotThrow`, or bare `helper.succeed()`. Assert specific observable behavior.
+- **Always** run the single test with `./gradlew test --tests '<FQN>'` before claiming it passes.
+
+## Concurrency test discipline
+
+When testing thread safety of managers, registries, or shared state:
+
+### Assert invariants, not just "no exceptions"
+A concurrency test that only asserts `assertDoesNotThrow` or counts results proves nothing. Assert the cross-structure invariant that the code is supposed to maintain. If two maps must stay in sync (e.g., a bidirectional mapping), assert their consistency after concurrent mutations complete.
+
+### Check `awaitTermination` return values
+If `pool.awaitTermination(...)` returns `false`, a worker task hung — exactly the failure mode these tests should catch. Always capture the return value, fail the test if `false`, and call `shutdownNow()`:
+
+```java
+pool.shutdown();
+boolean clean = pool.awaitTermination(10, TimeUnit.SECONDS);
+if (!clean) pool.shutdownNow();
+assertTrue(clean, "Thread pool did not terminate — a worker task hung");
+```
+
+### Use overlapping key partitions
+Tests that give each thread disjoint data (thread 0 uses villagers 0-99, thread 1 uses 100-199) never exercise the interesting races. Include at least one test variant where threads operate on overlapping keys.
+
+### Clean up ALL shared static state
+In `@AfterEach` or `@AfterAll`, reset every static/shared manager the tests touch — not just the ones the current test writes to. Leaked state across tests causes false passes that break under future test additions. Audit every static field, `ConcurrentHashMap`, volatile reference, and `ThreadLocal` in the classes under test.
+
+## Testing persisted data migrations
+
+When a persisted format changes (NBT codec, hash scheme, serialized IDs), write tests covering:
+
+1. **Legacy → new:** Provide legacy-format data, run the migration, assert new-format output.
+2. **Idempotency:** Run the migration twice on the same data, assert the result is unchanged after the second pass.
+3. **Non-legacy passthrough:** Provide already-new-format data, assert the migration leaves it untouched.
+
+Format changes without migration tests are the #1 source of silent world-upgrade data loss in mods.
+
+## Config mutation isolation
+
+When tests modify global config (singleton or static), always restore the original in a `finally` block or `@AfterEach`. A test that sets `enableFollowMode = false` and then fails before restoring it poisons every subsequent test in the run.
+
+```java
+@Test
+void featureDisabledWhenConfigOff() {
+    boolean saved = MercantileConfig.get().enableFollowMode;
+    try {
+        MercantileConfig.get().enableFollowMode = false;
+        // ... assertions about disabled behavior
+    } finally {
+        MercantileConfig.get().enableFollowMode = saved;
+    }
+}
+```
+
+For gametests, the same pattern applies — save/restore in try/finally within the test method, not in a shared setup hook that might not run on failure.
+
+## Config-disabled path coverage
+
+Every config toggle (`enableX`) needs at least one test verifying the feature is inert when disabled. These tests catch mixins that fire unconditionally, network handlers that skip the config check, and gated code that only checks the config on one of its code paths.
+
+## No vacuous assertions
+
+Assertions that prove almost nothing:
+- `assertNotNull(result)` — only proves construction, not correctness
+- `assertDoesNotThrow(() -> ...)` — proves no crash, not correct behavior
+- `helper.succeed()` with no preceding assertions — passes unconditionally
+
+Every test should assert specific observable behavior. If you can't articulate what would break if the test were deleted, the test has no value.
+
+## Test-access patterns
+
+Pick **one** pattern for accessing package-private methods in tests and use it consistently:
+
+- **Preferred:** Keep methods package-private and use reflection in tests (or use the same package in the test source tree).
+- **Acceptable:** Widen to `public` with a `// @VisibleForTesting` comment (or a real `@VisibleForTesting` annotation if JetBrains annotations or Guava are on the classpath).
+- **Not acceptable:** Mix both approaches in the same test class or test suite.
+
+## When asked to add a new test
+
+1. Run the decision tree. Commit to a tier before writing code.
+2. Use the matching template.
+3. Run the single test to verify it passes.

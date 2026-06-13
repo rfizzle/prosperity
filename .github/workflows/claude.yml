@@ -1,0 +1,29 @@
+# Thin stub — logic lives in rfizzle/concord (claude-mention.yml).
+# Invokes Claude Code on @claude mentions in issues, comments, and reviews.
+name: Claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  claude:
+    uses: rfizzle/concord/.github/workflows/claude-mention.yml@master
+    secrets: inherit

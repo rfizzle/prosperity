@@ -1,0 +1,58 @@
+{
+  "nav": "API",
+  "metaTitle": "API — Prosperity | Loot Modifier API for Mod Integration",
+  "metaDescription": "Prosperity's Loot Modifier API for mod developers: a Fabric-style event that adjusts loot generation after distance scaling, plus datapack-driven loot injection.",
+  "ogTitle": "API — Prosperity",
+  "ogDescription": "Loot Modifier API and event for integrating with Prosperity.",
+  "title": "Developers",
+  "lede": "Prosperity exposes a stable, Fabric-style Loot Modifier API so other mods can adjust loot generation — without a hard dependency.",
+  "width": "4xl",
+  "sections": [
+    {
+      "id": "soft-dependency",
+      "title": "Soft Dependency Setup",
+      "blocks": [
+        { "type": "prose", "html": ["Compile against Prosperity with <code class='text-accent2'>modCompileOnly</code> so it stays optional at runtime, then guard every call with a mod-loaded check."] },
+        { "type": "code", "label": "Gradle:", "bottomGap": true, "code": "dependencies {\n    modCompileOnly \"maven.modrinth:prosperity:<version>\"\n}" },
+        { "type": "prose", "html": ["Guard calls so your mod loads cleanly whether or not Prosperity is present:"] },
+        { "type": "code", "code": "if (FabricLoader.getInstance().isModLoaded(\"prosperity\")) {\n    // safe to touch the Prosperity API here\n}" }
+      ]
+    },
+    {
+      "id": "loot-modifier-api",
+      "title": "Loot Modifier API",
+      "blocks": [
+        { "type": "prose", "html": ["The API classes live in <code class='text-accent2'>com.rfizzle.prosperity.api</code> and are annotated <code class='text-accent2'>@ApiStatus.Stable</code>. <code class='text-accent2'>LootModifierCallback.EVENT</code> fires after distance scaling but before the loot table resolves, handing each listener a mutable <code class='text-accent2'>LootModifierContext</code>."] },
+        {
+          "type": "code",
+          "tone": "bone",
+          "code": "import com.rfizzle.prosperity.api.LootModifierCallback;\n\nif (FabricLoader.getInstance().isModLoaded(\"prosperity\")) {\n    LootModifierCallback.EVENT.register(context -> {\n        // inspect context.getPlayer(), context.getPos(), context.getTier()\n        // adjust context's quantity / quality / luck before loot resolves\n    });\n}"
+        }
+      ]
+    },
+    {
+      "id": "injection",
+      "title": "Loot Table Injection",
+      "blocks": [
+        { "type": "prose", "html": ["Datapacks can add custom items to existing vanilla loot tables, gated by a minimum distance tier. Files live at <code class='text-accent2'>data/prosperity/loot_injections/&lt;name&gt;.json</code> and use tier names <code class='text-accent2'>local</code>, <code class='text-accent2'>frontier</code>, <code class='text-accent2'>wilderness</code>, <code class='text-accent2'>outlands</code>, <code class='text-accent2'>depths</code>."] },
+        { "type": "note", "html": "Stub — the full injection file schema and the <code class='text-accent2'>LootModifierContext</code> method reference will be documented here." }
+      ]
+    },
+    {
+      "id": "notes",
+      "title": "Notes",
+      "blocks": [
+        {
+          "type": "list",
+          "items": [
+            "The API package is <code class='text-accent2'>com.rfizzle.prosperity.api</code> — everything outside it is internal and may change without notice.",
+            "<code class='text-accent2'>LootModifierCallback</code> is a standard Fabric <code class='text-accent2'>Event</code>, not a custom event bus.",
+            "<code class='text-accent2'>LootModifierContext</code> is created fresh per loot generation, populated with the player, position, loot table, and post-distance-scaling values.",
+            "Mob loot scaling fires the same event, so listeners registered for container loot affect mob loot too."
+          ]
+        },
+        { "type": "prose", "html": ["Building an integration and something's missing? <a href='https://github.com/rfizzle/prosperity/issues' rel='noopener noreferrer' target='_blank' class='text-accent hover:text-accent2 underline'>Open an issue</a> — the API surface grows based on real integration needs."] }
+      ]
+    }
+  ]
+}

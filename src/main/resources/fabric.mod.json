@@ -1,0 +1,37 @@
+{
+    "schemaVersion": 1,
+    "id": "prosperity",
+    "version": "${version}",
+    "name": "Prosperity",
+    "description": "A loot overhaul for Minecraft. Per-player instanced container loot plus distance-based loot scaling, so every chest is yours to discover and exploration always pays off.",
+    "authors": ["rfizzle"],
+    "contact": {},
+    "license": "MIT",
+    "icon": "assets/prosperity/icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": ["com.rfizzle.prosperity.Prosperity"],
+        "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
+        "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
+        "cardinal-components": ["com.rfizzle.prosperity.component.ProsperityComponents"]
+    },
+    "suggests": {
+        "modmenu": "*",
+        "jade": "*",
+        "wthit": "*",
+        "emi": "*",
+        "roughlyenoughitems": "*",
+        "jei": "*"
+    },
+    "mixins": [
+        "prosperity.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": ">=0.16.10",
+        "minecraft": "~1.21.1",
+        "java": ">=21",
+        "fabric-api": "*",
+        "cardinal-components-base": "*",
+        "cardinal-components-block": "*"
+    }
+}

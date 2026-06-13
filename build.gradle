@@ -1,0 +1,267 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+version = computeModVersion()
+group = project.maven_group
+
+tasks.register('printVersion') {
+    doLast { println project.version }
+}
+
+// Derives a SemVer-compliant version from `mod_version` plus the git state:
+//   - exact tag match (e.g. HEAD == v0.2.0) → "0.2.0"
+//   - exact tag, dirty tree                      → "0.2.0+dirty"
+//   - N commits past the last matching tag       → "0.2.0+N.gSHA[.dirty]"
+//   - no matching tag yet                        → "0.2.0+gSHA[.dirty]"
+//   - git unavailable or describe fails          → "0.2.0"
+// The base ("0.2.0") comes from gradle.properties and is bumped via
+// scripts/release.sh. Tag pattern is `v*`.
+def computeModVersion() {
+    def base = project.mod_version
+    def tagPrefix = "v"
+    def described = runGitDescribe(tagPrefix)
+    if (described == null || described.isEmpty()) {
+        return base
+    }
+    if (described == "${tagPrefix}${base}") {
+        return base
+    }
+    if (described == "${tagPrefix}${base}-dirty") {
+        return "${base}+dirty"
+    }
+    def postTag = described =~ /^\Q${tagPrefix}\E(\S+?)-(\d+)-g([0-9a-f]+)(-dirty)?$/
+    if (postTag.matches()) {
+        def commits = postTag[0][2]
+        def sha = postTag[0][3]
+        def dirty = postTag[0][4] ? '.dirty' : ''
+        return "${base}+${commits}.g${sha}${dirty}"
+    }
+    def shaOnly = described =~ /^([0-9a-f]+)(-dirty)?$/
+    if (shaOnly.matches()) {
+        def sha = shaOnly[0][1]
+        def dirty = shaOnly[0][2] ? '.dirty' : ''
+        return "${base}+g${sha}${dirty}"
+    }
+    return base
+}
+
+def runGitDescribe(String tagPrefix) {
+    try {
+        def proc = new ProcessBuilder('git', 'describe', '--tags',
+                '--match', "${tagPrefix}*", '--dirty', '--always')
+                .directory(rootDir)
+                .redirectErrorStream(true)
+                .start()
+        proc.waitFor()
+        def out = proc.inputStream.text.trim()
+        if (proc.exitValue() != 0) return null
+        return out
+    } catch (Exception ignored) {
+        return null
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'Ladysnake'
+        url = 'https://maven.ladysnake.org/releases'
+        content {
+            includeGroup 'org.ladysnake'
+            includeGroupByRegex 'org\\.ladysnake\\..*'
+        }
+    }
+    maven {
+        name = 'TerraformersMC'
+        url = 'https://maven.terraformersmc.com/'
+        content {
+            includeGroup 'dev.emi'
+        }
+    }
+    maven {
+        name = 'Shedaniel'
+        url = 'https://maven.shedaniel.me/'
+        content {
+            includeGroup 'me.shedaniel'
+            includeGroup 'me.shedaniel.cloth'
+            includeGroup 'dev.architectury'
+        }
+    }
+    maven {
+        name = 'Architectury'
+        url = 'https://maven.architectury.dev/'
+        content {
+            includeGroup 'dev.architectury'
+        }
+    }
+    maven {
+        name = 'BlameJared'
+        url = 'https://maven.blamejared.com/'
+        content {
+            includeGroup 'mezz.jei'
+        }
+    }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
+    maven {
+        name = 'Bai'
+        url = 'https://maven2.bai.lol'
+        content {
+            includeGroup 'lol.bai'
+            includeGroup 'mcp.mobius.waila'
+        }
+    }
+}
+
+loom {
+    splitEnvironmentSourceSets()
+}
+
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
+configurations {
+    gametestImplementation.extendsFrom implementation
+    gametestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+loom {
+    runs {
+        gametest {
+            server()
+            name "Game Test"
+            source sourceSets.gametest
+            vmArg "-Dfabric-api.gametest"
+            vmArg "-Dfabric-api.gametest.report-file=${layout.buildDirectory.file('junit-gametest.xml').get().asFile}"
+            runDir "build/gametest"
+        }
+    }
+}
+
+dependencies {
+    // Minecraft
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+
+    // Fabric
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // Client source set
+    "clientImplementation"("net.fabricmc.fabric-api:fabric-api:${project.fabric_version}")
+
+    // Cardinal Components API — REQUIRED. Per-player loot state is attached to vanilla
+    // container block entities via CCA block-entity components. base + block modules.
+    modImplementation "org.ladysnake.cardinal-components-api:cardinal-components-base:${project.cardinal_components_version}"
+    modImplementation "org.ladysnake.cardinal-components-api:cardinal-components-block:${project.cardinal_components_version}"
+    include "org.ladysnake.cardinal-components-api:cardinal-components-base:${project.cardinal_components_version}"
+    include "org.ladysnake.cardinal-components-api:cardinal-components-block:${project.cardinal_components_version}"
+
+    // ModMenu 11.x — Config screen entry point for Fabric 1.21.1. Compile-only + dev runtime
+    // so end users get the integration only when they install ModMenu themselves.
+    modCompileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
+    modLocalRuntime "maven.modrinth:modmenu:${project.modmenu_version}"
+
+    // Cloth Config 15.x — Config screen builder used by ModMenuIntegration. Compile-only for
+    // the api surface; full mod in dev runtime.
+    modCompileOnly "me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}"
+    modLocalRuntime "me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}"
+
+    // Jade 15.x — Probe-tooltip integration. No api split published; compile-only links the
+    // full mod but only the snownee.jade.api surface is referenced.
+    modCompileOnly "maven.modrinth:jade:${project.jade_version}"
+    modLocalRuntime "maven.modrinth:jade:${project.jade_version}"
+
+    // WTHIT 12.x — Alternative probe-tooltip integration (Jade fallback). Compile-only against
+    // the API split. Discovered via waila_plugins.json at runtime.
+    modCompileOnly "mcp.mobius.waila:wthit-api:${project.wthit_version}"
+
+    // EMI 1.x — Recipe viewer loot index panel.
+    modCompileOnly "dev.emi:emi-fabric:${project.emi_version}:api"
+    modLocalRuntime "dev.emi:emi-fabric:${project.emi_version}"
+
+    // REI 16.x — Recipe viewer loot index panel (MC 1.21, runs on 1.21.1).
+    modCompileOnly "me.shedaniel:RoughlyEnoughItems-api-fabric:${project.rei_version}"
+    modCompileOnly "me.shedaniel:RoughlyEnoughItems-default-plugin-fabric:${project.rei_version}"
+    modLocalRuntime "me.shedaniel:RoughlyEnoughItems-fabric:${project.rei_version}"
+    modLocalRuntime "dev.architectury:architectury-fabric:${project.architectury_version}"
+
+    // JEI 19.x — Recipe viewer loot index panel. The `fabric` runtime jar shades in all
+    // `common-api` classes, so `transitive = false` prevents Loom remap from seeing the
+    // same classes twice and emitting `duplicate input class` warnings.
+    modCompileOnly "mezz.jei:jei-1.21.1-fabric-api:${project.jei_version}"
+    modLocalRuntime("mezz.jei:jei-1.21.1-fabric:${project.jei_version}") {
+        transitive = false
+    }
+
+    // Tests
+    testImplementation platform("org.junit:junit-bom:5.10.2")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testImplementation "org.junit.jupiter:junit-jupiter-params"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    // Knot-based classloader that boots Fabric before tests run — registries,
+    // item registrations, and onInitialize are available without Bootstrap.bootStrap().
+    testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+}
+
+// With splitEnvironmentSourceSets, loom remaps fabric-api to *-common variants for the main
+// runtime classpath but leaves the unmapped fabric-api sibling on testRuntimeClasspath.
+// fabric-loader-junit then reads both the remapped (named) AW and the unmapped (intermediary)
+// AW and aborts on namespace mismatch. Dropping the unmapped sibling keeps the remapped
+// artifacts in place and lets the junit launcher boot.
+configurations.testRuntimeClasspath {
+    exclude group: 'net.fabricmc.fabric-api', module: 'fabric-api'
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+
+    withSourcesJar()
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archives_base_name}" }
+    }
+}

@@ -1,0 +1,40 @@
+# gradle
+.gradle/
+build/
+out/
+classes/
+
+# loom dev runtime
+run/
+mods/
+logs/
+config/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.vscode/
+.classpath
+.project
+*.launch
+
+# local AI / planning state
+.claude/settings.local.json
+.claude/projects/
+.claude/scheduled_tasks.lock
+.plan/
+
+# generated website
+_site/
+
+# OS junk
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# stray runtime artifacts
+replay_pid*.log
+hs_err_pid*.log

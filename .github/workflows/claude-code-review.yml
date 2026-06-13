@@ -1,0 +1,21 @@
+# Thin stub — logic lives in rfizzle/concord (claude-review.yml).
+# Prompt/criteria: repo-local .ai/ files win, concord defaults otherwise.
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  review:
+    uses: rfizzle/concord/.github/workflows/claude-review.yml@master
+    secrets: inherit

@@ -1,0 +1,97 @@
+{
+  "nav": "Guide",
+  "metaTitle": "Getting Started — Prosperity | Loot Overhaul for Minecraft",
+  "metaDescription": "A linear walkthrough — install Prosperity, learn how instanced loot works, read the unlooted indicators, and understand the five distance tiers.",
+  "ogTitle": "Getting Started — Prosperity",
+  "ogDescription": "Install Prosperity, learn how instanced loot works, and understand distance tiers.",
+  "title": "Getting Started",
+  "lede": "A linear walkthrough — install Prosperity, understand how instanced loot and indicators work, and learn to read the five distance tiers.",
+  "width": "4xl",
+  "scale": "lg",
+  "sections": [
+    {
+      "id": "installation",
+      "title": "1. Installation",
+      "titleGap": "4",
+      "blocks": [
+        { "type": "prose", "html": ["Prosperity is a Fabric mod for Minecraft 1.21.1 with zero external dependencies beyond Fabric API. You'll need:"] },
+        {
+          "type": "list",
+          "ordered": true,
+          "spacing": 3,
+          "items": [
+            "Install <strong class='text-bone'>Fabric Loader 0.16.10+</strong> via the official Fabric installer, targeting Minecraft <strong class='text-bone'>1.21.1</strong>. Prosperity requires <strong class='text-bone'>Java 21</strong>.",
+            "Download <strong class='text-bone'>Fabric API</strong> and drop it into your <code class='text-accent2'>mods/</code> folder.",
+            "Download Prosperity from the <a href='https://github.com/rfizzle/prosperity/releases' rel='noopener noreferrer' target='_blank' class='text-accent hover:text-accent2 underline'>releases page</a> and drop the jar into <code class='text-accent2'>mods/</code> — on both the server and every client.",
+            "Launch the game once. The first run generates <code class='text-accent2'>.minecraft/config/prosperity.json</code> with default values."
+          ]
+        },
+        { "type": "prose", "html": [
+          "<strong class='text-bone'>Migrating from Lootr?</strong> Remove it first. Prosperity provides its own instancing layer and the two should not run together.",
+          "See the <a href='/config.html' class='text-accent hover:text-accent2 underline'>full config reference</a> for every available setting."
+        ] }
+      ]
+    },
+    {
+      "id": "instanced-loot",
+      "title": "2. How Instanced Loot Works",
+      "titleGap": "4",
+      "blocks": [
+        { "type": "prose", "html": [
+          "The first time you open a naturally generated container, Prosperity rolls loot just for you and stores it under your UUID. Other players who open the same chest get their own independent loot — no more racing to the good chests on a shared server.",
+          "The vanilla block is never replaced; instanced loot is attached to the container behind the scenes. Hoppers and comparators see an empty vanilla inventory, which is intended — your loot lives in your instance."
+        ] }
+      ]
+    },
+    {
+      "id": "indicators",
+      "title": "3. Reading the Indicators",
+      "titleGap": "4",
+      "blocks": [
+        { "type": "prose", "html": [
+          "A gold sparkle hovers above any container you haven't opened yet. Once you loot it, the sparkle disappears for you. In large structures this tells you at a glance what's left to explore."
+        ] }
+      ]
+    },
+    {
+      "id": "distance-tiers",
+      "title": "4. Understanding Distance Tiers",
+      "titleGap": "4",
+      "blocks": [
+        { "type": "prose", "html": [
+          "Loot quality scales with how far a container is from world origin. The five tiers run Local → Frontier → Wilderness → Outlands → Depths, each raising stack quantities and quality:"
+        ] },
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Tier", "Distance", "Effect"],
+          "rows": [
+            ["<span class='text-bone'>Local</span>", "0 – 999", "Baseline vanilla loot"],
+            ["<span class='text-bone'>Frontier</span>", "1,000 – 2,999", "1.5× stacks, +1 quality"],
+            ["<span class='text-bone'>Wilderness</span>", "3,000 – 5,999", "2.0× stacks, +2 quality"],
+            ["<span class='text-bone'>Outlands</span>", "6,000 – 9,999", "2.75× stacks, +3 quality"],
+            ["<span class='text-bone'>Depths</span>", "10,000+", "3.5× stacks, +4 quality"]
+          ]
+        },
+        { "type": "prose", "html": [
+          "Run <code class='text-accent2'>/prosperity info</code> to see your current tier, distance, and multipliers. Some structures override their tier — see <a href='/features.html#structure-overrides' class='text-accent hover:text-accent2 underline'>structure overrides</a>."
+        ] }
+      ]
+    },
+    {
+      "blocks": [
+        {
+          "type": "panel",
+          "title": "Where to go next",
+          "items": [
+            "<a href='/features.html' class='text-accent hover:text-accent2 underline'>Features</a> — the full breakdown of every system and mechanic.",
+            "<a href='/config.html' class='text-accent hover:text-accent2 underline'>Config</a> — distance tiers, structure overrides, and the blacklist.",
+            "<a href='/commands.html' class='text-accent hover:text-accent2 underline'>Commands</a> — operator tools for tiers and instanced data.",
+            "<a href='/api.html' class='text-accent hover:text-accent2 underline'>API</a> — the loot modifier event for mod developers.",
+            "<a href='/faq.html' class='text-accent hover:text-accent2 underline'>FAQ</a> — performance, Lootr migration, and hopper behavior."
+          ]
+        }
+      ]
+    }
+  ]
+}

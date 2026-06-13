@@ -1,0 +1,29 @@
+{
+  "id": "prosperity",
+  "name": "Prosperity",
+  "domain": "prosperity.rfizzle.com",
+  "url": "https://prosperity.rfizzle.com",
+  "description": "An instanced loot overhaul for Minecraft 1.21.1 (Fabric).",
+  "metaKeywords": "Minecraft, Fabric mod, loot mod, instanced loot, Lootr alternative, distance scaling, 1.21.1",
+  "github": "https://github.com/rfizzle/prosperity",
+  "defaultBranch": "master",
+  "copyright": "© 2026 rfizzle. Prosperity is not affiliated with Mojang Studios or Microsoft.",
+  "footerMeta": "Minecraft 1.21.1 · Fabric",
+  "nav": [
+    "index",
+    "features",
+    "config",
+    "commands",
+    "guide",
+    "api",
+    "faq",
+    "changelog"
+  ],
+  "theme": {
+    "accent": "#DAA520",
+    "accentDark": "#8B6914",
+    "accent2": "#4EEAED",
+    "accent2Bright": "#00BCD4",
+    "glowRgb": "218, 165, 32"
+  }
+}

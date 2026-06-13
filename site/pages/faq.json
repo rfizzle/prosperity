@@ -1,0 +1,53 @@
+{
+  "nav": "FAQ",
+  "metaTitle": "FAQ — Prosperity | Loot Overhaul for Minecraft",
+  "metaDescription": "Frequently asked questions about Prosperity: Lootr migration, performance, hopper and comparator behavior, multiplayer, and distance tiers.",
+  "ogTitle": "FAQ — Prosperity",
+  "ogDescription": "Migration, compatibility, and common questions about Prosperity.",
+  "title": "FAQ",
+  "lede": "Click any question to expand. If yours isn't here, <a href='https://github.com/rfizzle/prosperity/issues' rel='noopener noreferrer' target='_blank' class='text-accent hover:text-accent2 underline'>open an issue on GitHub</a>.",
+  "width": "4xl",
+  "sections": [
+    {
+      "blocks": [
+        {
+          "type": "faq",
+          "items": [
+            {
+              "q": "How is Prosperity different from Lootr?",
+              "a": "Prosperity replaces Lootr's instanced-loot functionality with a zero-trust approach: it never registers custom blocks or replaces block entities. Instead it attaches per-player loot to vanilla containers via Cardinal Components and intercepts interactions through events. On top of instancing, it adds distance-scaled loot quality, unlooted indicators, structure overrides, and a loot modifier API. Remove Lootr before installing — the two should not run together."
+            },
+            {
+              "q": "Will Prosperity hurt my server's performance?",
+              "a": "It shouldn't. Loot is generated once per player on first open, then stored. The unlooted-indicator system uses lightweight per-chunk requests and an O(1) injection lookup keyed by loot table. If you observe a regression, please file an issue with a Spark profile."
+            },
+            {
+              "q": "Does it work in singleplayer? On a dedicated server?",
+              "a": "Both. Install Prosperity on the server and every client. The server owns the loot logic and config; the client renders the unlooted indicators and the loot-tier feedback."
+            },
+            {
+              "q": "Why do hoppers see an empty chest?",
+              "a": "Instanced loot lives in a per-player component, not the vanilla inventory, so hoppers and comparators read an empty container. This is intended — it prevents exploits that would let a hopper extract or duplicate instanced loot, and it's why the container's vanilla loot table is nullified after first generation."
+            },
+            {
+              "q": "How is distance measured for tiers?",
+              "a": "By Euclidean distance from world origin (0, 0 in the XZ plane, Y ignored), not from world spawn. Origin is used because spawn can be moved by commands or datapacks, and distance scaling should represent absolute geography. The End is always treated as Depths tier."
+            },
+            {
+              "q": "Can I disable distance scaling or instancing for some containers?",
+              "a": "Yes. The container blacklist exempts specific container types or positions from all Prosperity behavior — they fall back to vanilla loot. Structure overrides let you fix, raise, or cap the tier a given structure uses. See the <a href='/config.html' class='text-accent hover:text-accent2 underline'>config reference</a>."
+            },
+            {
+              "q": "Can other mods change the loot Prosperity generates?",
+              "a": "Yes. Prosperity exposes a Fabric-style <code class='text-accent2'>LootModifierCallback</code> event and a datapack loot-injection system. See the <a href='/api.html' class='text-accent hover:text-accent2 underline'>API page</a>."
+            },
+            {
+              "q": "Which Minecraft and Fabric versions are supported?",
+              "a": "Minecraft <strong class='text-bone'>1.21.1</strong> on the Fabric loader (0.16.10+), with Fabric API and Java 21. There's no Forge/NeoForge build. Watch the <a href='https://github.com/rfizzle/prosperity/releases' rel='noopener noreferrer' target='_blank' class='text-accent hover:text-accent2 underline'>releases page</a> for version bumps."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

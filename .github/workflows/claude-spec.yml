@@ -1,0 +1,20 @@
+# Thin stub — logic lives in rfizzle/concord (claude-spec.yml).
+# Fires when an issue is labeled needs-spec.
+name: Claude Spec Writer
+
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: claude-spec-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  spec:
+    uses: rfizzle/concord/.github/workflows/claude-spec.yml@master
+    secrets: inherit

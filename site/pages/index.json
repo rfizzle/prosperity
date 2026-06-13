@@ -1,0 +1,103 @@
+{
+  "type": "home",
+  "nav": "Home",
+  "metaTitle": "Prosperity — Loot Overhaul for Minecraft",
+  "metaDescription": "Prosperity is a Minecraft 1.21.1 Fabric mod that gives every player their own instanced loot from naturally generated containers, with distance-scaled quality, unlooted indicators, and a loot modifier API.",
+  "ogTitle": "Prosperity — Loot Overhaul for Minecraft",
+  "ogDescription": "An instanced loot overhaul for Minecraft 1.21.1 Fabric. Per-player loot, unlooted indicators, distance-scaled quality, and a loot modifier API.",
+  "hero": {
+    "lede": "Every chest, yours to discover.",
+    "sub": "Prosperity gives every player their own instanced loot from naturally generated containers — no more racing to chests on shared servers — and rewards venturing farther from spawn with better loot.",
+    "buttons": [
+      { "label": "Download Latest Release", "href": "https://github.com/rfizzle/prosperity/releases", "primary": true, "external": true },
+      { "label": "Getting Started", "href": "/guide.html" },
+      { "label": "GitHub", "href": "https://github.com/rfizzle/prosperity", "external": true }
+    ]
+  },
+  "sections": [
+    {
+      "title": "Core Systems",
+      "band": true,
+      "lede": "Four systems that make loot fair on shared worlds and worth the journey. <a href='/features.html' class='text-accent hover:text-accent2 underline'>Full feature list →</a>",
+      "blocks": [
+        {
+          "type": "cards",
+          "mdColumns": 2,
+          "lgColumns": 4,
+          "hoverAccent": true,
+          "items": [
+            {
+              "icon": "&#128230;",
+              "title": "Instanced Loot",
+              "html": ["Every player gets their own loot from each naturally generated container — chests, barrels, and more. A drop-in replacement for Lootr."]
+            },
+            {
+              "icon": "&#10024;",
+              "title": "Unlooted Indicators",
+              "html": ["A gold sparkle hovers above containers you haven't opened yet. No more backtracking through strongholds and mansions."]
+            },
+            {
+              "icon": "&#129517;",
+              "title": "Distance Scaling",
+              "html": ["The farther a container sits from world origin, the better its loot — five tiers from Local through Depths, with bigger stacks and rarer items."]
+            },
+            {
+              "icon": "&#128296;",
+              "title": "Loot Modifier API",
+              "html": ["A stable, Fabric-style event lets other mods adjust loot generation, plus datapack-driven injection by distance tier."]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Five Distance Tiers",
+      "lede": "Loot quality scales with absolute distance from world origin. Each tier raises stack quantities and the quality (luck) of what spawns.",
+      "ledeNarrow": true,
+      "footnote": "Tiers are configurable, and structures can override the tier they use. <a href='/features.html#distance-scaling' class='text-accent hover:text-accent2 underline'>See the breakdown →</a>",
+      "blocks": [
+        {
+          "type": "cards",
+          "mdColumns": 3,
+          "leftAccent": true,
+          "items": [
+            {
+              "title": "Local &amp; Frontier",
+              "titleTone": "bone",
+              "html": ["0–999 blocks is baseline vanilla loot. From 1,000 blocks, Frontier tier delivers 1.5× stacks and a +1 quality boost."]
+            },
+            {
+              "title": "Wilderness &amp; Outlands",
+              "titleTone": "bone",
+              "html": ["3,000+ blocks doubles stacks at Wilderness; 6,000+ reaches Outlands at 2.75× — worth the long expedition."]
+            },
+            {
+              "title": "Depths",
+              "titleTone": "bone",
+              "html": ["Beyond 10,000 blocks, Depths tier delivers the best possible loot at 3.5× stacks and +4 quality. The End is always treated as Depths."]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Quick Install",
+      "band": true,
+      "width": "4xl",
+      "lede": "Requires Fabric Loader 0.16.10+, Fabric API, and Java 21 on Minecraft 1.21.1.",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Install <strong class='text-bone'>Fabric Loader 0.16.10+</strong> for Minecraft <strong class='text-bone'>1.21.1</strong>.",
+            "Install <strong class='text-bone'>Fabric API</strong> (required dependency).",
+            "Drop <code class='text-accent2'>prosperity-x.x.x.jar</code> into your <code class='text-accent2'>mods/</code> folder (server and client).",
+            "Launch the game. Config generates at <code class='text-accent2'>config/prosperity.json</code> on first run.",
+            "Adjust settings in the config file or hot-reload with <code class='text-accent2'>/prosperity reload</code> in-game."
+          ],
+          "note": "Migrating from Lootr? Remove it first. New to the mod? Start with the <a href='/guide.html' class='text-accent hover:text-accent2 underline'>Getting Started guide</a>."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+# Builds the website from site/ content using the shared Concord template
+# (rfizzle/concord → template/) and deploys to GitHub Pages.
+#
+# Pages source must be set to "GitHub Actions" in this repo's settings.
+# Rebuilds fire on content changes here, on template changes in concord
+# (repository_dispatch from concord's propagate.yml), and on demand.
+name: Site
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "site/**"
+      - ".github/workflows/site.yml"
+  repository_dispatch:
+    types: [concord-template-updated]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  site:
+    uses: rfizzle/concord/.github/workflows/build-site.yml@master

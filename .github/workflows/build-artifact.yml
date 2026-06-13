@@ -1,0 +1,22 @@
+# Thin stub — logic lives in rfizzle/concord (mod-build-artifact.yml).
+# Maintainers comment /build on a PR to get a downloadable jar artifact.
+name: Build Artifact
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: build-artifact-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  build:
+    uses: rfizzle/concord/.github/workflows/mod-build-artifact.yml@master
+    secrets: inherit

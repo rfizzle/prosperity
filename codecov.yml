@@ -1,0 +1,35 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+        informational: true
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+
+flags:
+  unit:
+    paths:
+      - src/main/java/
+      - src/client/java/
+    carryforward: true
+  gametest:
+    paths:
+      - src/main/java/
+      - src/client/java/
+    carryforward: true
+
+ignore:
+  - "src/test/java/**"
+  - "src/gametest/java/**"
+  - "src/main/resources/**"
+  - "src/client/resources/**"

@@ -1,0 +1,67 @@
+{
+  "nav": "Config",
+  "metaTitle": "Config — Prosperity | Loot Overhaul for Minecraft",
+  "metaDescription": "Configuration reference for Prosperity. Distance tiers, structure overrides, the container blacklist, indicators, and the prosperity.json file.",
+  "ogTitle": "Config — Prosperity",
+  "ogDescription": "Config reference for prosperity.json with distance tiers, structure overrides, and more.",
+  "title": "Configuration",
+  "lede": "Every Prosperity setting, organized by section. Tune values by hand or reload them live without a restart.",
+  "width": "5xl",
+  "sections": [
+    {
+      "title": "File Location &amp; Reload",
+      "plainTitle": true,
+      "blocks": [
+        { "type": "prose", "html": ["The config file is auto-generated with defaults on first launch at:"] },
+        { "type": "code", "code": ".minecraft/config/prosperity.json", "bottomGap": true },
+        { "type": "prose", "html": ["Server operators can apply changes without a restart with:"] },
+        { "type": "code", "code": "/prosperity reload", "tone": "accent2" },
+        { "type": "prose", "html": ["Reloading re-reads the config from disk and syncs updated values to all connected clients."] }
+      ]
+    },
+    {
+      "id": "distance-tiers",
+      "title": "distanceTiers",
+      "intro": "Distance thresholds, quantity multipliers, and quality boosts for the five loot tiers. Stub — full key reference to follow.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Tier", "Min Distance", "Quantity", "Quality"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>local</code>", "0", "1.0", "0"],
+            ["<code class='text-accent2 whitespace-nowrap'>frontier</code>", "1000", "1.5", "1"],
+            ["<code class='text-accent2 whitespace-nowrap'>wilderness</code>", "3000", "2.0", "2"],
+            ["<code class='text-accent2 whitespace-nowrap'>outlands</code>", "6000", "2.75", "3"],
+            ["<code class='text-accent2 whitespace-nowrap'>depths</code>", "10000", "3.5", "4"]
+          ],
+          "note": "Tier names match those used by loot injection (<code class='text-accent2'>min_tier</code>) and structure overrides."
+        }
+      ]
+    },
+    {
+      "id": "structure-overrides",
+      "title": "structureOverrides",
+      "intro": "Per-structure tier overrides with fixed, minimum, or maximum modes. Stub — see the structure override list in the spec.",
+      "blocks": [
+        { "type": "prose", "html": ["Example: ocean monuments fixed to Wilderness, strongholds at minimum Outlands, village chests at maximum Frontier."] }
+      ]
+    },
+    {
+      "id": "blacklist",
+      "title": "containerBlacklist",
+      "intro": "Opt-in list of container types or positions exempt from all Prosperity behavior. Empty by default — every loot container is instanced.",
+      "blocks": [
+        { "type": "prose", "html": ["Blacklisted containers fall back to vanilla loot behavior; distance scaling, injection, and instancing do not apply."] }
+      ]
+    },
+    {
+      "id": "indicators",
+      "title": "indicators",
+      "intro": "Client toggle for the unlooted-container sparkle overlay and related feedback.",
+      "blocks": [
+        { "type": "prose", "html": ["Stub — keys for enabling the overlay, render distance, and the loot-tier action-bar message will be documented here."] }
+      ]
+    }
+  ]
+}

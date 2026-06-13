@@ -1,0 +1,38 @@
+{
+  "nav": "Changelog",
+  "metaTitle": "Changelog — Prosperity | Loot Overhaul for Minecraft",
+  "metaDescription": "Release history for Prosperity: every released version with its changes, linked to the canonical GitHub Releases page.",
+  "ogTitle": "Changelog — Prosperity",
+  "ogDescription": "Release history for Prosperity with per-version changes.",
+  "title": "Changelog",
+  "lede": "Every released version. Jars and full notes live on <a href='https://github.com/rfizzle/prosperity/releases' class='text-accent hover:text-accent2 underline'>GitHub Releases</a> — the canonical download source.",
+  "width": "4xl",
+  "sections": [
+    {
+      "id": "unreleased",
+      "title": "Unreleased",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": ["Prosperity is in active development ahead of its first public release. This page will list each version once releases begin."]
+        },
+        {
+          "type": "note",
+          "html": "Watch the <a href='https://github.com/rfizzle/prosperity/releases' class='text-accent hover:text-accent2 underline'>releases page</a> for the first tagged build."
+        }
+      ]
+    },
+    {
+      "id": "versioning",
+      "title": "Versioning",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": [
+            "Prosperity follows <a href='https://semver.org/' class='text-accent hover:text-accent2 underline'>semantic versioning</a>. The public API surface (<code class='text-accent2'>com.rfizzle.prosperity.api</code>) is stable across patch and minor releases; a breaking API change requires a major version bump and a changelog entry naming the broken signature."
+          ]
+        }
+      ]
+    }
+  ]
+}

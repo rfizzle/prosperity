@@ -1,0 +1,62 @@
+# Canonical Concord issue template — propagated verbatim to every member repo
+# by concord's propagate.yml. Edit HERE, never in a mod repo.
+name: Bug report
+description: Something doesn't work the way it should.
+title: "bug: "
+labels: []
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Steps to make the bug happen. Be specific — the smaller and more deterministic, the better.
+      placeholder: |
+        1. Do X
+        2. Right-click with item Y
+        3. Observe …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you thought would happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What actually happened. Include log snippets or crash reports if relevant.
+    validations:
+      required: true
+
+  - type: input
+    id: mc_version
+    attributes:
+      label: Minecraft version
+      placeholder: "1.21.1"
+    validations:
+      required: true
+
+  - type: input
+    id: mod_version
+    attributes:
+      label: Mod version
+      description: Run the mod's version command in-game (`/<mod> version`), or check the jar filename.
+    validations:
+      required: true
+
+  - type: textarea
+    id: other_mods
+    attributes:
+      label: Other mods present
+      description: "Just the relevant ones (Fabric API is assumed). Mention any of: Mod Menu, Cloth Config, Jade, WTHIT, EMI, REI, JEI."
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Next steps:** Once reproduced, add the `needs-spec` label and Claude will draft a fix spec as a comment. After review, swap to `jules` to hand off implementation.

@@ -1,0 +1,11 @@
+{
+    "prosperity.config.title": "Prosperity Configuration",
+    "prosperity.config.category.hud": "HUD",
+    "prosperity.config.category.general": "General",
+    "prosperity.hud.tier": "Tier: %s",
+    "prosperity.tier.local": "Local",
+    "prosperity.tier.frontier": "Frontier",
+    "prosperity.tier.wilderness": "Wilderness",
+    "prosperity.tier.outlands": "Outlands",
+    "prosperity.tier.depths": "Depths"
+}
