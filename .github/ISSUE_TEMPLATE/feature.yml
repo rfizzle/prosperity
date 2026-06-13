@@ -1,0 +1,47 @@
+# Canonical Concord issue template — propagated verbatim to every member repo
+# by concord's propagate.yml. Edit HERE, never in a mod repo.
+name: Feature request
+description: A new feature, behavior, or change to the mod.
+title: "feat: "
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What gap or pain point does this feature address? From the player's perspective.
+      placeholder: When I …
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_behavior
+    attributes:
+      label: Proposed behavior
+      description: How should the mod behave once this is done? Describe the user-visible outcome, not the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Checkable conditions for "done". Each item must be observable in-game or in a test.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: Anything explicitly NOT covered by this issue — to prevent scope creep during implementation.
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Next steps:** Once triage is done, add the `needs-spec` label and Claude will post an implementation spec as a comment. After human review, swap `needs-spec` for `jules` to hand off to the coding agent.
