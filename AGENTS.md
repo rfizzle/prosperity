@@ -150,6 +150,24 @@ OpenCode, and any other agent should read the relevant `SKILL.md` directly
 help via `.github/workflows/claude.yml`.
 <!-- concord:lifecycle:end -->
 
+<!-- concord:pr-conventions:start -->
+## Pull requests & commits
+
+When you open a pull request for an issue:
+
+- **Title** — Conventional Commits with a topical scope, matching the issue's
+  normalized title (e.g. `feat(render): add glyph atlas cache`). Imperative
+  mood, lower-case, no trailing period.
+- **Body** — open with a short plain-language summary of what changed and why,
+  then link the source issue with `Closes #<n>` so it auto-closes on merge and
+  the code review can pull the issue's spec for context. Use `Refs #<n>` only
+  when the PR deliberately leaves part of the issue for later.
+- **Commits** — Conventional Commits using the same scope vocabulary. Group the
+  edits for one logical change together rather than scattering fixup commits.
+- Run the project's build and tests before opening the PR, and open it only
+  once the build is green.
+<!-- concord:pr-conventions:end -->
+
 <!-- concord:version-scheme:start -->
 ## Version scheme
 
