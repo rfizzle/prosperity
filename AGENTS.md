@@ -130,13 +130,15 @@ OpenCode, and any other agent should read the relevant `SKILL.md` directly
 
 1. **Issue opened** using the feature or bug template under `.github/ISSUE_TEMPLATE/`.
 2. **Triage** — human discussion in the issue.
-3. **`needs-spec` label** added → `.github/workflows/claude-spec.yml` fires,
-   Claude posts a structured implementation spec as an issue comment
-   (prompt: concord's default `spec-writer.md`, unless a repo-local
-   `.ai/prompts/spec-writer.md` override exists).
+3. **`needs-spec` label** added → `.github/workflows/claude-spec.yml` fires.
+   Claude normalizes the issue title to a Conventional Commits form and writes
+   a plain-language summary plus a structured implementation spec into the
+   issue body, preserving the reporter's original text in between (prompt:
+   concord's default `spec-writer.md`, unless a repo-local
+   `.ai/prompts/spec-writer.md` override exists). The `needs-spec` label is
+   removed automatically once the spec lands.
 4. **Human review** — spec edited or approved.
-5. **`jules` label** added (remove `needs-spec`) → Jules picks up the issue
-   and opens a draft PR.
+5. **`jules` label** added → Jules picks up the issue and opens a draft PR.
 6. **PR opened** → `claude-code-review.yml` posts a structured ✓/⚠/✗ review
    (categories from concord's default `review-criteria.yml`, unless a
    repo-local `.ai/review-criteria.yml` override exists). `ci.yml` runs the
