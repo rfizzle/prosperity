@@ -44,4 +44,4 @@ body:
     attributes:
       value: |
         ---
-        **Next steps:** Once triage is done, add the `needs-spec` label and Claude will post an implementation spec as a comment. After human review, swap `needs-spec` for `jules` to hand off to the coding agent.
+        **Next steps:** Once triage is done, add the `needs-spec` label and Claude will write an implementation spec into the issue. When it lands the issue gets a `ready` label — or `open-questions` if the spec raised any, which you answer inline. Apply `jules` to hand off to the coding agent.
