@@ -59,4 +59,4 @@ body:
     attributes:
       value: |
         ---
-        **Next steps:** Once reproduced, add the `needs-spec` label and Claude will draft a fix spec as a comment. After review, swap to `jules` to hand off implementation.
+        **Next steps:** Once reproduced, add the `needs-spec` label and Claude will draft a fix spec into the issue. When it lands the issue gets a `ready` label — or `open-questions` if the spec raised any, which you answer inline. Apply `jules` to hand off implementation.
