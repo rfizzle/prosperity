@@ -135,10 +135,13 @@ OpenCode, and any other agent should read the relevant `SKILL.md` directly
    a plain-language summary plus a structured implementation spec into the
    issue body, preserving the reporter's original text in between (prompt:
    concord's default `spec-writer.md`, unless a repo-local
-   `.ai/prompts/spec-writer.md` override exists). The `needs-spec` label is
-   removed automatically once the spec lands.
-4. **Human review** — spec edited or approved.
+   `.ai/prompts/spec-writer.md` override exists). Once the spec lands the
+   `needs-spec` label is removed and a status label is added: **`ready`** when
+   the spec has no open questions, **`open-questions`** when it does.
+4. **Human review** — spec edited or approved. For `open-questions`, answer the
+   questions inline in the issue (no spec re-run needed for the simple cases).
 5. **`jules` label** added → Jules picks up the issue and opens a draft PR.
+   Apply it from either `ready` or `open-questions` once you're satisfied.
 6. **PR opened** → `claude-code-review.yml` posts a structured ✓/⚠/✗ review
    (categories from concord's default `review-criteria.yml`, unless a
    repo-local `.ai/review-criteria.yml` override exists). `ci.yml` runs the
