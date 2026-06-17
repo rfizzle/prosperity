@@ -110,7 +110,7 @@ Compat classes live under `com.rfizzle.prosperity.compat.<modid>`.
 | `.ai/skills/` | Domain skills — read these before working in their subject area. |
 | `.github/workflows/` | Thin trigger stubs — workflow logic, default CI prompts, and [review criteria](https://github.com/rfizzle/concord/blob/master/.ai/review-criteria.yml) live in [rfizzle/concord](https://github.com/rfizzle/concord). |
 
-<!-- concord:skills:start -->
+<!-- concord:managed:start -->
 ## Working with domain skills
 
 The suite's `mc-*` domain skills live under `.ai/skills/`, vendored from concord
@@ -123,9 +123,31 @@ table.
 Claude Code auto-loads these via the `.claude/skills` symlink; Google Jules,
 OpenCode, and any other agent should read the relevant `SKILL.md` directly
 **before** working in its subject area.
-<!-- concord:skills:end -->
 
-<!-- concord:lifecycle:start -->
+## Custom art & audio
+
+Custom, high-quality assets are encouraged across the suite — there are clean,
+consistent pipelines for both (the `mc-textures` skill → `/glyph`, the `mc-audio`
+skill → `/sfx`), so the bar is *fitness and coherence*, not vanilla purity. The
+one hard cosmetic rule is the vanilla **font** (never a custom font in any
+GUI/HUD/tooltip).
+
+Decide *whether* to make a custom asset here, before reaching for a skill:
+
+- **Default to custom where it serves a valid purpose** — identity, clarity, or a
+  slot vanilla can't fill. This is not license for a blanket retexture or a
+  wholesale soundscape overhaul; add assets where they earn their place, not for
+  their own sake.
+- **Use a vanilla asset when it is genuinely already right** — a trade UI literally
+  showing an emerald, a literal bell on a bell block.
+- **Audio also stays vanilla when the sound is organic** — a real horn, a physical
+  bell, footsteps, foley — which pure synthesis renders obviously fake. Synthesis
+  is for synthetic cues (alarms, UI blips, tech alerts, charge-ups, chiptune).
+
+Once the decision is made, the `mc-textures` / `mc-audio` skills are the craft
+reference for producing a good one. The normative spec is concord's
+`design/DESIGN-SYSTEM.md` §8 (textures) and §9 (audio).
+
 ## Development lifecycle
 
 1. **Issue opened** using the feature or bug template under `.github/ISSUE_TEMPLATE/`.
@@ -156,9 +178,7 @@ OpenCode, and any other agent should read the relevant `SKILL.md` directly
 
 `@claude <message>` in any issue or PR comment also invokes Claude for ad-hoc
 help via `.github/workflows/claude.yml`.
-<!-- concord:lifecycle:end -->
 
-<!-- concord:pr-conventions:start -->
 ## Pull requests & commits
 
 When you open a pull request for an issue:
@@ -174,13 +194,11 @@ When you open a pull request for an issue:
   edits for one logical change together rather than scattering fixup commits.
 - Run the project's build and tests before opening the PR, and open it only
   once the build is green.
-<!-- concord:pr-conventions:end -->
 
-<!-- concord:version-scheme:start -->
 ## Version scheme
 
 Version is computed from git tags at build time (`build.gradle`,
 `computeModVersion()`). Base version is in `gradle.properties` as
 `mod_version`. Tagged commits produce clean versions; post-tag commits append
 `+<commits>.g<sha>`.
-<!-- concord:version-scheme:end -->
+<!-- concord:managed:end -->
