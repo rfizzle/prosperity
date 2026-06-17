@@ -75,14 +75,14 @@ Prosperity solves multiplayer loot fairness by giving every player their own ins
 | Asset | Generator | Priority | Spec |
 |-------|-----------|----------|------|
 | ~~Repo `logo.png`~~ | Derived | ✅ Done | `art/logo.png` |
-| ~~In-game mod icon~~ | PixelLab | ✅ Done | 128×128 treasure chest — `assets/prosperity/icon.png` |
+| ~~In-game mod icon~~ | `/glyph` | ✅ Done | 128×128 treasure chest — `assets/prosperity/icon.png` |
 | ~~Website assets~~ | Derived | ✅ Done | `site/assets/` (logo, icon, og-image, apple-touch); site content under `site/` |
 | CNAME | Manual | High | `prosperity.rfizzle.com` — add when Pages is enabled (handled by `site.yml`) |
-| Recipe browser icon (EMI/REI/JEI tab) | PixelLab | High | 16×16 or 32×32, treasure chest or key motif |
-| Unlooted container indicator sprite | PixelLab | Critical | 16×16 star/sparkle icon, gold color, for world overlay |
-| Distance tier icons (set of 5) | PixelLab | High | 16×16 icons for Local → Depths tiers |
-| HUD loot tier indicator | PixelLab | High | 16×16 icon + compact text — single persistent HUD element showing current area's loot tier |
-| Unlooted indicator sprite | PixelLab | Critical | 16×16 gold sparkle/star — world-space overlay above unopened containers (NOT a HUD element) |
+| Recipe browser icon (EMI/REI/JEI tab) | `/glyph` | High | 16×16 or 32×32, treasure chest or key motif |
+| Unlooted container indicator sprite | `/glyph` | Critical | 16×16 star/sparkle icon, gold color, for world overlay |
+| Distance tier icons (set of 5) | `/glyph` | High | 16×16 icons for Local → Depths tiers |
+| HUD loot tier indicator | `/glyph` | High | 16×16 icon + compact text — single persistent HUD element showing current area's loot tier |
+| Unlooted indicator sprite | `/glyph` | Critical | 16×16 gold sparkle/star — world-space overlay above unopened containers (NOT a HUD element) |
 | Website hero background | Gemini | Medium | 1920×600 — stone brickwork with treasure/coin accents |
 | ~~Open Graph image~~ | Derived | ✅ Done | `site/assets/og-image.png` — logo on deep-bronze 1200×630 |
 | CurseForge gallery screenshots | Screenshot | Medium | (Deferred until implementation exists) |
@@ -127,7 +127,17 @@ Falling gold coin particles with occasional diamond-cyan (#4EEAED) gem sparkle.
 lighter text. Clean, minimal. No emerald green.
 ```
 
-### PixelLab Prompts (Pixel Art)
+### Glyph Specs (In-Game Pixel Art)
+
+In-game pixel art — HUD/UI glyphs, recipe-browser icons, item textures, and
+tier-icon sets — is authored through Concord's glyph pipeline: write the
+ASCII-grid `.glyph` spec, then render it deterministically with `/glyph` (the
+`mc-textures` skill is the craft reference). Every PNG master commits its
+`.glyph` source beside it in `art/glyphs/`, so each texture re-renders from its
+spec rather than being hand-patched. Design at the target size with hard pixels,
+a limited palette, and an `ink` (#0a0a0a) 1px outline so the glyph reads against
+any background. The normative spec is concord's `design/DESIGN-SYSTEM.md` §8.
+The specs below seed that work.
 
 **Unlooted Container Indicator Sprite (CRITICAL):**
 ```
@@ -201,45 +211,9 @@ Notes: Sits inside the shared semi-transparent HUD box alongside a text
        tinted by code, or match the 5-variant Distance Tier Icons set.
 ```
 
-### Shared HUD Element Standard
+### HUD
 
-All mods in the rfizzle suite that display a persistent HUD element follow a single
-shared design pattern to ensure visual consistency when multiple mods are installed:
-
-**Layout:** Simple semi-transparent dark box (`#000000` at ~50-60% opacity, 2px rounded
-corners) containing a 16×16 mod-themed icon on the left and short informational text
-on the right (e.g., "Lv. 42", "Trusted", "Frontier"). Text uses the vanilla Minecraft
-font, white with a standard drop shadow.
-
-**Position:** Top-left corner of the screen, below the vanilla debug/coordinates area.
-Elements stack vertically in a fixed priority order:
-
-| Priority | Mod | HUD Element | Example Display |
-|----------|-----|-------------|-----------------|
-| 1 | Tribulation | Difficulty level + tier | `[skull] Lv. 127 · T3` |
-| 2 | Mercantile | Reputation tier | `[emerald] Trusted` |
-| 3 | Prosperity | Loot distance tier | `[chest] Frontier` |
-
-Each element is independently togglable via its mod's config. Elements shift up to
-fill gaps when a mod above them is absent or its HUD is disabled. Small vertical
-padding (2px) between stacked elements.
-
-**Implementation notes:**
-- Each mod renders its own element at the correct offset based on how many higher-priority
-  mods are present and have their HUD enabled. Check via `FabricLoader.getInstance().isModLoaded()`.
-- The semi-transparent box auto-sizes to fit the icon + text content.
-- No custom fonts, no ornate frames, no animations. Must blend with vanilla HUD.
-- Hide during F1 (HUD hidden), during screen/GUI open, and during death screen.
-
-### Prosperity HUD
-
-Prosperity occupies **priority 3** in the shared HUD strip. Displays the current
-distance-based loot tier (Local, Frontier, Wilderness, Outlands, Depths). The unlooted
-container sparkle sprite is a world-space overlay (NOT a HUD element) and does not
-interact with the HUD strip. All detailed loot info (container contents, tier bonuses,
-modifier details) is surfaced through Jade/WTHIT tooltips and EMI/REI/JEI integration.
-The `art/hud-exploration/` frames were style exploration only and will NOT be used as
-in-game HUD frames.
+Prosperity holds **slot 3** in the Concord HUD stack: a 16×16 treasure-chest glyph with the current loot-distance tier label, tinted by tier. The full visual spec, slot registry, and stacking/coordination contract live in concord [`HUD-STANDARD.md`](../../concord/HUD-STANDARD.md). The five tier labels are Local, Frontier, Wilderness, Outlands, and Depths.
 
 ---
 
