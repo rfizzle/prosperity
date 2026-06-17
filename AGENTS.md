@@ -114,7 +114,7 @@ Compat classes live under `com.rfizzle.prosperity.compat.<modid>`.
 ## Working with domain skills
 
 The suite's `mc-*` domain skills live under `.ai/skills/`, vendored from concord
-and refreshed with `make sync-skills`. The full list — each skill's one-line
+and refreshed with `make sync`. The full list — each skill's one-line
 summary and the situation that should make you pull it in — is the generated
 catalog at [`.ai/skills/CATALOG.md`](.ai/skills/CATALOG.md). It is always in step
 with the skills actually vendored here, so consult it rather than a hand-kept
