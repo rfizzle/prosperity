@@ -12,8 +12,12 @@ size instead.
 
 A texture is conformant when it:
 
-- **is pixel art** — hard pixels, no anti-aliasing and no smooth gradients (dither for
-  shading), a limited palette (≈3–5 colors for a glyph).
+- **is pixel art with rendered form** — hard pixels (no blur), but shade for volume:
+  every surface gets a 3–5 step tonal ramp from one base hue (highlight → midtone →
+  core shadow → occlusion) plus a rim light, with selective interior anti-aliasing and
+  dithering. "Limited palette" caps the base *hues* (≈3–5), not the *tones* — a shaded
+  32px sprite legitimately runs 20–50 colors. A flat single-tone fill reads as a
+  cartoony sticker; that is the failure mode to design against.
 - **uses the design-system palette** — reference colors as named tokens, never raw hex
   (`python3 .ai/skills/mc-textures/scripts/glyph.py --list-colors` dumps them: shared neutrals like `ink`,
   `bone`, `gold`, plus per-mod accents like `mercantile.emerald`). A mod's accents never
@@ -21,8 +25,12 @@ A texture is conformant when it:
 - **reads as Minecraft** — sits naturally beside vanilla sprites at the same size. Wrap
   the motif in an `ink` (`#0a0a0a`) 1px outline so it reads against any background.
   Silhouette first, detail second.
-- **is legible at its target size** — design the 16px glyph *for* 16px. If you can't tell
-  what it is at native size, simplify. Don't shrink a large drawing into a small slot.
+- **is legible at its target size** — design the glyph *for* the size it ships at, and
+  pick that authoring size by the asset's role: author at **32px** wherever detail reads
+  (HUD glyphs, blocks, decorated/hero items) and let the slot display it small; reserve
+  native 16px for tiny pips or motifs that gain nothing from extra detail. If you can't
+  tell what it is at native size, simplify the shape. Don't *resample* a large drawing
+  down into a small slot — it goes muddy; author for the slot instead.
 - **stays on one motif (sprites)** — one object per glyph, centered, with a 1px transparent
   margin unless it intentionally bleeds to the edge. *Block* textures are the exception —
   they bleed to all four edges and tile (see below).
@@ -63,8 +71,11 @@ by integer nearest-neighbor upscale — the honest way to fill the large tiers (
 a size ladder from a small native master. Full format + worked example: the `SPEC FORMAT`
 header of `.ai/skills/mc-textures/scripts/glyph.py`, and the `/glyph` command. Reference
 specs ship beside this skill under `.ai/skills/mc-textures/examples/` — a `sprite-coin`
-(centered motif, `ink` outline, transparent margin) and a `block-stone-bricks` (tileable
-full-bleed side face). The concord repo's `scripts/examples/` holds more, mod-specific ones.
+(centered motif, `ink` outline, transparent margin), a `block-stone-bricks` (tileable
+full-bleed side face), and a `skull-shaded` (the **shaded-form quality bar**: a 32px
+glyph rendered with tonal ramps, rim light, and a selective outline — ~49 colors over a
+few base hues, the opposite of a flat fill). The concord repo's `scripts/examples/` holds
+more, mod-specific ones.
 
 ```bash
 G=.ai/skills/mc-textures/scripts/glyph.py

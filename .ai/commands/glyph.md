@@ -33,35 +33,76 @@ glyph.
 
 Honor the design-system glyph conventions:
 
-- **One motif object**, centered and readable at native size. A HUD glyph is
-  tiny — silhouette first, detail second. If you can't tell what it is at 16px,
-  simplify.
-- **Dark-stone outline.** Wrap the motif in an `ink` (`#0a0a0a`) 1px outline so
-  it reads against any HUD background, the way vanilla item sprites do.
+- **One motif object**, centered and readable at native size. Silhouette first:
+  the shape must read before any shading. At the smallest size you author, if you
+  can't tell what it is, simplify the *shape* — never the shading.
+- **Shade the form — don't flat-fill.** This is what separates a crafted sprite
+  from a flat cartoon sticker. Hard pixels (no blur), but render volume: pick a
+  light direction and give every surface a tonal **ramp** of 3–5 steps from one
+  base hue — highlight → midtone → core shadow → occlusion — plus a rim/edge light
+  where forms turn away. "Limited palette" caps the base *hues* (≈3–5), **not** the
+  tones: a shaded 32px sprite legitimately runs 20–50 colors, almost all of them
+  ramp steps. A flat single-tone fill inside the outline is the cartoony failure
+  mode — avoid it on any surface big enough to hold a ramp.
+- **Match detail to the size you authored.** 16px: silhouette plus one shading
+  step — keep it tight. 32px: a full 3-step ramp per surface, selective interior
+  anti-aliasing on curves, dithering only where a ramp step is too coarse. 64px+:
+  full form rendering, 4–5 step ramps, contact/cast shadow.
+- **Outline selectively.** Wrap the silhouette in `ink` (`#0a0a0a`) so it reads
+  against any HUD background. *Inside* the motif, separate forms with a dark tone
+  of the material itself, not more pure black — a uniform black box around every
+  interior edge flattens the volume back into a sticker.
 - **One glowing accent**, the mod's signature. The brighter accent (`*-bright`,
   `gold`, `ember`) sparingly for highlights; the base accent for the body.
-- **Pixel-art discipline.** Limited palette (≈3–5 colors), hard pixels, no
-  anti-aliasing or gradients — the script renders exactly the cells you write. Aim for a
-  high-quality custom sprite that reads as Minecraft, not a deference to vanilla art.
 - `.` is transparent. Keep at least a 1px transparent margin unless the motif
   intentionally bleeds to the edge.
 
-Write the spec to `scripts/examples/<mod>-<motif>.glyph` (or a path the user
-gives). Format — a `legend:` mapping single chars to colors, then a `frame:` (or
-`grid:`) of exactly N rows × N chars. `#` begins a comment anywhere; don't use it
-as a legend key. The full format (with a worked example) is documented in the
-`SPEC FORMAT` header of `.ai/skills/mc-textures/scripts/glyph.py`.
+### Canvas size by asset role
+
+The native size you author *is* the detail budget — bigger canvas, more room for
+ramps. Pick it from what the asset is, not from the slot it ends up in:
+
+| Asset role | Author native | Detail target | Notes |
+|---|---|---|---|
+| HUD / status glyph | **32** | shaded form — ramps + rim light | the richest of the small slots; it carries the mod's identity. The game blits the 32 master at ~16 (`hud_icon.png` is 32×32). |
+| Block texture | **32** (16 only for a plain repeating pattern) | shaded, tiling | bleeds to all four edges and tiles; more surface area earns more shading. |
+| Decorated / hero item | **32** | shaded form | author at 32 and let the slot display it small. |
+| Plain inventory item | 16 (32 if it rewards detail) | midtone + 1–2 steps | simple tools, ingredients. |
+| Tiny pip / indicator | 16 | silhouette + 1 step | Jade dots, charge ticks. |
+| Mod icon / store / hero art | **32 native → upscale** to 128/256 | richest hand-draw | rides the size ladder (below). |
+
+Rule: **default to authoring at 32 whenever detail reads** (HUD, blocks,
+hero/decorated items) and ship that 32 master directly — Minecraft renders
+higher-resolution HUD/item/block textures and displays them at slot size.
+"Downsizing" here means *displayed* small, **not** pixel-downscaled into a 16px
+file (resampling a 32px drawing down to 16px goes muddy — don't). Reserve native
+16 for motifs that must read as crisp 16px blocks, or that gain nothing from the
+extra detail.
+
+Write the spec to `art/glyphs/<name>.glyph` (or a path the user gives). The
+`.glyph` is the committed source — `art/glyphs/` holds `.glyph` files only (PNGs
+there are gitignored). The rendered PNGs are throwaway review artifacts (step 3);
+the shipped master lands in the mod's asset tree on approval (step 4). Format — a `legend:`
+mapping single chars to colors, then a `frame:` (or `grid:`) of exactly N rows ×
+N chars. `#` begins a comment anywhere; don't use it as a legend key. The full
+format (with a worked example) is documented in the `SPEC FORMAT` header of
+`.ai/skills/mc-textures/scripts/glyph.py`.
 
 ## Step 3 — Render and review
 
+Render with `-o` pointing at `/tmp` so the derived PNGs land in scratch, not
+beside the source spec:
+
 ```bash
-python3 .ai/skills/mc-textures/scripts/glyph.py scripts/examples/<name>.glyph
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph -o /tmp/<name>.png
 ```
 
 This writes `<name>.png` (the true master) and `<name>@16x.png` (a 256px
-nearest-neighbor preview). **Read the @16x preview back** and judge it honestly
-against the motif. Then iterate the grid until it's right — fixing pixel art is
-fast: edit the `.glyph` and re-run. Show the user the preview each iteration.
+nearest-neighbor preview) into `/tmp`. **Read the @16x preview back** and judge
+it honestly against the motif. Then iterate the grid until it's right — fixing
+pixel art is fast: edit the `.glyph` and re-run. Show the user the preview each
+iteration. These rendered PNGs are throwaway review artifacts — they stay in
+`/tmp` until the user approves the glyph.
 
 ---
 
@@ -74,10 +115,10 @@ source pixel becomes an N×N block), and hand-authoring past ~64px is impractica
 
 | Tier  | How                            | Why |
 |-------|--------------------------------|-----|
-| 16px  | author native (16×16)          | HUD/Jade silhouette — vanilla item size |
-| 32px  | author native (32×32)          | favicon/recipe — room for a 2nd shading step |
+| 16px  | author native (16×16)          | smallest readable slot — tiny pips, plain symbols |
+| 32px  | author native (32×32)          | the default authoring size for HUD glyphs, blocks, and detailed items — room for full shading ramps |
 | 64px  | author native (64×64), *optional* | richest hand-drawn master; upscale from 32 if the motif doesn't reward it |
-| 128px | **upscale** the richest native | mod-icon size (`art/icon-128.png`) |
+| 128px | **upscale** the richest native | mod-icon size |
 | 256px | **upscale** the richest native | store/hero size |
 
 Rule: **author native up to the richest tier you'll hand-draw (32 always, 64 if
@@ -86,14 +127,14 @@ master → 64=×2, 128=×4, 256=×8). The native tiers are *separate drawings of
 same motif* — same silhouette and palette, more fidelity as size grows, never a
 different object.
 
-Author one `.glyph` per native tier (`…-16.glyph`, `…-32.glyph`, `…-64.glyph`),
-render each, then mint the high tiers with `--scale-to` (a real master, **not** a
-`@Nx` preview):
+Author one `.glyph` per native tier (`…-16.glyph`, `…-32.glyph`, `…-64.glyph`) in
+`art/glyphs/`, render each, then mint the high tiers with `--scale-to` (a real
+master, **not** a `@Nx` preview). Route every rendered PNG to `/tmp` with `-o`:
 
 ```bash
-python3 .ai/skills/mc-textures/scripts/glyph.py scripts/examples/<mod>/<motif>-32.glyph             # native 32 master
-python3 .ai/skills/mc-textures/scripts/glyph.py scripts/examples/<mod>/<motif>-32.glyph --scale-to 128 -o scripts/examples/<mod>/<motif>-128.png
-python3 .ai/skills/mc-textures/scripts/glyph.py scripts/examples/<mod>/<motif>-32.glyph --scale-to 256 -o scripts/examples/<mod>/<motif>-256.png
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph -o /tmp/<name>-32.png                 # native 32 master
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph --scale-to 128 -o /tmp/<name>-128.png
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph --scale-to 256 -o /tmp/<name>-256.png
 ```
 
 `--scale-to N` refuses any N that isn't an integer multiple of the source grid —
@@ -119,17 +160,18 @@ the whole strip + mcmeta), so an animated motif can ride the size ladder too.
 
 ## Step 4 — Place the master
 
-The design system masters a HUD glyph at `art/hud-icon-16.png` and a mod icon at
-`art/icon-128.png` in the *mod's* repo, with derived copies in
-`docs/`/`assets/`. This concord repo is the design hub, not a mod — generate here
-under `scripts/examples/` for review; when the user approves, the final PNGs
-belong in the target mod's `art/`. Confirm each destination with the user rather
-than assuming.
+Two locations, no duplication:
 
-**Commit the `.glyph` beside each master.** Every committed texture ships its source: the
-`.glyph` lands next to its PNG with the same basename
-(`art/hud-icon-16.png` ↔ `art/hud-icon-16.glyph`; one `.glyph` per natively-authored
-ladder tier), so the master stays re-renderable for minor edits.
+- **Source** — the `.glyph` is committed in `art/glyphs/<name>.glyph` (step 2),
+  one per natively-authored ladder tier. This is the re-renderable deliverable.
+- **Master** — the shipped PNG. On approval, render it **straight into the mod's
+  resource tree**, `src/main/resources/assets/<mod>/textures/…` (the exact
+  subpath depends on the texture's role — confirm it with the user). The master
+  does **not** get a copy in `art/glyphs/`; PNGs there are gitignored.
+
+So the throwaway `/tmp` preview (step 3) is only for review — once the glyph is
+approved, re-render with `-o` pointing at the final `assets/<mod>/textures/…`
+path instead of `/tmp`.
 
 Keep going until the glyph reads clearly at native size and matches the mod's
 identity. Show the user the preview each iteration.

@@ -40,18 +40,25 @@ sting). The full format with a worked example is the `SPEC FORMAT` header of
 
 Keep the patch lean (1–3 layers), pick a **`seed`** so noise renders
 reproducibly, and write a **`subtitle`** key (`<mod>.subtitle.<event>`) —
-accessibility is non-negotiable. Write the spec to
-`.ai/skills/mc-audio/examples/<mod>/<cue>.sfx` (or a path the user gives).
+accessibility is non-negotiable. Write the spec to `art/audio/<cue>.sfx` (or a
+path the user gives). The `.sfx` is the committed source — `art/audio/` holds
+`.sfx` files only (rendered audio there is gitignored). The rendered files are
+throwaway review artifacts (step 3); the shipped master lands in the mod's asset
+tree on approval (step 4).
 
 ## Step 3 — Render and review (you can't hear it)
 
+Render with `-o` pointing at `/tmp` so the derived files land in scratch, not
+beside the source spec:
+
 ```bash
-python3 .ai/skills/mc-audio/scripts/sfx.py .ai/skills/mc-audio/examples/<mod>/<cue>.sfx
+python3 .ai/skills/mc-audio/scripts/sfx.py art/audio/<cue>.sfx -o /tmp/<cue>.ogg
 ```
 
 This writes `<cue>.ogg` (the master), `<cue>.wav`, and `<cue>.report.png` (a
-waveform + spectrogram), and prints stats: duration, peak dBFS, RMS, spectral
-centroid. Close the loop on **objective signals**: **read the `.report.png`
+waveform + spectrogram) into `/tmp`, and prints stats: duration, peak dBFS, RMS,
+spectral centroid. These rendered files are throwaway review artifacts — they
+stay in `/tmp` until the user approves the cue. Close the loop on **objective signals**: **read the `.report.png`
 back** and check the shape matches the gesture (envelope, sweep direction,
 harmonic content); confirm peak ≈ −1 dBFS (no clipping), the duration is tight,
 and the centroid suits the character (bright vs. dark). Iterate the spec until
@@ -63,11 +70,18 @@ report looks right, tell the user the sound needs a listen before it lands.
 
 ## Step 4 — Place the master and wire it up
 
-Masters live in the mod's `art/audio/` with the `.sfx` committed **beside** the
-`.ogg` (same basename), and the derived `.ogg` copied into
-`assets/<mod>/sounds/`. This concord repo is the design hub, not a mod — generate
-here under `.ai/skills/mc-audio/examples/` for review; when the user approves, the
-final files belong in the target mod. Confirm each destination with the user.
+Two locations, no duplication:
+
+- **Source** — the `.sfx` is committed in `art/audio/<cue>.sfx` (step 2). This is
+  the re-renderable deliverable.
+- **Master** — the shipped `.ogg`. On approval, render it **straight into the
+  mod's resource tree**, `src/main/resources/assets/<mod>/sounds/…` (confirm the
+  exact subpath with the user). The master does **not** get a copy in
+  `art/audio/`; rendered audio there is gitignored.
+
+So the throwaway `/tmp` renders (step 3) are only for review — once the cue is
+approved, re-render with `-o` pointing at the final `assets/<mod>/sounds/…` path
+instead of `/tmp`.
 
 Then wire the Minecraft side (see the `mc-audio` and `mc-registration` skills):
 
