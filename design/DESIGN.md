@@ -54,41 +54,11 @@ Prosperity solves multiplayer loot fairness by giving every player their own ins
 
 ---
 
-## 2. Asset Inventory
+## 2. Assets
 
-### Existing Assets
-
-| Asset | Location | Size | Status |
-|-------|----------|------|--------|
-| Full Logo (master) | `art/logo.png` | 3168×1344 | Final — treasure-chest medallion + winged "PROSPERITY" wordmark |
-| Icon (full-res master) | `art/icon.png` | 2048×2048 | Final — open treasure chest, gold trim, diamond-cyan gem |
-| Icon (128 master) | `art/icon-128.png` | 128×128 | Final — standard-named master (Concord REPO-LAYOUT) |
-| HUD Icon | `art/hud-icon-16.png` | small | Final — treasure chest glyph for the shared HUD strip |
-| In-jar mod icon | `src/main/resources/assets/prosperity/icon.png` | 128×128 | Final — derived from `art/icon.png` |
-| Website assets | `site/assets/{logo,icon,og-image,apple-touch-icon}.png` | derived | Final — web copies |
-
-> Earlier style explorations (HUD frame/icon variant sheets) were generated externally
-> and are not committed; working files belong in `art/exploration/`.
-
-### Needed Assets
-
-| Asset | Generator | Priority | Spec |
-|-------|-----------|----------|------|
-| ~~Repo `logo.png`~~ | Derived | ✅ Done | `art/logo.png` |
-| ~~In-game mod icon~~ | `/glyph` | ✅ Done | 128×128 treasure chest — `assets/prosperity/icon.png` |
-| ~~Website assets~~ | Derived | ✅ Done | `site/assets/` (logo, icon, og-image, apple-touch); site content under `site/` |
-| CNAME | Manual | High | `prosperity.rfizzle.com` — add when Pages is enabled (handled by `site.yml`) |
-| Recipe browser icon (EMI/REI/JEI tab) | `/glyph` | High | 16×16 or 32×32, treasure chest or key motif |
-| Unlooted container indicator sprite | `/glyph` | Critical | 16×16 star/sparkle icon, gold color, for world overlay |
-| Distance tier icons (set of 5) | `/glyph` | High | 16×16 icons for Local → Depths tiers |
-| HUD loot tier indicator | `/glyph` | High | 16×16 icon + compact text — single persistent HUD element showing current area's loot tier |
-| Unlooted indicator sprite | `/glyph` | Critical | 16×16 gold sparkle/star — world-space overlay above unopened containers (NOT a HUD element) |
-| Website hero background | Gemini | Medium | 1920×600 — stone brickwork with treasure/coin accents |
-| ~~Open Graph image~~ | Derived | ✅ Done | `site/assets/og-image.png` — logo on deep-bronze 1200×630 |
-| CurseForge gallery screenshots | Screenshot | Medium | (Deferred until implementation exists) |
-| Favicon (`.ico` / `.svg`) | Derived | Low | 32×32 / 16×16 from icon |
-| Apple Touch Icon | Derived | Low | 180×180 from icon |
-| Discord embed banner | Gemini | Low | 1280×640, logo on dark background |
+The full asset manifest — every `.glyph` source under `art/`, the final
+resource/site path it ships as, and what is still `MISSING` a glyph source —
+lives in [`ASSETS.md`](ASSETS.md).
 
 ---
 
