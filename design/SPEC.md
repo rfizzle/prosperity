@@ -2,7 +2,7 @@
 
 Minecraft 1.21.1 Fabric mod. Instanced loot overhaul.
 
-**Asset philosophy:** Zero custom block models or textures. All container blocks remain vanilla — the mod never replaces, retextures, or swaps world-gen blocks. Visual indicators for unlooted containers use client-side sprite overlays rendered via `WorldRenderEvents.LAST`, guaranteeing full compatibility with Sodium, Enhanced Block Entities (EBE), and shader packs. All sounds use existing vanilla sound events.
+**Asset philosophy:** Container blocks stay vanilla — the proxy layer never registers custom blocks, replaces block entities, or retextures/swaps world-gen blocks, which keeps full compatibility with Sodium, Enhanced Block Entities (EBE), and shader packs (see Architectural philosophy below). That is an architectural constraint on the block layer, **not** a vanilla-purity stance: mod-specific UI, HUD, and world-overlay sprites are custom pixel art authored through Concord's glyph pipeline (`/glyph`, `mc-textures` skill, concord `design/DESIGN-SYSTEM.md` §8, with `.glyph` sources kept beside the masters) — see the asset inventory in `design/DESIGN.md`. Unlooted-container indicators render as client-side sprite overlays via `WorldRenderEvents.LAST`. Sounds stay vanilla where the cue is organic (chest lids, XP pickup — physical sounds vanilla already nails); custom synthesized cues are added through the `/sfx` pipeline where a sound benefits from its own identity (concord `design/DESIGN-SYSTEM.md` §9).
 
 **Architectural philosophy:** Zero-trust proxy. The mod intercepts interactions with vanilla containers dynamically via events — it does not register custom blocks, replace block entities, or modify world generation. Per-player loot state is attached to vanilla `RandomizableContainerBlockEntity` instances via Cardinal Components API (CCA). The vanilla block, its model, its block entity type, and its renderer are never touched.
 
@@ -908,7 +908,7 @@ Each mod checks for the presence of other overhaul mods at client init (via `Fab
 - Client-side only. Rendered via `HudRenderCallback` (Fabric API).
 - Tier is calculated from `player.getX()` / `player.getZ()` — no server communication needed for position.
 - Tier config (tier boundaries) is synced from server to client on join (same config sync mechanism used for other features).
-- Icon texture: `assets/prosperity/textures/gui/hud_icon.png` (16x16). Final icon chosen from the PixelLab candidates in `art/hud-exploration/`.
+- Icon texture: `assets/prosperity/textures/gui/hud_icon.png` (16x16), authored through the `/glyph` pipeline with its `.glyph` source in `art/glyphs/`.
 - Transition animation: store `lastTierChangeTime` and current/previous tier. On each render, if `currentTime - lastTierChangeTime < 1500ms`, lerp text color from gold to tier color.
 - Priority offset: `int priority = 0; if (FabricLoader.getInstance().isModLoaded("tribulation")) priority++;` — Prosperity always renders below Tribulation if present.
 
@@ -1086,7 +1086,11 @@ Features are ordered by dependency and complexity. Infrastructure comes first, t
 
 ## Sound Design
 
-All sounds use **vanilla Minecraft sound events**.
+Sounds stay **vanilla** where the cue is organic — chest lids, barrel lids, and
+XP pickup are physical sounds vanilla already nails, so synthesis would only make
+them feel fake. Custom synthesized cues (via the `/sfx` pipeline) are added where
+a sound benefits from its own identity, per concord `design/DESIGN-SYSTEM.md` §9.
+The current cues all map to vanilla events:
 
 ### Sound Mapping
 
