@@ -1,0 +1,27 @@
+{
+  "name": "charge-up",
+  "sample_rate": 44100,
+  "peak_dbfs": -1.0,
+  "subtitle": "ui.subtitle.charge_up",
+  "seed": 9,
+  "layers": [
+    {
+      "waveform": "saw",
+      "from": 220, "to": 1320, "glide": "exp",
+      "duration": 0.7, "gain": 0.5,
+      "env": {"attack": 0.3, "decay": 0.0, "sustain": 1.0, "release": 0.08},
+      "filter": {"type": "lowpass", "cutoff": 4000}
+    },
+    {
+      "waveform": "sine",
+      "from": 110, "to": 660, "glide": "exp",
+      "duration": 0.7, "gain": 0.35,
+      "env": {"attack": 0.3, "decay": 0.0, "sustain": 1.0, "release": 0.08}
+    },
+    {
+      "waveform": "square",
+      "freq": 1320, "start": 0.72, "duration": 0.08, "gain": 0.5,
+      "env": {"attack": 0.002, "decay": 0.05, "sustain": 0.3, "release": 0.05}
+    }
+  ]
+}

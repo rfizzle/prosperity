@@ -1,0 +1,31 @@
+# Reference block — a generic stone-brick SIDE face. Demonstrates the block-texture
+# conventions: full-bleed 16x16 (no margin); tiles seamlessly and joins at the corners
+# (the running-bond offset carries the bond across the left/right seam, so each side meets
+# the next cleanly); `ink` mortar lines; dithered neutral shading (highlight / face /
+# shadow). Top and bottom would be separate faces, aligned to this face's top/bottom edges.
+# Mod-neutral; retint the face for themed stone.
+size: 16
+
+legend:
+  K ink     # #0a0a0a mortar
+  b bone    # #e8e0d4 top highlight of each brick
+  a ash     # #a89f93 brick face
+  s smoke   # #6b6359 brick shadow / dither
+
+grid:
+  KbbbbbbbKbbbbbbb
+  KaaaaaaaKaaaaaaa
+  KasasasaKasasasa
+  KKKKKKKKKKKKKKKK
+  bbbKbbbbbbbKbbbb
+  aaaKaaaaaaaKaaaa
+  sasKasasasaKasas
+  KKKKKKKKKKKKKKKK
+  KbbbbbbbKbbbbbbb
+  KaaaaaaaKaaaaaaa
+  KasasasaKasasasa
+  KKKKKKKKKKKKKKKK
+  bbbKbbbbbbbKbbbb
+  aaaKaaaaaaaKaaaa
+  sasKasasasaKasas
+  KKKKKKKKKKKKKKKK

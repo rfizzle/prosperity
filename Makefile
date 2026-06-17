@@ -1,7 +1,8 @@
 GRADLE := ./gradlew
 BASE_VERSION := $(shell awk -F= '/^mod_version/ {gsub(/ /,"",$$2); print $$2}' gradle.properties)
+CONCORD_DIR ?= ../concord
 
-.PHONY: help build clean test jar run-client run-server gen-sources refresh-deps version release
+.PHONY: help build clean test jar run-client run-server gen-sources refresh-deps version release site site-serve sync
 
 help:
 	@echo "Targets:"
@@ -15,6 +16,9 @@ help:
 	@echo "  clean        Remove build outputs"
 	@echo "  version      Print the base and git-derived computed version"
 	@echo "  release      Cut a release (usage: make release BUMP=patch|minor|major [NO_PUSH=1])"
+	@echo "  site         Build the website from site/ with the shared concord template"
+	@echo "  site-serve   Build and serve the website locally with live reload"
+	@echo "  sync         Refresh .ai/skills + .ai/commands from the concord checkout (CONCORD_DIR=../concord)"
 
 build:
 	$(GRADLE) build
@@ -54,10 +58,9 @@ site:
 site-serve:
 	SITE_DIR=$(PWD)/site npx -y @11ty/eleventy@3.0.0 --config=../concord/template/eleventy.config.cjs --input=../concord/template/src --output=_site --serve
 
-CONCORD_DIR ?= ../concord
-
-sync-skills:
+sync:
 	@test -d $(CONCORD_DIR)/.ai/skills || { echo "concord checkout not found at $(CONCORD_DIR) (set CONCORD_DIR=...)"; exit 1; }
 	rsync -a --delete $(CONCORD_DIR)/.ai/skills/ .ai/skills/
+	rsync -a --delete $(CONCORD_DIR)/.ai/commands/ .ai/commands/
 	@git -C $(CONCORD_DIR) rev-parse HEAD > .ai/skills/.concord-rev
-	@echo "synced .ai/skills from concord @ $$(git -C $(CONCORD_DIR) rev-parse --short HEAD)"
+	@echo "synced .ai/skills + .ai/commands from concord @ $$(git -C $(CONCORD_DIR) rev-parse --short HEAD)"
