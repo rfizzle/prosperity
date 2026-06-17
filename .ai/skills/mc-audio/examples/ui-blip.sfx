@@ -1,0 +1,18 @@
+{
+  "name": "ui-blip",
+  "sample_rate": 44100,
+  "peak_dbfs": -1.0,
+  "subtitle": "ui.subtitle.blip",
+  "seed": 1,
+  "layers": [
+    {
+      "waveform": "triangle",
+      "gain": 0.9,
+      "env": {"attack": 0.002, "decay": 0.02, "sustain": 0.5, "release": 0.03},
+      "notes": [
+        {"freq": 880, "start": 0.0, "duration": 0.05},
+        {"freq": 1320, "start": 0.06, "duration": 0.07}
+      ]
+    }
+  ]
+}

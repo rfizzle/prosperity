@@ -3,7 +3,7 @@
 
 The `mc-*` skills under `.ai/skills/` are the suite's shared Minecraft/Fabric
 domain knowledge. They are edited in the [concord repo](https://github.com/rfizzle/concord)
-and vendored into every member repo via `make sync-skills` — this catalog rides
+and vendored into every member repo via `make sync` — this catalog rides
 along, so it is always in step with the skills actually present.
 
 **How each agent consumes them:** Claude Code auto-loads skills via the
@@ -13,6 +13,7 @@ the relevant `SKILL.md` directly **before** working in its subject area — use 
 
 | Skill | What it does | Pull it in when… |
 |---|---|---|
+| [`mc-audio`](mc-audio/SKILL.md) | How to produce a good Concord sound effect through the .sfx procedural-synthesis pipeline — the craft reference and quality bar for custom UI/alarm/tech audio cues | when adding or editing any custom sound (anything under assets/<mod>/sounds/, a sounds.json entry, a registered SoundEvent), or when authoring or editing a .sfx spec. |
 | [`mc-datagen`](mc-datagen/SKILL.md) | Create and maintain Minecraft Fabric data generation providers (models, blockstates, recipes, tags, loot tables, advancements) | when creating or editing *Provider.java, *DataGenerator.java, DataGeneratorEntrypoint, or when the user mentions datagen, data generation, or runDatagen. |
 | [`mc-gradle-builds`](mc-gradle-builds/SKILL.md) | Best practices for running Gradle builds, tests, and gametests in Fabric Minecraft mods. Prevents wasted reruns from partial output capture | when running any Gradle command (build, test, runGametest, runDatagen, assemble, check), or when inspecting build output/reports. |
 | [`mc-mixin-craft`](mc-mixin-craft/SKILL.md) | Write, debug, and maintain Mixin injections and access wideners for Fabric Minecraft mods | when creating or editing *Mixin.java, *Accessor.java, *Invoker.java, *.mixins.json, *.accesswidener files, or when discussing injection points, @Inject, @Redirect, @ModifyVariable, or @Overwrite. |
@@ -21,5 +22,5 @@ the relevant `SKILL.md` directly **before** working in its subject area — use 
 | [`mc-registration`](mc-registration/SKILL.md) | Guide Minecraft Fabric mod content registration (blocks, items, block entities, menus, creative tabs, particles, sounds, commands) | when creating or editing *Registry.java, *Items.java, *Blocks.java, or any class calling Registry.register(), BuiltInRegistries, or Fabric registration APIs. |
 | [`mc-shared-state`](mc-shared-state/SKILL.md) | Thread-safe patterns for shared-state managers, caches, and hot-reloadable registries in Fabric Minecraft mods | when creating or editing *Manager.java, *Cache.java, or any mod class using ConcurrentHashMap, volatile fields, AtomicReference, ThreadLocal, or synchronized blocks to manage shared mutable state. |
 | [`mc-testing-mock`](mc-testing-mock/SKILL.md) | Mock player helpers in Fabric Gametest (makeMockServerPlayerInLevel, makeMockPlayer) | proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, or player.discard() in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test. |
-| [`mc-textures`](mc-textures/SKILL.md) | What a good Concord texture looks like and how to produce one through the .glyph pixel-art pipeline — the quality bar for icons, HUD glyphs, item/block sprites, and retextured mobs | when creating or editing any in-game texture or UI sprite (anything under assets/<mod>/textures/, art/*.png, a HUD/Jade glyph, a mod/store icon), when authoring or editing a .glyph spec, or when deciding whether to ship custom art versus a vanilla sprite. |
+| [`mc-textures`](mc-textures/SKILL.md) | What a good Concord texture looks like and how to produce one through the .glyph pixel-art pipeline — the craft reference and quality bar for icons, HUD glyphs, item/block sprites, and retextured mobs | when creating or editing any in-game texture or UI sprite (anything under assets/<mod>/textures/, art/*.png, a HUD/Jade glyph, a mod/store icon), or when authoring or editing a .glyph spec. |
 | [`mc-tooltips`](mc-tooltips/SKILL.md) | Correct placement and ordering of item/block tooltip text in Fabric Minecraft mods — appendHoverText vs ItemTooltipCallback, and why your lines must sit above third-party footers | when adding or editing tooltip text on items or blocks: overriding appendHoverText, registering an ItemTooltipCallback, building tooltip lines with Component.translatable/literal, or when a tooltip line appears in the wrong order (e.g. below a recipe-viewer "mod name" footer). |
