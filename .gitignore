@@ -8,7 +8,9 @@ classes/
 run/
 mods/
 logs/
-config/
+# Root-anchored: the dev-runtime config dir only. A bare `config/` would also
+# match the `…/prosperity/config/` Java source package and silently drop it.
+/config/
 
 # IDE
 .idea/
