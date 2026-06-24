@@ -75,6 +75,11 @@ public final class InstancedLootInteraction {
         if (!Prosperity.getConfig().enableInstancedLoot) {
             return InteractionResult.PASS;
         }
+        // Automation mods open containers through a fake player; pass them through to vanilla before
+        // any loot logic so they never generate, nullify, or write an instance (S-034).
+        if (FakePlayers.isFakePlayer(serverPlayer)) {
+            return InteractionResult.PASS;
+        }
         // Sneaking with an item in hand means "place/use the item against the block" — let vanilla run.
         if (player.isSecondaryUseActive() && !player.getItemInHand(hand).isEmpty()) {
             return InteractionResult.PASS;

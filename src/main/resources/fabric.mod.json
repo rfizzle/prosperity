@@ -20,6 +20,7 @@
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.ContainerRemovalGameTest",
             "com.rfizzle.prosperity.gametest.DoubleChestGameTest",
+            "com.rfizzle.prosperity.gametest.FakePlayerGuardGameTest",
             "com.rfizzle.prosperity.gametest.InstancedLootDataGameTest",
             "com.rfizzle.prosperity.gametest.InstancedLootGameTest",
             "com.rfizzle.prosperity.gametest.LootNullificationGameTest",
