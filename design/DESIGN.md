@@ -112,15 +112,20 @@ The specs below seed that work.
 **Unlooted Container Indicator Sprite (CRITICAL):**
 ```
 Theme: Treasure / undiscovered loot
-Subject: Star or sparkle indicator icon
-Style: Minecraft HUD overlay icon, pixel art
-Size: 16x16
-Colors: Gold (#FFD700) primary, warm amber (#F0C040) secondary,
-        slight white (#FFFFFF) center highlight
+Subject: Four-point sparkle indicator icon
+Style: Minecraft world overlay icon, pixel art
+Size: 16x16 per frame — a 4-frame animated strip (16x64), frametime 5,
+      no interpolation. The sparkle pulses small → medium → large → medium
+      and loops (~1s twinkle cycle).
+Colors: Gold (#FFD700) body, gold-deep (#DAA520) spike tips,
+        diamond cyan (#4EEAED) inner glow, bone (#E8E0D4) hot-white core.
+        Emissive — no ink outline; spike tips carry the dark edge.
 Notes: Must be immediately recognizable as "something valuable here."
-       Clean silhouette. Will render as a world overlay above containers.
-       Needs to be visible against varied block backgrounds. Subtle
-       animation-ready (will bob in-game). No background — transparent.
+       Clean silhouette. Renders as a world overlay above containers and
+       bobs in-game (on top of the texture's own twinkle). A sparkle, not
+       another chest, so it stays distinct from Prosperity's static chest
+       glyph. Visible against varied block backgrounds. No background —
+       transparent.
 ```
 
 **Recipe Browser Icon (EMI/REI/JEI Tab):**

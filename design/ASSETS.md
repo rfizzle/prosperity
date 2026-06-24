@@ -24,7 +24,7 @@
 
 | Asset | `.glyph` source | Final asset |
 |---|---|---|
-| Unlooted container overlay | **MISSING** | `assets/prosperity/textures/overlay/unlooted.png` |
+| Unlooted container overlay | `art/glyphs/unlooted-sparkle.glyph` | `assets/prosperity/textures/overlay/unlooted.png` |
 | HUD loot-tier icon (treasure chest) | **MISSING** | `.png` masters `art/hud-icon-16.png`, `art/hud-icon-256.png` — not yet wired into resources (HUD pending) |
 
 ## Not yet created
