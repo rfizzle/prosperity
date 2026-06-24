@@ -1,16 +1,22 @@
 package com.rfizzle.prosperity.client.network;
 
 import com.rfizzle.prosperity.client.indicator.UnlootedIndicatorCache;
+import com.rfizzle.prosperity.client.indicator.UnlootedMinecartIndicatorCache;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
 import com.rfizzle.prosperity.network.ContainerLootedS2CPayload;
 import com.rfizzle.prosperity.network.ContainerRemovedS2CPayload;
+import com.rfizzle.prosperity.network.MinecartLootedS2CPayload;
+import com.rfizzle.prosperity.network.MinecartRemovedS2CPayload;
 import com.rfizzle.prosperity.network.RequestUnlootedC2SPayload;
 import com.rfizzle.prosperity.network.UnlootedContainersS2CPayload;
+import com.rfizzle.prosperity.network.UnlootedMinecartsS2CPayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.level.ChunkPos;
 
 import java.util.HashSet;
@@ -52,6 +58,15 @@ public final class ProsperityClientNetworking {
 
         ClientPlayNetworking.registerGlobalReceiver(ContainerRemovedS2CPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> UnlootedIndicatorCache.removePos(payload.pos())));
+
+        ClientPlayNetworking.registerGlobalReceiver(UnlootedMinecartsS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> UnlootedMinecartIndicatorCache.addAll(payload.entityIds())));
+
+        ClientPlayNetworking.registerGlobalReceiver(MinecartLootedS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> UnlootedMinecartIndicatorCache.remove(payload.entityId())));
+
+        ClientPlayNetworking.registerGlobalReceiver(MinecartRemovedS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> UnlootedMinecartIndicatorCache.remove(payload.entityId())));
     }
 
     private static void registerChunkRequests() {
@@ -68,9 +83,20 @@ public final class ProsperityClientNetworking {
 
         ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) ->
                 UnlootedIndicatorCache.removeChunk(chunk.getPos()));
+
+        // A cart that unloads (leaves view) drops out of the flat id set; its chunk request re-adds it
+        // when the chunk reloads if it is still unlooted. Keeps the set bounded as carts come and go.
+        ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
+            if (entity instanceof AbstractMinecartContainer) {
+                UnlootedMinecartIndicatorCache.remove(entity.getId());
+            }
+        });
     }
 
     private static void registerCleanup() {
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> UnlootedIndicatorCache.clear());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            UnlootedIndicatorCache.clear();
+            UnlootedMinecartIndicatorCache.clear();
+        });
     }
 }

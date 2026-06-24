@@ -2,6 +2,7 @@ package com.rfizzle.prosperity.network;
 
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.loot.UnlootedContainers;
+import com.rfizzle.prosperity.loot.UnlootedMinecarts;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -9,6 +10,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,9 @@ public final class ProsperityNetworking {
         PayloadTypeRegistry.playS2C().register(UnlootedContainersS2CPayload.TYPE, UnlootedContainersS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ContainerLootedS2CPayload.TYPE, ContainerLootedS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ContainerRemovedS2CPayload.TYPE, ContainerRemovedS2CPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(UnlootedMinecartsS2CPayload.TYPE, UnlootedMinecartsS2CPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(MinecartLootedS2CPayload.TYPE, MinecartLootedS2CPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(MinecartRemovedS2CPayload.TYPE, MinecartRemovedS2CPayload.CODEC);
     }
 
     private static void registerServerHandlers() {
@@ -90,13 +95,17 @@ public final class ProsperityNetworking {
         if (player.connection == null || !Prosperity.getConfig().enableVisualIndicators) {
             return;
         }
-        if (!ServerPlayNetworking.canSend(player, UnlootedContainersS2CPayload.TYPE)) {
-            return;
+        ServerLevel level = player.serverLevel();
+        if (ServerPlayNetworking.canSend(player, UnlootedContainersS2CPayload.TYPE)) {
+            List<UnlootedContainersS2CPayload.Entry> entries =
+                    UnlootedContainers.scanChunk(level, payload.chunkPos(), player.getUUID());
+            // Reply even when empty so the client can clear any stale indicators it cached for the chunk.
+            ServerPlayNetworking.send(player, new UnlootedContainersS2CPayload(payload.chunkPos(), entries));
         }
-        List<UnlootedContainersS2CPayload.Entry> entries =
-                UnlootedContainers.scanChunk(player.serverLevel(), payload.chunkPos(), player.getUUID());
-        // Reply even when empty so the client can clear any stale indicators it cached for the chunk.
-        ServerPlayNetworking.send(player, new UnlootedContainersS2CPayload(payload.chunkPos(), entries));
+        if (ServerPlayNetworking.canSend(player, UnlootedMinecartsS2CPayload.TYPE)) {
+            List<Integer> minecarts = UnlootedMinecarts.scanChunk(level, payload.chunkPos(), player.getUUID());
+            ServerPlayNetworking.send(player, new UnlootedMinecartsS2CPayload(minecarts));
+        }
     }
 
     /**
@@ -119,6 +128,31 @@ public final class ProsperityNetworking {
         ContainerRemovedS2CPayload payload = new ContainerRemovedS2CPayload(pos);
         for (ServerPlayer player : PlayerLookup.tracking(level, pos)) {
             if (ServerPlayNetworking.canSend(player, ContainerRemovedS2CPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+            }
+        }
+    }
+
+    /**
+     * Tell a single player that they have just generated loot from the container minecart with network
+     * id {@code entityId}, so their client drops its unlooted indicator there (S-038). The minecart
+     * parallel of {@link #sendContainerLooted}.
+     */
+    public static void sendMinecartLooted(ServerPlayer player, int entityId) {
+        if (ServerPlayNetworking.canSend(player, MinecartLootedS2CPayload.TYPE)) {
+            ServerPlayNetworking.send(player, new MinecartLootedS2CPayload(entityId));
+        }
+    }
+
+    /**
+     * Tell every client tracking {@code cart} that the container minecart is gone, so each drops its
+     * unlooted indicator. Used on cart destruction/death (S-038); the block-removal mixin (S-008) does
+     * not cover entities. The minecart parallel of {@link #sendContainerRemoved}.
+     */
+    public static void sendMinecartRemoved(ServerLevel level, AbstractMinecartContainer cart) {
+        MinecartRemovedS2CPayload payload = new MinecartRemovedS2CPayload(cart.getId());
+        for (ServerPlayer player : PlayerLookup.tracking(cart)) {
+            if (ServerPlayNetworking.canSend(player, MinecartRemovedS2CPayload.TYPE)) {
                 ServerPlayNetworking.send(player, payload);
             }
         }

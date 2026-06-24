@@ -50,7 +50,7 @@
         {
           "type": "prose",
           "html": [
-            "Containers you have never opened display a small gold sparkle sprite hovering above the block; containers you have looted show nothing. No more re-checking every chest in a stronghold or mansion.",
+            "Containers you have never opened display a small gold sparkle sprite hovering above them; containers you have looted show nothing. No more re-checking every chest in a stronghold or mansion. Container minecarts carry the same sparkle, anchored to the cart so it follows along as the minecart moves.",
             "The indicator is a world-space overlay (not a HUD element), driven client-side from lightweight per-chunk requests as chunks load."
           ]
         }

@@ -1,6 +1,7 @@
 package com.rfizzle.prosperity.loot;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.network.ProsperityNetworking;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -63,5 +64,17 @@ public final class MinecartLootInteraction {
 
         InstancedLootInteraction.serveInstance(adapter, serverPlayer);
         return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * Drop the unlooted indicator when a container minecart is destroyed (S-038). Called from
+     * {@code EntityRemoveMixin} on genuine removal (death/discard, not chunk unload) — the entity
+     * parallel of {@link InstancedLootInteraction#onContainerRemoved}. Gates on the cart being a loot
+     * container so a plain player-placed cart's destruction sends nothing.
+     */
+    public static void onMinecartRemoved(ServerLevel level, AbstractMinecartContainer cart) {
+        if (new MinecartContainerAdapter(level, cart).isLootContainer()) {
+            ProsperityNetworking.sendMinecartRemoved(level, cart);
+        }
     }
 }

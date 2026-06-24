@@ -129,6 +129,52 @@ class PayloadCodecTest {
         assertThrows(DecoderException.class, () -> UnlootedContainersS2CPayload.CODEC.decode(buf));
     }
 
+    // --- UnlootedMinecartsS2C / MinecartLootedS2C / MinecartRemovedS2C (entity-keyed, S-038) ---
+
+    @Test
+    void unlootedMinecartsS2CEmpty() {
+        var original = new UnlootedMinecartsS2CPayload(List.of());
+        var decoded = roundTrip(UnlootedMinecartsS2CPayload.CODEC, original);
+        assertTrue(decoded.entityIds().isEmpty());
+        assertEquals(original, decoded);
+    }
+
+    @Test
+    void unlootedMinecartsS2CMultiEntryLossless() {
+        var original = new UnlootedMinecartsS2CPayload(List.of(1, 42, 1024, Integer.MAX_VALUE));
+        assertEquals(original, roundTrip(UnlootedMinecartsS2CPayload.CODEC, original));
+    }
+
+    @Test
+    void unlootedMinecartsS2CRejectsOversizedOnEncode() {
+        List<Integer> ids = new ArrayList<>(UnlootedMinecartsS2CPayload.MAX_ENTRIES + 1);
+        for (int i = 0; i <= UnlootedMinecartsS2CPayload.MAX_ENTRIES; i++) {
+            ids.add(i);
+        }
+        var payload = new UnlootedMinecartsS2CPayload(ids);
+        FriendlyByteBuf buf = buf();
+        assertThrows(EncoderException.class, () -> UnlootedMinecartsS2CPayload.CODEC.encode(buf, payload));
+    }
+
+    @Test
+    void unlootedMinecartsS2CRejectsBogusSizeOnDecode() {
+        FriendlyByteBuf buf = buf();
+        buf.writeVarInt(Integer.MAX_VALUE); // entry count — bogus
+        assertThrows(DecoderException.class, () -> UnlootedMinecartsS2CPayload.CODEC.decode(buf));
+    }
+
+    @Test
+    void minecartLootedS2C() {
+        var original = new MinecartLootedS2CPayload(73);
+        assertEquals(original, roundTrip(MinecartLootedS2CPayload.CODEC, original));
+    }
+
+    @Test
+    void minecartRemovedS2C() {
+        var original = new MinecartRemovedS2CPayload(Integer.MAX_VALUE);
+        assertEquals(original, roundTrip(MinecartRemovedS2CPayload.CODEC, original));
+    }
+
     // --- Payload type identity ---
 
     @Test
@@ -139,5 +185,8 @@ class PayloadCodecTest {
         assertEquals(RequestUnlootedC2SPayload.TYPE, new RequestUnlootedC2SPayload(new ChunkPos(0, 0)).type());
         assertEquals(UnlootedContainersS2CPayload.TYPE,
                 new UnlootedContainersS2CPayload(new ChunkPos(0, 0), List.of()).type());
+        assertEquals(UnlootedMinecartsS2CPayload.TYPE, new UnlootedMinecartsS2CPayload(List.of()).type());
+        assertEquals(MinecartLootedS2CPayload.TYPE, new MinecartLootedS2CPayload(0).type());
+        assertEquals(MinecartRemovedS2CPayload.TYPE, new MinecartRemovedS2CPayload(0).type());
     }
 }

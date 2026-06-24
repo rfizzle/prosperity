@@ -2,6 +2,7 @@ package com.rfizzle.prosperity.loot;
 
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
+import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.NonNullList;
@@ -97,8 +98,9 @@ public final class MinecartContainerAdapter implements ContainerAdapter {
 
     @Override
     public void notifyGenerated(ServerPlayer player) {
-        // Minecart indicators are entity-anchored, which the block-keyed indicator protocol cannot
-        // address; their looted push lands with the entity-anchored sync (S-038).
+        // Minecart indicators are entity-anchored (S-038): push the looted packet keyed by the cart's
+        // network id so the player's client drops its sparkle for this cart only.
+        ProsperityNetworking.sendMinecartLooted(player, cart.getId());
     }
 
     @Override

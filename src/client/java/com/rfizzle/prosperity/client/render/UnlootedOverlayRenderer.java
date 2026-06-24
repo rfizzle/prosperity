@@ -4,13 +4,17 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.client.indicator.UnlootedIndicatorCache;
+import com.rfizzle.prosperity.client.indicator.UnlootedMinecartIndicatorCache;
 import com.rfizzle.prosperity.client.network.ClientProsperityData;
 import com.rfizzle.prosperity.indicator.IndicatorMath;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Camera;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -29,6 +33,11 @@ import java.util.Set;
  * applies the camera transform. Per indicator: a ±0.05 sinusoidal bob, a distance fade over the final
  * {@link IndicatorMath#FADE_BAND} blocks, depth-test off within the xray range and on beyond it, and
  * the animation strip's current frame.</p>
+ *
+ * <p>Block containers anchor above their top face from the per-chunk {@link UnlootedIndicatorCache}.
+ * Container minecarts move, so they anchor to the live entity resolved by network id each frame from
+ * the flat {@link UnlootedMinecartIndicatorCache} (S-038), at the cart's partial-tick-interpolated
+ * position; an id whose entity can no longer be resolved is silently skipped.</p>
  */
 public final class UnlootedOverlayRenderer {
 
@@ -48,7 +57,8 @@ public final class UnlootedOverlayRenderer {
         if (!ClientProsperityData.visualIndicators() || !Prosperity.getConfig().client.showIndicators) {
             return;
         }
-        if (UnlootedIndicatorCache.isEmpty() || context.world() == null) {
+        if ((UnlootedIndicatorCache.isEmpty() && UnlootedMinecartIndicatorCache.isEmpty())
+                || context.world() == null) {
             return;
         }
         MultiBufferSource consumers = context.consumers();
@@ -76,7 +86,25 @@ public final class UnlootedOverlayRenderer {
         boolean drewAny = false;
         for (Map.Entry<ChunkPos, Set<BlockPos>> chunk : UnlootedIndicatorCache.view().entrySet()) {
             for (BlockPos blockPos : chunk.getValue()) {
-                drewAny |= renderOne(pose, consumers, cam, cameraRotation, blockPos,
+                // Centre of the block's top face, raised by the hover height.
+                drewAny |= renderBillboard(pose, consumers, cam, cameraRotation,
+                        blockPos.getX() + 0.5, blockPos.getY() + 1.0 + HOVER, blockPos.getZ() + 0.5,
+                        bob, v0, v1, renderDistance, xrayDistance);
+            }
+        }
+
+        // Container minecarts move, so anchor each sparkle to the live entity resolved by id this frame,
+        // at its partial-tick-interpolated position; a stale id whose entity is gone is silently skipped.
+        if (!UnlootedMinecartIndicatorCache.isEmpty()) {
+            ClientLevel level = context.world();
+            for (int entityId : UnlootedMinecartIndicatorCache.view()) {
+                Entity entity = level.getEntity(entityId);
+                if (!(entity instanceof AbstractMinecartContainer cart) || cart.isRemoved()) {
+                    continue;
+                }
+                Vec3 anchor = cart.getPosition(partialTick);
+                drewAny |= renderBillboard(pose, consumers, cam, cameraRotation,
+                        anchor.x, anchor.y + cart.getBbHeight() + HOVER, anchor.z,
                         bob, v0, v1, renderDistance, xrayDistance);
             }
         }
@@ -87,13 +115,12 @@ public final class UnlootedOverlayRenderer {
         }
     }
 
-    private static boolean renderOne(PoseStack pose, MultiBufferSource consumers, Vec3 cam,
-            Quaternionf cameraRotation, BlockPos blockPos, double bob, float v0, float v1,
-            double renderDistance, double xrayDistance) {
-        // Centre of the block's top face, raised by the hover height.
-        double dx = blockPos.getX() + 0.5 - cam.x;
-        double dy = blockPos.getY() + 1.0 + HOVER - cam.y;
-        double dz = blockPos.getZ() + 0.5 - cam.z;
+    private static boolean renderBillboard(PoseStack pose, MultiBufferSource consumers, Vec3 cam,
+            Quaternionf cameraRotation, double anchorX, double anchorY, double anchorZ, double bob,
+            float v0, float v1, double renderDistance, double xrayDistance) {
+        double dx = anchorX - cam.x;
+        double dy = anchorY - cam.y;
+        double dz = anchorZ - cam.z;
 
         double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         float alpha = (float) IndicatorMath.fadeAlpha(distance, renderDistance);
