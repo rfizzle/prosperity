@@ -66,6 +66,14 @@ public class UnlootedSyncGameTest implements FabricGameTest {
         return entries.stream().anyMatch(e -> e.toBlockPos(chunkPos).equals(abs));
     }
 
+    /** The reported slot count of the entry at {@code rel}, or {@code -1} if there is none. */
+    private int slotsAt(List<Entry> entries, GameTestHelper helper, BlockPos rel) {
+        BlockPos abs = helper.absolutePos(rel);
+        ChunkPos chunkPos = new ChunkPos(abs);
+        return entries.stream().filter(e -> e.toBlockPos(chunkPos).equals(abs))
+                .findFirst().map(Entry::slots).orElse(-1);
+    }
+
     /** One player generating loot shrinks only their own unlooted set; the other still sees the chest. */
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
     public void scanIsPerPlayer(GameTestHelper helper) {
@@ -74,18 +82,21 @@ public class UnlootedSyncGameTest implements FabricGameTest {
         ServerPlayer playerA = spawnPlayerAt(helper, rel);
         UUID b = UUID.randomUUID();
 
+        // Assert per position rather than whole-chunk counts: gametest structures pack several into
+        // one chunk and run concurrently, so a neighbour's loot chest can share this chunk.
         List<Entry> beforeA = scan(helper, rel, playerA.getUUID());
-        helper.assertTrue(beforeA.size() == 1 && entryAt(beforeA, helper, rel),
+        helper.assertTrue(entryAt(beforeA, helper, rel),
                 "player A should see the unlooted chest before opening it");
-        helper.assertTrue(beforeA.get(0).slots() == 27, "a single chest should report 27 slots");
-        helper.assertTrue(scan(helper, rel, b).size() == 1, "player B should also see the unlooted chest");
+        helper.assertTrue(slotsAt(beforeA, helper, rel) == 27, "a single chest should report 27 slots");
+        helper.assertTrue(entryAt(scan(helper, rel, b), helper, rel),
+                "player B should also see the unlooted chest");
 
         InstancedLootInteraction.generateAndStore(
                 new BlockEntityContainerAdapter(helper.getLevel(), helper.absolutePos(rel), be), playerA);
 
-        helper.assertTrue(scan(helper, rel, playerA.getUUID()).isEmpty(),
+        helper.assertFalse(entryAt(scan(helper, rel, playerA.getUUID()), helper, rel),
                 "player A should no longer see the chest after generating");
-        helper.assertTrue(scan(helper, rel, b).size() == 1,
+        helper.assertTrue(entryAt(scan(helper, rel, b), helper, rel),
                 "player B's unlooted set should be unaffected by player A generating");
         helper.succeed();
     }
@@ -106,12 +117,14 @@ public class UnlootedSyncGameTest implements FabricGameTest {
         ((ChestBlockEntity) helper.getBlockEntity(leftRel)).setLootTable(TABLE);
         ((ChestBlockEntity) helper.getBlockEntity(rightRel)).setLootTable(TABLE);
 
-        // leftRel (smaller X) is the primary half, so the single indicator anchors there.
+        // leftRel (smaller X) is the primary half, so the single indicator anchors there. Assert per
+        // position: a neighbouring test's chest may share this chunk, so a whole-chunk count is unsafe.
         List<Entry> entries = scan(helper, leftRel, UUID.randomUUID());
-        helper.assertTrue(entries.size() == 1, "a double chest should yield exactly one indicator entry");
         helper.assertTrue(entryAt(entries, helper, leftRel),
                 "the double chest's indicator should anchor at the primary (left) half");
-        helper.assertTrue(entries.get(0).slots() == 54, "a double chest should report 54 slots");
+        helper.assertFalse(entryAt(entries, helper, rightRel),
+                "the secondary (right) half should not emit its own indicator");
+        helper.assertTrue(slotsAt(entries, helper, leftRel) == 54, "a double chest should report 54 slots");
         helper.succeed();
     }
 
@@ -120,7 +133,7 @@ public class UnlootedSyncGameTest implements FabricGameTest {
     public void plainStorageIsExcluded(GameTestHelper helper) {
         BlockPos rel = new BlockPos(1, 1, 1);
         helper.setBlock(rel, Blocks.CHEST);
-        helper.assertTrue(scan(helper, rel, UUID.randomUUID()).isEmpty(),
+        helper.assertFalse(entryAt(scan(helper, rel, UUID.randomUUID()), helper, rel),
                 "a player-placed chest with no loot table should never show an indicator");
         helper.succeed();
     }

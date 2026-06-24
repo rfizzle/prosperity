@@ -9,7 +9,7 @@ import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
-import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.loot.LootScaling;
 import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.ArrayList;
@@ -27,7 +27,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import org.jetbrains.annotations.Nullable;
 
@@ -98,29 +97,12 @@ public final class ProsperityCommand {
     }
 
     /**
-     * Resolves the distance tier for a position. Euclidean XZ distance from world origin
-     * feeds {@link ProsperityConfig#tierFor(double)}; the Nether uses those raw coordinates
-     * unchanged, and the End forces the highest-{@code minDistance} tier when
-     * {@code endAlwaysMaxTier} is set. Mirrors the generation-side rule promoted in S-011.
+     * Resolves the distance tier for a position, delegating to the shared generation-side resolver
+     * ({@link LootScaling#resolveTier}) so {@code info} and loot generation never drift. Exposed for
+     * gametests.
      */
     public static DistanceTier resolveTier(ServerLevel level, double x, double z) {
-        ProsperityConfig cfg = Prosperity.getConfig();
-        if (cfg.endAlwaysMaxTier && level.dimension() == Level.END) {
-            return maxTier(cfg);
-        }
-        return cfg.tierFor(Math.sqrt(x * x + z * z));
-    }
-
-    private static DistanceTier maxTier(ProsperityConfig cfg) {
-        DistanceTier best = null;
-        if (cfg.distanceTiers != null) {
-            for (DistanceTier tier : cfg.distanceTiers) {
-                if (tier != null && (best == null || tier.minDistance() > best.minDistance())) {
-                    best = tier;
-                }
-            }
-        }
-        return best != null ? best : ProsperityConfig.LOCAL_SENTINEL;
+        return LootScaling.resolveTier(level, x, z);
     }
 
     // ---- reset / refresh ----

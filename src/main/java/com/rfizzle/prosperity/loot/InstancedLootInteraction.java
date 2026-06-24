@@ -3,6 +3,7 @@ package com.rfizzle.prosperity.loot;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
+import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
@@ -30,6 +31,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -219,12 +221,15 @@ public final class InstancedLootInteraction {
         ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
         LootRef primaryRef = resolveTable(primaryAdapter);
         LootRef secondaryRef = resolveTable(secondaryAdapter);
+        // The two halves are adjacent, so one tier resolved at the primary applies to both.
+        Vec3 origin = primaryAdapter.origin();
+        DistanceTier tier = LootScaling.effectiveTier(level, origin.x, origin.z);
         NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
                 level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), player,
-                DoubleChestLayout.PRIMARY_SLOTS);
+                DoubleChestLayout.PRIMARY_SLOTS, tier);
         NonNullList<ItemStack> secondaryLoot = InstancedLootGenerator.generate(
                 level, secondaryAdapter.origin(), secondaryRef.key(), secondaryRef.seed(), player,
-                DoubleChestLayout.PRIMARY_SLOTS);
+                DoubleChestLayout.PRIMARY_SLOTS, tier);
 
         NonNullList<ItemStack> combined =
                 NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
@@ -237,6 +242,7 @@ public final class InstancedLootInteraction {
             data.markGenerated(primaryRef.key(), primaryRef.seed());
             data.setInventory(uuid, combined);
             data.setLastGeneratedTick(uuid, level.getGameTime());
+            data.setTierName(tier.name());
         });
         secondaryAdapter.update(data -> {
             data.markGenerated(secondaryRef.key(), secondaryRef.seed());
@@ -288,13 +294,16 @@ public final class InstancedLootInteraction {
         }
 
         LootRef ref = resolveTable(adapter);
+        Vec3 origin = adapter.origin();
+        DistanceTier tier = LootScaling.effectiveTier(adapter.level(), origin.x, origin.z);
         NonNullList<ItemStack> generated = InstancedLootGenerator.generate(
-                adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size());
+                adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size(), tier);
 
         adapter.update(data -> {
             data.markGenerated(ref.key(), ref.seed());
             data.setInventory(uuid, generated);
             data.setLastGeneratedTick(uuid, adapter.level().getGameTime());
+            data.setTierName(tier.name());
         });
         adapter.clearLootTable();
         // First generation only (return visits returned above): drop this player's unlooted indicator.
