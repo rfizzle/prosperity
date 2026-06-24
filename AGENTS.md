@@ -172,8 +172,8 @@ reference for producing a good one. The normative spec is concord's
    repo-local `.ai/review-criteria.yml` override exists). For player-facing
    work it scores a **Site docs** category — a feature, config, command, or
    gameplay change that ships without the matching `site/` page update is
-   flagged. `ci.yml` runs the full build, unit tests + gametests, and uploads
-   coverage + results to Codecov.
+   flagged. `ci.yml` runs the full build, unit tests + gametests, with JaCoCo
+   coverage.
 7. **Human review + merge.**
 
 `@claude <message>` in any issue or PR comment also invokes Claude for ad-hoc
