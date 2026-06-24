@@ -2,6 +2,7 @@ package com.rfizzle.prosperity;
 
 import com.rfizzle.prosperity.command.ProsperityCommand;
 import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -19,6 +20,7 @@ public class Prosperity implements ModInitializer {
     public void onInitialize() {
         config = ProsperityConfig.load();
         ProsperityNetworking.register();
+        InstancedLootInteraction.register();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 ProsperityCommand.register(dispatcher));
         LOGGER.info("Prosperity initialized");

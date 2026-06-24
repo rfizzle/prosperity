@@ -19,6 +19,7 @@
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.InstancedLootComponentGameTest",
+            "com.rfizzle.prosperity.gametest.InstancedLootGameTest",
             "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest"
         ],
         "cardinal-components": ["com.rfizzle.prosperity.component.ProsperityComponents"]
