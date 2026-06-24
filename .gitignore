@@ -1,15 +1,16 @@
-# gradle
-.gradle/
-build/
-out/
-classes/
+# gradle / build output
+# Root-anchored: these are created only at the repo root. A bare `out/`,
+# `classes/`, etc. would also match a same-named source package anywhere in the
+# tree and silently drop it (as a bare `config/` did to the Java config package).
+/.gradle/
+/build/
+/out/
+/classes/
 
 # loom dev runtime
-run/
-mods/
-logs/
-# Root-anchored: the dev-runtime config dir only. A bare `config/` would also
-# match the `…/prosperity/config/` Java source package and silently drop it.
+/run/
+/mods/
+/logs/
 /config/
 
 # IDE
