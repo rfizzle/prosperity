@@ -18,6 +18,7 @@
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
+            "com.rfizzle.prosperity.gametest.DoubleChestGameTest",
             "com.rfizzle.prosperity.gametest.InstancedLootDataGameTest",
             "com.rfizzle.prosperity.gametest.InstancedLootGameTest",
             "com.rfizzle.prosperity.gametest.LootNullificationGameTest",

@@ -6,6 +6,7 @@ import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -46,10 +47,12 @@ import org.jetbrains.annotations.Nullable;
  * {@link com.rfizzle.prosperity.mixin.RandomizableContainerUnpackMixin unpack-safety mixin} blocks
  * any leftover unpack call, so hoppers and comparators cannot drain the global loot.
  *
- * <p>Scope is single containers up to one chest's worth of slots. Double chests (S-007), the
- * unlooted-indicator packets (S-009), and the first-generation notification (S-021) land in their
- * own stories. The generation and persist steps are split out as plain static methods so gametests
- * can drive them without a live screen.
+ * <p>A double chest is served as one 54-slot instance (S-007): both halves' loot is generated and
+ * stored on the primary half (the lexicographically smaller position, see {@link DoubleChestLayout}),
+ * the secondary half holds only a redirect marker, and both halves' loot tables are nulled. The
+ * unlooted-indicator packets (S-009) and the first-generation notification (S-021) land in their own
+ * stories. The generation and persist steps are split out as plain static methods so gametests can
+ * drive them without a live screen.
  */
 public final class InstancedLootInteraction {
 
@@ -81,10 +84,10 @@ public final class InstancedLootInteraction {
             return InteractionResult.PASS;
         }
         BlockState state = level.getBlockState(pos);
-        // Defer double chests to S-007; instance only single containers for now.
+        // A double chest is served as one combined 54-slot instance from its primary half (S-007).
         if (state.getBlock() instanceof ChestBlock && state.hasProperty(ChestBlock.TYPE)
                 && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
-            return InteractionResult.PASS;
+            return serveDouble((ServerLevel) level, pos, container, state, serverPlayer);
         }
         int size = container.getContainerSize();
         if (size <= 0 || size > 54 || size % 9 != 0) {
@@ -107,6 +110,112 @@ public final class InstancedLootInteraction {
     public static boolean isLootContainer(RandomizableContainerBlockEntity container,
             @Nullable InstancedLootData data) {
         return container.getLootTable() != null || (data != null && data.isGenerated());
+    }
+
+    /**
+     * Resolve the double chest's two halves and serve the combined instance. Falls through to vanilla
+     * if the connected half is not a loaded chest block entity, or if neither half is a loot
+     * container (a player-placed double chest stays shared).
+     */
+    private static InteractionResult serveDouble(ServerLevel level, BlockPos pos,
+            RandomizableContainerBlockEntity clicked, BlockState state, ServerPlayer player) {
+        Direction connected = ChestBlock.getConnectedDirection(state);
+        BlockPos otherPos = pos.relative(connected);
+        if (!(clicked instanceof ChestBlockEntity)
+                || !(level.getBlockEntity(otherPos) instanceof ChestBlockEntity)) {
+            return InteractionResult.PASS;
+        }
+
+        BlockPos primaryPos = DoubleChestLayout.primary(pos, otherPos);
+        BlockPos secondaryPos = DoubleChestLayout.secondary(pos, otherPos);
+        if (!(level.getBlockEntity(primaryPos) instanceof ChestBlockEntity primary)
+                || !(level.getBlockEntity(secondaryPos) instanceof ChestBlockEntity secondary)) {
+            return InteractionResult.PASS;
+        }
+        if (!isDoubleLootContainer(primary, secondary)) {
+            return InteractionResult.PASS;
+        }
+
+        serveDoubleInstance(level, primaryPos, primary, secondaryPos, secondary, player);
+        return InteractionResult.SUCCESS;
+    }
+
+    /** Whether either half of a double chest carries (or has consumed) a loot table. */
+    private static boolean isDoubleLootContainer(ChestBlockEntity primary, ChestBlockEntity secondary) {
+        return isLootContainer(primary, ProsperityAttachments.get(primary))
+                || isLootContainer(secondary, ProsperityAttachments.get(secondary));
+    }
+
+    /**
+     * Generate-or-retrieve the player's combined 54-slot inventory and open it as one chest screen.
+     * The inventory lives on the primary half; both halves animate and a single open sound plays.
+     */
+    private static void serveDoubleInstance(ServerLevel level, BlockPos primaryPos,
+            ChestBlockEntity primary, BlockPos secondaryPos, ChestBlockEntity secondary,
+            ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        NonNullList<ItemStack> stored =
+                generateAndStoreDouble(level, primaryPos, primary, secondaryPos, secondary, player);
+
+        SimpleContainer screenInventory = new SimpleContainer(DoubleChestLayout.TOTAL_SLOTS);
+        for (int slot = 0; slot < DoubleChestLayout.TOTAL_SLOTS; slot++) {
+            screenInventory.setItem(slot, stored.get(slot).copy());
+        }
+
+        Component title = Component.translatable("container.chestDouble");
+        player.openMenu(new SimpleMenuProvider(
+                (syncId, inventory, opener) -> InstancedLootMenu.create(syncId, inventory, screenInventory,
+                        () -> onCloseDouble(level, primaryPos, secondaryPos, uuid, screenInventory)),
+                title));
+        playSound(level, primaryPos, SoundEvents.CHEST_OPEN);
+        animate(level, primaryPos, primary, true);
+        animate(level, secondaryPos, secondary, true);
+    }
+
+    /**
+     * Roll each half's own loot table into its 27 slots (primary {@code 0..26}, secondary
+     * {@code 27..53}), store the combined inventory on the primary, mark the secondary with a
+     * redirect to the primary, and null both halves' loot tables (S-006). Returns the player's stored
+     * inventory unchanged on a return visit.
+     */
+    public static NonNullList<ItemStack> generateAndStoreDouble(ServerLevel level, BlockPos primaryPos,
+            ChestBlockEntity primary, BlockPos secondaryPos, ChestBlockEntity secondary,
+            ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        InstancedLootData primaryData = ProsperityAttachments.get(primary);
+        if (primaryData != null) {
+            NonNullList<ItemStack> stored = primaryData.getInventory(uuid);
+            if (stored != null) {
+                return stored;
+            }
+        }
+
+        LootRef primaryRef = resolveTable(primary, primaryData);
+        LootRef secondaryRef = resolveTable(secondary, ProsperityAttachments.get(secondary));
+        NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
+                level, primaryPos, primaryRef.key(), primaryRef.seed(), player, DoubleChestLayout.PRIMARY_SLOTS);
+        NonNullList<ItemStack> secondaryLoot = InstancedLootGenerator.generate(
+                level, secondaryPos, secondaryRef.key(), secondaryRef.seed(), player, DoubleChestLayout.PRIMARY_SLOTS);
+
+        NonNullList<ItemStack> combined =
+                NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
+        for (int slot = 0; slot < DoubleChestLayout.PRIMARY_SLOTS; slot++) {
+            combined.set(slot, primaryLoot.get(slot));
+            combined.set(DoubleChestLayout.PRIMARY_SLOTS + slot, secondaryLoot.get(slot));
+        }
+
+        ProsperityAttachments.update(primary, data -> {
+            data.markGenerated(primaryRef.key(), primaryRef.seed());
+            data.setInventory(uuid, combined);
+            data.setLastGeneratedTick(uuid, level.getGameTime());
+        });
+        ProsperityAttachments.update(secondary, data -> {
+            data.markGenerated(secondaryRef.key(), secondaryRef.seed());
+            data.setRedirect(primaryPos);
+        });
+        nullify(primary);
+        nullify(secondary);
+        return combined;
     }
 
     /** Generate-or-retrieve the player's inventory, then open the matching vanilla chest screen. */
@@ -146,27 +255,44 @@ public final class InstancedLootInteraction {
             }
         }
 
-        boolean alreadyGenerated = existing != null && existing.isGenerated();
-        ResourceKey<LootTable> tableKey =
-                alreadyGenerated ? existing.getOriginalLootTable() : be.getLootTable();
-        long seed = alreadyGenerated ? existing.getOriginalSeed() : be.getLootTableSeed();
-        ResourceKey<LootTable> beTable = be.getLootTable();
-        long beSeed = be.getLootTableSeed();
-
+        LootRef ref = resolveTable(be, existing);
         NonNullList<ItemStack> generated =
-                InstancedLootGenerator.generate(level, pos, tableKey, seed, player, be.getContainerSize());
+                InstancedLootGenerator.generate(level, pos, ref.key(), ref.seed(), player, be.getContainerSize());
 
         ProsperityAttachments.update(be, data -> {
-            data.markGenerated(beTable, beSeed);
+            data.markGenerated(ref.key(), ref.seed());
             data.setInventory(uuid, generated);
             data.setLastGeneratedTick(uuid, level.getGameTime());
         });
-        // Sever the block entity's link to the global loot table now that the original is preserved
-        // in the attachment. The unpack-safety mixin backstops any direct call that slips past this.
+        nullify(be);
+        return generated;
+    }
+
+    /**
+     * The loot table and seed to roll from for {@code be}: the original preserved in the attachment
+     * once generation has happened (the live block-entity fields are nulled by then), otherwise the
+     * block entity's own live fields on a first visit.
+     */
+    private static LootRef resolveTable(RandomizableContainerBlockEntity be,
+            @Nullable InstancedLootData data) {
+        if (data != null && data.isGenerated()) {
+            return new LootRef(data.getOriginalLootTable(), data.getOriginalSeed());
+        }
+        return new LootRef(be.getLootTable(), be.getLootTableSeed());
+    }
+
+    private record LootRef(@Nullable ResourceKey<LootTable> key, long seed) {
+    }
+
+    /**
+     * Sever a block entity's link to the global loot table once its original has been preserved in
+     * the attachment. The unpack-safety mixin backstops any direct {@code unpackLootTable} call that
+     * slips past this.
+     */
+    private static void nullify(RandomizableContainerBlockEntity be) {
         be.setLootTable(null);
         be.setLootTableSeed(0L);
         be.setChanged();
-        return generated;
     }
 
     /** Write a screen inventory back to the player's attachment entry. */
@@ -183,6 +309,21 @@ public final class InstancedLootInteraction {
         if (level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity be) {
             persist(be, uuid, screenInventory);
             playClose(level, pos, be);
+        }
+    }
+
+    /** Persist the combined inventory back to the primary half and close-animate both halves. */
+    private static void onCloseDouble(ServerLevel level, BlockPos primaryPos, BlockPos secondaryPos,
+            UUID uuid, Container screenInventory) {
+        if (level.getBlockEntity(primaryPos) instanceof RandomizableContainerBlockEntity primary) {
+            persist(primary, uuid, screenInventory);
+        }
+        playSound(level, primaryPos, SoundEvents.CHEST_CLOSE);
+        if (level.getBlockEntity(primaryPos) instanceof ChestBlockEntity primary) {
+            animate(level, primaryPos, primary, false);
+        }
+        if (level.getBlockEntity(secondaryPos) instanceof ChestBlockEntity secondary) {
+            animate(level, secondaryPos, secondary, false);
         }
     }
 
