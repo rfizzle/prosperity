@@ -471,18 +471,20 @@ When loot is generated for a container, the structure it belongs to must be dete
 
 ### Interaction with Distance Scaling
 
-Structure overrides are applied **after** the base distance tier is calculated:
+Structure overrides are part of distance scaling, applied **after** the base distance tier is calculated:
 1. Calculate distance tier from world origin (section 3).
-2. Look up the container's structure in the override map.
-3. Apply the override mode:
+2. Look up the container's structure in the configured override list.
+3. Apply the override mode (tiers compared by `minDistance`):
    - `fixed`: Replace the tier entirely.
    - `minimum`: Use `max(distanceTier, overrideTier)`.
    - `maximum`: Use `min(distanceTier, overrideTier)`.
 4. The resolved tier is used for quantity multiplier, quality modifier, and loot injection eligibility.
 
+Because overrides are part of scaling, `enableDistanceScaling = false` suppresses them along with distance bands (the generation falls back to vanilla quantities/quality everywhere), and structure detection is skipped entirely when no overrides are configured.
+
 ### Implementation Notes
 
-- Structure overrides stored in config as a list of `{structure, mode, tier}` objects. Parsed at config load into a `Map<ResourceLocation, StructureOverride>`.
+- Structure overrides are stored in config as a list of `{structure, mode, tier}` objects and matched by structure id at generation time. The list is short and matched only once per container's first generation, so a linear scan is used rather than a derived map; structure detection (`getAllStructuresAt`) dominates the cost. An override naming an unknown mode or a tier the config does not define degrades gracefully to pure distance scaling.
 - `StructureManager` access requires the `ServerLevel` — available during loot generation since it happens server-side.
 - Structure lookup is cached in the attachment alongside the generated inventory (the structure won't change after generation).
 - Modded structures are supported automatically — any `ResourceLocation` in the structure registry works.

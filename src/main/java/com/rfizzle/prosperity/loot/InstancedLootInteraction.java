@@ -221,9 +221,10 @@ public final class InstancedLootInteraction {
         ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
         LootRef primaryRef = resolveTable(primaryAdapter);
         LootRef secondaryRef = resolveTable(secondaryAdapter);
-        // The two halves are adjacent, so one tier resolved at the primary applies to both.
+        // The two halves are adjacent, so one tier (and structure) resolved at the primary applies to both.
         Vec3 origin = primaryAdapter.origin();
-        DistanceTier tier = LootScaling.effectiveTier(level, origin.x, origin.z);
+        LootScaling.ScaledTier scaled = LootScaling.resolveForGeneration(level, origin);
+        DistanceTier tier = scaled.tier();
         NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
                 level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), player,
                 DoubleChestLayout.PRIMARY_SLOTS, tier);
@@ -243,6 +244,7 @@ public final class InstancedLootInteraction {
             data.setInventory(uuid, combined);
             data.setLastGeneratedTick(uuid, level.getGameTime());
             data.setTierName(tier.name());
+            data.setStructure(scaled.structure());
         });
         secondaryAdapter.update(data -> {
             data.markGenerated(secondaryRef.key(), secondaryRef.seed());
@@ -295,7 +297,8 @@ public final class InstancedLootInteraction {
 
         LootRef ref = resolveTable(adapter);
         Vec3 origin = adapter.origin();
-        DistanceTier tier = LootScaling.effectiveTier(adapter.level(), origin.x, origin.z);
+        LootScaling.ScaledTier scaled = LootScaling.resolveForGeneration(adapter.level(), origin);
+        DistanceTier tier = scaled.tier();
         NonNullList<ItemStack> generated = InstancedLootGenerator.generate(
                 adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size(), tier);
 
@@ -304,6 +307,7 @@ public final class InstancedLootInteraction {
             data.setInventory(uuid, generated);
             data.setLastGeneratedTick(uuid, adapter.level().getGameTime());
             data.setTierName(tier.name());
+            data.setStructure(scaled.structure());
         });
         adapter.clearLootTable();
         // First generation only (return visits returned above): drop this player's unlooted indicator.
