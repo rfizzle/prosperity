@@ -4,7 +4,7 @@ Minecraft 1.21.1 Fabric mod. Instanced loot overhaul.
 
 **Asset philosophy:** Container blocks stay vanilla — the proxy layer never registers custom blocks, replaces block entities, or retextures/swaps world-gen blocks, which keeps full compatibility with Sodium, Enhanced Block Entities (EBE), and shader packs (see Architectural philosophy below). That is an architectural constraint on the block layer, **not** a vanilla-purity stance: mod-specific UI, HUD, and world-overlay sprites are custom pixel art authored through Concord's glyph pipeline (`/glyph`, `mc-textures` skill, concord `design/DESIGN-SYSTEM.md` §8, with `.glyph` sources kept beside the masters) — see the asset inventory in `design/DESIGN.md`. Unlooted-container indicators render as client-side sprite overlays via `WorldRenderEvents.LAST`. Sounds stay vanilla where the cue is organic (chest lids, XP pickup — physical sounds vanilla already nails); custom synthesized cues are added through the `/sfx` pipeline where a sound benefits from its own identity (concord `design/DESIGN-SYSTEM.md` §9).
 
-**Architectural philosophy:** Zero-trust proxy. The mod intercepts interactions with vanilla loot containers dynamically via events — it does not register custom blocks or entities, replace block entities, or modify world generation. Per-player loot state is attached to the vanilla loot sources — `RandomizableContainerBlockEntity` block entities, `AbstractMinecartContainer` minecarts, and `BrushableBlockEntity` blocks — via persistent Fabric data attachments (the same `AttachmentType` mechanism the rest of the Concord suite uses, here on block-entity and entity targets). The vanilla block, entity, model, block entity type, and renderer are never touched.
+**Architectural philosophy:** Zero-trust proxy. The mod intercepts interactions with vanilla loot containers dynamically via events — it does not register custom blocks or entities, replace block entities, or modify world generation. Per-player loot state is attached to the vanilla loot sources — `RandomizableContainerBlockEntity` block entities and `AbstractMinecartContainer` minecarts — via persistent Fabric data attachments (the same `AttachmentType` mechanism the rest of the Concord suite uses, here on block-entity and entity targets). The vanilla block, entity, model, block entity type, and renderer are never touched.
 
 ---
 
@@ -43,29 +43,16 @@ Prosperity instances every naturally-generated, loot-table-bearing container, ac
 **Container entities** — `AbstractMinecartContainer`:
 - Chest minecarts and hopper minecarts. Mineshaft loot is overwhelmingly chest minecarts, so this is first-class coverage, not an afterthought.
 
-**Brushable blocks** — `BrushableBlockEntity`:
-- Suspicious sand and suspicious gravel (trail ruins, desert pyramid digs, ocean/cold ruins archaeology). The extraction model differs from a container screen — see [Brushable Blocks](#brushable-blocks-archaeology).
-
-**Not instanced:** Ender chests (already per-player), decorated pots (no loot table in vanilla world generation — they hold a single hand-placed item, not a rolled table).
+**Not instanced:** Ender chests (already per-player), decorated pots (no loot table in vanilla world generation — they hold a single hand-placed item, not a rolled table), and brushable blocks — suspicious sand and gravel (`BrushableBlockEntity`) stay vanilla (global, first-come), as archaeology is a niche feature whose self-destroying, single-item extraction model is disproportionately costly to instance per player.
 
 ### Container Adapters
 
-The proxy reaches loot through a thin **adapter** over the vanilla loot-source shapes rather than assuming a single class. An adapter exposes the operations the instancing loop needs — read/clear the loot table and seed, container size, display name, world position — so the §1 core loop (generate-or-retrieve, nullify, serve, persist, scale) is written once against the adapter, not against `RandomizableContainerBlockEntity` directly. Three adapters ship:
+The proxy reaches loot through a thin **adapter** over the vanilla loot-source shapes rather than assuming a single class. An adapter exposes the operations the instancing loop needs — read/clear the loot table and seed, container size, display name, world position — so the §1 core loop (generate-or-retrieve, nullify, serve, persist, scale) is written once against the adapter, not against `RandomizableContainerBlockEntity` directly. Two adapters ship:
 
 - **Block-entity adapter** — wraps `RandomizableContainerBlockEntity`. State lives in an `InstancedLootData` block-entity attachment (§1 Implementation Notes). The common case.
 - **Minecart adapter** — wraps `AbstractMinecartContainer` (chest and hopper minecarts). State is the same `InstancedLootData`, registered as a distinct entity-targeted attachment (`INSTANCED_MINECART_LOOT`) so one state class and codec cover every loot-source shape. Interception is `UseEntityCallback.EVENT`. Loot-table nullification, per-player generation, the virtual screen, distance/structure scaling, and persistence are identical to the block path — only the attachment point and the open/close feedback (no lid block event; play the chest open/close sound at the entity's position) differ. A 5-slot hopper minecart is served through a hopper menu, a 27-slot chest minecart through a chest menu. Because a minecart moves, its unlooted indicator (§2) is anchored to the live entity position, not the per-chunk `BlockPos` cache used for static containers.
-- **Brushable adapter** — wraps `BrushableBlockEntity`; see [Brushable Blocks](#brushable-blocks-archaeology).
 
 **Fake-player guard.** Automation mods (quarries, auto-clickers, item routers) open containers through fake `ServerPlayer` proxies, which pass a plain `instanceof ServerPlayer` check. An interaction is treated as a fake-player open — and passed through to vanilla untouched — when the opener has no live client connection (`connection == null`), is absent from the server player list, or is an instance of a recognised fake-player class. Fake openers never generate, retrieve, or mutate an instance, and never trigger loot-table nullification: a machine pointed at a loot container does nothing, leaving every real player's instance intact and the container untouched until a genuine player visits.
-
-### Brushable Blocks (Archaeology)
-
-Suspicious sand and gravel dispense a single loot-table item when fully brushed, rather than opening a screen. The per-player model mirrors instancing at the granularity of one extraction:
-
-- The first time a player brushes a brushable block, Prosperity generates that player's item from the block's loot table — with distance/structure scaling and the modifier API applied as for containers (§3–§6) — and stores it in a block-entity attachment keyed by UUID. The vanilla loot table and seed are nulled on first generation, exactly as with containers, so vanilla cannot re-roll or drop the global item.
-- Each player brushes out their own item; one player exhausting a block does not deny another. A player who has already extracted from a block gets nothing further from it (no re-brush farming).
-- The brush interaction, dwell time, particles, and item-pop animation stay vanilla — only the *source* of the dispensed item is swapped from the shared loot table to the player's instanced item. The hook point is `BrushableBlockEntity#unpackLootTable` (the same unpack-safety seam used for containers, §1 Implementation Notes).
-- Refresh (§9), the unlooted indicator (§2 — billboarded above the block), and Jade/WTHIT status (§10) treat a brushable block exactly like a container: unextracted reads as unlooted.
 
 ### Double Chest Handling
 
@@ -116,10 +103,10 @@ If a player breaks an instanced loot container:
   - `BlockPos redirect` — on a double chest's secondary half, points at the primary half that holds the shared inventory.
   - The attachment is latent: a naturally-placed storage container has none until loot is generated, so it stays byte-identical to vanilla.
   - **Dirtying invariant:** mutating the attached value in place (e.g. updating `playerInventories`) must be followed by `blockEntity.setChanged()` — only `setAttached(...)` auto-marks the block entity dirty. Every write path goes through one helper that re-attaches or calls `setChanged()`, so no mutation can silently fail to persist.
-- Parallel attachments cover the non-block shapes: `InstancedMinecartLootData` (an **entity** attachment on `AbstractMinecartContainer`) and a brushable attachment on `BrushableBlockEntity`. Both carry the same per-player map plus preserved loot table/seed as `InstancedLootData`, and flow through the same generation, nullification, scaling, and refresh code paths via the container adapter (see Container Adapters).
+- A parallel attachment covers the minecart shape: an **entity** attachment (`INSTANCED_MINECART_LOOT`) on `AbstractMinecartContainer`, reusing the same `InstancedLootData` state and codec as the block-entity attachment, so it flows through the same generation, nullification, scaling, and refresh code paths via the container adapter (see Container Adapters).
 - Virtual container screen: `SimpleInventory` wrapped in a `SimpleMenuProvider`. The `AbstractContainerMenu` subclass syncs slot changes back to the attachment on close (followed by `setChanged()`).
 - `UseBlockCallback.EVENT` handler checks: (1) block entity exists, (2) is `RandomizableContainerBlockEntity`, (3) has a loot table OR has the attachment with `generated=true`. If none of these, pass through to vanilla.
-- Mixin into `RandomizableContainer#unpackLootTable()` (the default method the block entity inherits) as a safety net — if the attachment exists and `generated=true`, skip vanilla generation entirely. This catches edge cases where vanilla code calls unpack directly. Parallel safety-net mixins cover the other shapes: the minecart chest-vehicle unpack method (`ContainerEntity`) and `BrushableBlockEntity#unpackLootTable`.
+- Mixin into `RandomizableContainer#unpackLootTable()` (the default method the block entity inherits) as a safety net — if the attachment exists and `generated=true`, skip vanilla generation entirely. This catches edge cases where vanilla code calls unpack directly. A parallel safety-net mixin covers the minecart shape: the chest-vehicle unpack method on `ContainerEntity`.
 
 ---
 
@@ -167,7 +154,7 @@ In vanilla (and even with instanced loot), players cannot tell whether they've a
 
 - Client-side rendering class: `UnlootedOverlayRenderer`, registered via `WorldRenderEvents.LAST`.
 - Chunk data cache: `Map<ChunkPos, Set<BlockPos>>` on the client, populated from `UnlootedContainersS2C` packets.
-- The server-side handler for the chunk request iterates the chunk's block entities, filters for those carrying `InstancedLootData`, and checks the player's UUID against the attachment's map. Brushable blocks are block entities and are picked up by the same scan.
+- The server-side handler for the chunk request iterates the chunk's block entities, filters for those carrying `InstancedLootData`, and checks the player's UUID against the attachment's map.
 - Container minecarts move, so they are tracked per-entity rather than through the per-chunk `BlockPos` cache: the server includes proxy-managed minecarts the requesting player has not generated in the chunk response, and the client anchors their indicator to the live entity position, refreshing it as the entity moves or is removed.
 - Performance target: smooth rendering with 200+ indicators in view. The billboard sprite is a single quad per indicator — GPU cost is trivial.
 
@@ -1074,13 +1061,13 @@ Features are ordered by dependency and complexity. Infrastructure comes first, t
 ### Phase 0: Infrastructure
 
 1. **Config system** — `ProsperityConfig` class with all server + client fields, JSON serialization, Cloth Config screen builder, `ModMenuIntegration`.
-2. **Data attachment registration** — `InstancedLootData` type + Codec, registered as a persistent block-entity attachment on `RandomizableContainerBlockEntity` (and the parallel entity/brushable attachment types).
+2. **Data attachment registration** — `InstancedLootData` type + Codec, registered as a persistent block-entity attachment on `RandomizableContainerBlockEntity` (and the parallel entity attachment type for minecarts).
 3. **Networking infrastructure** — Packet registration, `CustomPayload` types for all S2C and C2S packets.
 4. **Command registration** — `/prosperity` command tree (section 15).
 
 ### Phase 1: Core Instanced Loot
 
-5. **Instanced loot system** (section 1) — `UseBlockCallback` handler, attachment population, virtual container screen, animation sync, loot table nullification, double chest handling, hopper safety mixin, container adapters (minecart + brushable coverage), fake-player guard.
+5. **Instanced loot system** (section 1) — `UseBlockCallback` handler, attachment population, virtual container screen, animation sync, loot table nullification, double chest handling, hopper safety mixin, container adapters (minecart coverage), fake-player guard.
 
 ### Phase 2: Visual Feedback
 
