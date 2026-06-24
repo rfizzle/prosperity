@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.component;
 
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
@@ -42,6 +43,13 @@ public interface InstancedLootComponent extends Component {
 
     /** Whether the given player already has a generated inventory in this container. */
     boolean hasInventory(UUID player);
+
+    /**
+     * The UUIDs of every player with a stored inventory here, as a defensive copy. The size
+     * is the instance count reported by {@code /prosperity reset} (S-004); also serves the
+     * indicator scan (S-009) and protection check (S-017).
+     */
+    Set<UUID> playerIds();
 
     /**
      * The player's inventory, creating an empty one sized to {@code size} if absent.

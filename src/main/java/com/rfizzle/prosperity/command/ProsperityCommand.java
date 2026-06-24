@@ -1,13 +1,264 @@
 package com.rfizzle.prosperity.command;
 
+import com.mojang.authlib.GameProfile;
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.component.InstancedLootComponent;
+import com.rfizzle.prosperity.component.ProsperityComponents;
+import com.rfizzle.prosperity.config.DistanceTier;
+import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
+import com.rfizzle.prosperity.network.ContainerRemovedS2CPayload;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.GameProfileArgument;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
+import org.jetbrains.annotations.Nullable;
 
+/**
+ * The {@code /prosperity} command tree (SPEC §15). {@code info} is open to any player for
+ * their own position; querying another player and every mutating verb require operator
+ * level 2. All feedback resolves through {@code command.prosperity.*} translation keys.
+ *
+ * <p>The core operations — {@link #resolveTier} and {@link #clearContainer} — are exposed
+ * (package-private) and free of command plumbing so gametests can assert them directly.
+ */
 public final class ProsperityCommand {
+
+    public static final String ROOT = "prosperity";
+
     private ProsperityCommand() {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        /* TODO: /prosperity command tree per SPEC §15 */
+        dispatcher.register(Commands.literal(ROOT)
+                .then(Commands.literal("info")
+                        .executes(ProsperityCommand::runInfoSelf)
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .requires(src -> src.hasPermission(2))
+                                .executes(ProsperityCommand::runInfoOther)))
+                .then(Commands.literal("reset")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ctx -> clearCommand(ctx, false, false))
+                                .then(Commands.argument("player", GameProfileArgument.gameProfile())
+                                        .executes(ctx -> clearCommand(ctx, false, true)))))
+                .then(Commands.literal("refresh")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ctx -> clearCommand(ctx, true, false))
+                                .then(Commands.argument("player", GameProfileArgument.gameProfile())
+                                        .executes(ctx -> clearCommand(ctx, true, true)))))
+                .then(Commands.literal("reload")
+                        .requires(src -> src.hasPermission(2))
+                        .executes(ProsperityCommand::runReload)));
+    }
+
+    // ---- info ----
+
+    private static int runInfoSelf(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        sendInfo(ctx.getSource(), ctx.getSource().getPlayerOrException());
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int runInfoOther(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        sendInfo(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static void sendInfo(CommandSourceStack src, ServerPlayer who) {
+        ServerLevel level = who.serverLevel();
+        double x = who.getX();
+        double z = who.getZ();
+        DistanceTier tier = resolveTier(level, x, z);
+        double distance = Math.sqrt(x * x + z * z);
+        Component tierName = Component.translatableWithFallback(
+                "prosperity.tier." + tier.name(), capitalize(tier.name()));
+        Component modifiers = Component.translatable("command.prosperity.info.modifiers",
+                TierFormat.multiplier(tier.stackMultiplier()), tier.qualityModifier());
+        Component message = Component.translatable("command.prosperity.info",
+                TierFormat.distance(distance), tierName, modifiers);
+        src.sendSuccess(() -> message, false);
+    }
+
+    /**
+     * Resolves the distance tier for a position. Euclidean XZ distance from world origin
+     * feeds {@link ProsperityConfig#tierFor(double)}; the Nether uses those raw coordinates
+     * unchanged, and the End forces the highest-{@code minDistance} tier when
+     * {@code endAlwaysMaxTier} is set. Mirrors the generation-side rule promoted in S-011.
+     */
+    public static DistanceTier resolveTier(ServerLevel level, double x, double z) {
+        ProsperityConfig cfg = Prosperity.getConfig();
+        if (cfg.endAlwaysMaxTier && level.dimension() == Level.END) {
+            return maxTier(cfg);
+        }
+        return cfg.tierFor(Math.sqrt(x * x + z * z));
+    }
+
+    private static DistanceTier maxTier(ProsperityConfig cfg) {
+        DistanceTier best = null;
+        if (cfg.distanceTiers != null) {
+            for (DistanceTier tier : cfg.distanceTiers) {
+                if (tier != null && (best == null || tier.minDistance() > best.minDistance())) {
+                    best = tier;
+                }
+            }
+        }
+        return best != null ? best : ProsperityConfig.LOCAL_SENTINEL;
+    }
+
+    // ---- reset / refresh ----
+
+    private static int clearCommand(CommandContext<CommandSourceStack> ctx, boolean refresh, boolean perPlayer)
+            throws CommandSyntaxException {
+        CommandSourceStack src = ctx.getSource();
+        ServerLevel level = src.getLevel();
+        BlockPos pos = BlockPosArgument.getLoadedBlockPos(ctx, "pos");
+        if (componentAt(level, pos) == null) {
+            src.sendFailure(Component.translatable("command.prosperity.no_container", formatPos(pos)));
+            return 0;
+        }
+
+        Collection<GameProfile> profiles = perPlayer ? GameProfileArgument.getGameProfiles(ctx, "player") : null;
+        Collection<UUID> uuids = profiles == null ? null : profileUuids(profiles);
+        final int removed = clearContainer(level, pos, uuids);
+        final String posStr = formatPos(pos);
+
+        if (perPlayer) {
+            final String names = joinNames(profiles);
+            src.sendSuccess(() -> Component.translatable(
+                    refresh ? "command.prosperity.refresh.player" : "command.prosperity.reset.player",
+                    names, posStr, removed), true);
+        } else {
+            src.sendSuccess(() -> Component.translatable(
+                    refresh ? "command.prosperity.refresh.all" : "command.prosperity.reset.all",
+                    posStr, removed), true);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Clears instanced loot at {@code pos}. A {@code null} {@code uuids} clears every player;
+     * otherwise only the listed players are cleared. Returns the number of player instances
+     * removed (or {@code -1} when no instanced container is present), and notifies tracking
+     * clients to drop their indicator for the position. Exposed for gametests.
+     */
+    public static int clearContainer(ServerLevel level, BlockPos pos, @Nullable Collection<UUID> uuids) {
+        InstancedLootComponent component = componentAt(level, pos);
+        if (component == null) {
+            return -1;
+        }
+        int removed;
+        if (uuids == null) {
+            removed = component.playerIds().size();
+            component.clearAll();
+        } else {
+            removed = 0;
+            for (UUID id : uuids) {
+                if (component.hasInventory(id)) {
+                    removed++;
+                }
+                component.clearForPlayer(id);
+            }
+        }
+        if (removed > 0) {
+            notifyTracking(level, pos);
+        }
+        return removed;
+    }
+
+    // ---- reload ----
+
+    private static int runReload(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        try {
+            Prosperity.reloadConfig();
+        } catch (Exception e) {
+            Prosperity.LOGGER.error("Config reload failed via command", e);
+            src.sendFailure(Component.translatable("command.prosperity.reload_failed", String.valueOf(e.getMessage())));
+            return 0;
+        }
+        final int synced = syncConfigToAll(src.getServer());
+        src.sendSuccess(() -> Component.translatable("command.prosperity.reload", synced), true);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int syncConfigToAll(MinecraftServer server) {
+        ConfigSyncS2CPayload payload = new ConfigSyncS2CPayload(Prosperity.getConfig().toJson());
+        int sent = 0;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+                sent++;
+            }
+        }
+        return sent;
+    }
+
+    // ---- shared helpers ----
+
+    @Nullable
+    static InstancedLootComponent componentAt(ServerLevel level, BlockPos pos) {
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof RandomizableContainerBlockEntity) {
+            return ProsperityComponents.INSTANCED_LOOT.getNullable(be);
+        }
+        return null;
+    }
+
+    private static void notifyTracking(ServerLevel level, BlockPos pos) {
+        // The client receiver for this payload lands in E-003; the canSend guard makes the
+        // send a no-op until then, so resets stay warning-free against a pre-indicator client.
+        ContainerRemovedS2CPayload payload = new ContainerRemovedS2CPayload(pos);
+        for (ServerPlayer player : PlayerLookup.tracking(level, pos)) {
+            if (ServerPlayNetworking.canSend(player, ContainerRemovedS2CPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+            }
+        }
+    }
+
+    private static Collection<UUID> profileUuids(Collection<GameProfile> profiles) {
+        List<UUID> ids = new ArrayList<>(profiles.size());
+        for (GameProfile profile : profiles) {
+            ids.add(profile.getId());
+        }
+        return ids;
+    }
+
+    private static String joinNames(Collection<GameProfile> profiles) {
+        List<String> names = new ArrayList<>(profiles.size());
+        for (GameProfile profile : profiles) {
+            names.add(profile.getName());
+        }
+        return String.join(", ", names);
+    }
+
+    private static String formatPos(BlockPos pos) {
+        return pos.getX() + ", " + pos.getY() + ", " + pos.getZ();
+    }
+
+    private static String capitalize(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 }

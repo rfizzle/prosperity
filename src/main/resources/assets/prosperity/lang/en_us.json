@@ -7,5 +7,14 @@
     "prosperity.tier.frontier": "Frontier",
     "prosperity.tier.wilderness": "Wilderness",
     "prosperity.tier.outlands": "Outlands",
-    "prosperity.tier.depths": "Depths"
+    "prosperity.tier.depths": "Depths",
+    "command.prosperity.info": "Distance: %s blocks — %s tier (%s)",
+    "command.prosperity.info.modifiers": "%sx stacks, +%s quality",
+    "command.prosperity.no_container": "No instanced container at [%s]",
+    "command.prosperity.reset.all": "Cleared instanced loot at [%s] for all players (%s instances removed)",
+    "command.prosperity.reset.player": "Cleared %s's instanced loot at [%s] (%s instances removed)",
+    "command.prosperity.refresh.all": "Refreshed loot at [%s] for all players (%s instances cleared)",
+    "command.prosperity.refresh.player": "Refreshed %s's loot at [%s] (%s instances cleared)",
+    "command.prosperity.reload": "Reloaded Prosperity config and synced to %s player(s)",
+    "command.prosperity.reload_failed": "Config reload failed: %s"
 }

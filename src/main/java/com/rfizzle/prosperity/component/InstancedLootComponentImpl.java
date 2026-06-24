@@ -2,8 +2,10 @@ package com.rfizzle.prosperity.component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -87,6 +89,11 @@ public final class InstancedLootComponentImpl implements InstancedLootComponent 
     @Override
     public boolean hasInventory(UUID player) {
         return playerInventories.containsKey(player);
+    }
+
+    @Override
+    public Set<UUID> playerIds() {
+        return new HashSet<>(playerInventories.keySet());
     }
 
     @Override

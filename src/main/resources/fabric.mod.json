@@ -17,7 +17,10 @@
         "main": ["com.rfizzle.prosperity.Prosperity"],
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
-        "fabric-gametest": ["com.rfizzle.prosperity.gametest.InstancedLootComponentGameTest"],
+        "fabric-gametest": [
+            "com.rfizzle.prosperity.gametest.InstancedLootComponentGameTest",
+            "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest"
+        ],
         "cardinal-components": ["com.rfizzle.prosperity.component.ProsperityComponents"]
     },
     "suggests": {
