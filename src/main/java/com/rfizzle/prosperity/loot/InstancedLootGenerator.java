@@ -1,6 +1,5 @@
 package com.rfizzle.prosperity.loot;
 
-import com.rfizzle.prosperity.config.DistanceTier;
 import java.util.UUID;
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceKey;
@@ -25,10 +24,10 @@ import org.jetbrains.annotations.Nullable;
  * given (seed, UUID) pair always rolls the same items &mdash; a return visit after a refresh
  * regenerates identically.
  *
- * <p>Distance-based scaling (S-011) is applied here via {@link LootScaling}: the resolved tier's
- * quality modifier adjusts the luck before resolution and its stack multiplier scales the rolled
- * counts afterwards. Structure overrides (S-012) and the loot-modifier event (S-013) extend the same
- * seam, refining the tier and the luck/stack values the caller resolves and passes in.
+ * <p>Distance and structure scaling (S-011/S-012) and the loot-modifier event (S-013) are resolved
+ * upstream by the caller, which fires {@link LootModifiers} and passes the final {@code luck} and
+ * {@code stackMultiplier} in: the luck biases the {@code LootParams} before resolution and the
+ * multiplier scales the rolled counts afterwards.
  */
 public final class InstancedLootGenerator {
 
@@ -36,16 +35,16 @@ public final class InstancedLootGenerator {
     }
 
     /**
-     * Generate {@code size} slots of loot from {@code tableKey} with {@code player}'s context, scaled
-     * for {@code tier} (S-011). {@code origin} is the loot source's world position (a block's center or
-     * a minecart's live position). The tier's quality modifier is folded into the {@code LootParams}
-     * luck before resolution and its stack multiplier is applied to the rolled counts afterwards;
-     * {@link DistanceTier#LOCAL_SENTINEL} (and the disabled-scaling sentinel the caller passes) makes
-     * both a no-op. Returns an all-empty list when the table is absent or empty.
+     * Generate {@code size} slots of loot from {@code tableKey} with {@code player}'s context.
+     * {@code origin} is the loot source's world position (a block's center or a minecart's live
+     * position). {@code luck} is folded into the {@code LootParams} before resolution and
+     * {@code stackMultiplier} scales the rolled counts afterwards (both already finalized by the
+     * caller's scaling + loot-modifier pass; {@code 0} luck and a {@code 1.0} multiplier are no-ops).
+     * Returns an all-empty list when the table is absent or empty.
      */
     public static NonNullList<ItemStack> generate(ServerLevel level, Vec3 origin,
             @Nullable ResourceKey<LootTable> tableKey, long seed, ServerPlayer player, int size,
-            DistanceTier tier) {
+            float luck, double stackMultiplier) {
         NonNullList<ItemStack> items = NonNullList.withSize(size, ItemStack.EMPTY);
         if (tableKey == null) {
             return items;
@@ -59,11 +58,11 @@ public final class InstancedLootGenerator {
         LootParams params = new LootParams.Builder(level)
                 .withParameter(LootContextParams.ORIGIN, origin)
                 .withParameter(LootContextParams.THIS_ENTITY, player)
-                .withLuck(LootScaling.effectiveLuck(player.getLuck(), tier))
+                .withLuck(luck)
                 .create(LootContextParamSets.CHEST);
         table.fill(container, params, playerSeed(seed, player.getUUID()));
 
-        double multiplier = tier.stackMultiplier();
+        double multiplier = stackMultiplier;
         for (int slot = 0; slot < size; slot++) {
             ItemStack stack = container.getItem(slot);
             if (!stack.isEmpty()) {

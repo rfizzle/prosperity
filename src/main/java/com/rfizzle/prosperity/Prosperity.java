@@ -4,6 +4,7 @@ import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
+import com.rfizzle.prosperity.loot.LootModifiers;
 import com.rfizzle.prosperity.loot.MinecartLootInteraction;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import net.fabricmc.api.ModInitializer;
@@ -25,6 +26,7 @@ public class Prosperity implements ModInitializer {
         ProsperityNetworking.register();
         InstancedLootInteraction.register();
         MinecartLootInteraction.register();
+        LootModifiers.registerDefaults();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 ProsperityCommand.register(dispatcher));
         LOGGER.info("Prosperity initialized");

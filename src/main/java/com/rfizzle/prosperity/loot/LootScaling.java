@@ -29,7 +29,7 @@ import org.jetbrains.annotations.Nullable;
  * override math is MC-free and unit tested; structure detection needs a {@link ServerLevel} and is
  * covered by a gametest.
  *
- * <p>The pure scaling math ({@link #scaledCount}, {@link #effectiveLuck}, {@link #applyStructureOverride})
+ * <p>The pure scaling math ({@link #scaledCount}, {@link #applyStructureOverride})
  * is MC-free and unit tested; {@link #resolveTier} and {@link #resolveStructure} need a
  * {@link ServerLevel} for the dimension and structure rules and are covered by gametests.
  */
@@ -198,15 +198,6 @@ public final class LootScaling {
             }
         }
         return best != null ? best : ProsperityConfig.LOCAL_SENTINEL;
-    }
-
-    /**
-     * The effective luck for a generation: the player's base luck plus the tier's quality modifier
-     * (SPEC §3 "Quality Scaling"). The {@link DistanceTier#LOCAL_SENTINEL}'s {@code +0} makes this a
-     * no-op at the baseline tier (and when scaling is disabled, the caller passes the sentinel).
-     */
-    public static float effectiveLuck(float baseLuck, DistanceTier tier) {
-        return baseLuck + tier.qualityModifier();
     }
 
     /**

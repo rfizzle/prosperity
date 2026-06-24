@@ -1,6 +1,7 @@
 package com.rfizzle.prosperity.loot;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.api.LootModifierContext;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
@@ -221,16 +222,19 @@ public final class InstancedLootInteraction {
         ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
         LootRef primaryRef = resolveTable(primaryAdapter);
         LootRef secondaryRef = resolveTable(secondaryAdapter);
-        // The two halves are adjacent, so one tier (and structure) resolved at the primary applies to both.
+        // The two halves are adjacent, so one tier (and structure) resolved at the primary applies to
+        // both, and the loot-modifier event fires once for the whole double chest.
         Vec3 origin = primaryAdapter.origin();
         LootScaling.ScaledTier scaled = LootScaling.resolveForGeneration(level, origin);
         DistanceTier tier = scaled.tier();
+        ResourceKey<LootTable> ctxTable = primaryRef.key() != null ? primaryRef.key() : secondaryRef.key();
+        ModifierResult mods = fireModifiers(player, origin, ctxTable, tier);
         NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
                 level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), player,
-                DoubleChestLayout.PRIMARY_SLOTS, tier);
+                DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
         NonNullList<ItemStack> secondaryLoot = InstancedLootGenerator.generate(
                 level, secondaryAdapter.origin(), secondaryRef.key(), secondaryRef.seed(), player,
-                DoubleChestLayout.PRIMARY_SLOTS, tier);
+                DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
 
         NonNullList<ItemStack> combined =
                 NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
@@ -299,8 +303,10 @@ public final class InstancedLootInteraction {
         Vec3 origin = adapter.origin();
         LootScaling.ScaledTier scaled = LootScaling.resolveForGeneration(adapter.level(), origin);
         DistanceTier tier = scaled.tier();
+        ModifierResult mods = fireModifiers(player, origin, ref.key(), tier);
         NonNullList<ItemStack> generated = InstancedLootGenerator.generate(
-                adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size(), tier);
+                adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size(),
+                mods.luck(), mods.stackMultiplier());
 
         adapter.update(data -> {
             data.markGenerated(ref.key(), ref.seed());
@@ -329,6 +335,24 @@ public final class InstancedLootInteraction {
     }
 
     private record LootRef(@Nullable ResourceKey<LootTable> key, long seed) {
+    }
+
+    /**
+     * Fire the loot-modifier event (S-013) once for a generation and return the final luck and stack
+     * multiplier. Falls back to the tier's raw values without firing when there is no table to modify
+     * (an empty roll), since the context contract requires a non-null loot table.
+     */
+    private static ModifierResult fireModifiers(ServerPlayer player, Vec3 origin,
+            @Nullable ResourceKey<LootTable> table, DistanceTier tier) {
+        if (table == null) {
+            return new ModifierResult(tier.qualityModifier(), tier.stackMultiplier());
+        }
+        LootModifierContext ctx =
+                LootModifiers.fire(player, BlockPos.containing(origin), table.location(), tier);
+        return new ModifierResult(ctx.luck(), ctx.stackMultiplier());
+    }
+
+    private record ModifierResult(float luck, double stackMultiplier) {
     }
 
     /** Write a screen inventory back to the player's attachment entry on a block-entity container. */

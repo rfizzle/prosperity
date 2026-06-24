@@ -22,11 +22,11 @@
       "id": "loot-modifier-api",
       "title": "Loot Modifier API",
       "blocks": [
-        { "type": "prose", "html": ["The API classes live in <code class='text-accent2'>com.rfizzle.prosperity.api</code> and are annotated <code class='text-accent2'>@ApiStatus.Stable</code>. <code class='text-accent2'>LootModifierCallback.EVENT</code> fires after distance scaling but before the loot table resolves, handing each listener a mutable <code class='text-accent2'>LootModifierContext</code>."] },
+        { "type": "prose", "html": ["The API classes live in <code class='text-accent2'>com.rfizzle.prosperity.api</code> and are annotated <code class='text-accent2'>@Stable</code> (Prosperity's own marker, per the Concord no-shared-jar rule). <code class='text-accent2'>LootModifierCallback.EVENT</code> fires after distance scaling but before the loot table resolves, handing each listener a mutable <code class='text-accent2'>LootModifierContext</code>. Listeners fire in registration order and each sees the cumulative state, so a later listener observes earlier mutations."] },
         {
           "type": "code",
           "tone": "bone",
-          "code": "import com.rfizzle.prosperity.api.LootModifierCallback;\n\nif (FabricLoader.getInstance().isModLoaded(\"prosperity\")) {\n    LootModifierCallback.EVENT.register(context -> {\n        // inspect context.getPlayer(), context.getPos(), context.getTier()\n        // adjust context's quantity / quality / luck before loot resolves\n    });\n}"
+          "code": "import com.rfizzle.prosperity.api.LootModifierCallback;\n\nif (FabricLoader.getInstance().isModLoaded(\"prosperity\")) {\n    LootModifierCallback.EVENT.register(context -> {\n        // read context.player(), context.containerPos(), context.lootTable()\n        context.addLuck(2.0f);        // bias quality\n        context.multiplyStacks(1.5f); // scale stack sizes\n        // context.customData() is a fresh CompoundTag for inter-mod data\n    });\n}"
         }
       ]
     },
@@ -35,7 +35,7 @@
       "title": "Loot Table Injection",
       "blocks": [
         { "type": "prose", "html": ["Datapacks can add custom items to existing vanilla loot tables, gated by a minimum distance tier. Files live at <code class='text-accent2'>data/prosperity/loot_injections/&lt;name&gt;.json</code> and use tier names <code class='text-accent2'>local</code>, <code class='text-accent2'>frontier</code>, <code class='text-accent2'>wilderness</code>, <code class='text-accent2'>outlands</code>, <code class='text-accent2'>depths</code>."] },
-        { "type": "note", "html": "Stub — the full injection file schema and the <code class='text-accent2'>LootModifierContext</code> method reference will be documented here." }
+        { "type": "note", "html": "Stub — the full injection file schema will be documented here." }
       ]
     },
     {

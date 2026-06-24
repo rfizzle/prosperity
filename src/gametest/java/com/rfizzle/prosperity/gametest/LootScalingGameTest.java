@@ -79,16 +79,14 @@ public class LootScalingGameTest implements FabricGameTest {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         Vec3 origin = Vec3.atCenterOf(helper.absolutePos(new BlockPos(1, 1, 1)));
 
-        // Same quality modifier (0) on both tiers keeps the luck — and so the rolled items —
-        // identical; only the stack multiplier differs.
-        DistanceTier baseline = new DistanceTier("baseline", 0, 1.0, 0);
-        DistanceTier scaled = new DistanceTier("scaled", 0, 3.5, 0);
-        double multiplier = scaled.stackMultiplier();
+        // Identical luck (0) on both rolls keeps the rolled items identical; only the stack
+        // multiplier differs.
+        double multiplier = 3.5;
 
         NonNullList<ItemStack> baseLoot =
-                InstancedLootGenerator.generate(level, origin, TABLE, SEED, player, 27, baseline);
+                InstancedLootGenerator.generate(level, origin, TABLE, SEED, player, 27, 0.0f, 1.0);
         NonNullList<ItemStack> scaledLoot =
-                InstancedLootGenerator.generate(level, origin, TABLE, SEED, player, 27, scaled);
+                InstancedLootGenerator.generate(level, origin, TABLE, SEED, player, 27, 0.0f, multiplier);
 
         boolean sawStackableScaledUp = false;
         for (int slot = 0; slot < 27; slot++) {

@@ -15,10 +15,6 @@ import org.junit.jupiter.api.Test;
  */
 class LootScalingTest {
 
-    private static DistanceTier tier(double stackMultiplier, int qualityModifier) {
-        return new DistanceTier("test", 0, stackMultiplier, qualityModifier);
-    }
-
     /** Named tiers ordered by minDistance, matching the shipped default band names. */
     private static final DistanceTier LOCAL = new DistanceTier("local", 0, 1.0, 0);
     private static final DistanceTier FRONTIER = new DistanceTier("frontier", 1000, 1.5, 1);
@@ -59,20 +55,6 @@ class LootScalingTest {
         assertEquals(10, LootScaling.scaledCount(10, 64, 0.5),
                 "a sub-1.0 multiplier must not shrink the rolled count");
         assertEquals(8, LootScaling.scaledCount(8, 64, 1.0), "the baseline 1.0x is a no-op");
-    }
-
-    // ---- effectiveLuck ----
-
-    @Test
-    void addsTheTierQualityModifierToBaseLuck() {
-        assertEquals(4.0f, LootScaling.effectiveLuck(0.0f, tier(3.5, 4)), "0 + 4 quality = 4");
-        assertEquals(3.5f, LootScaling.effectiveLuck(2.5f, tier(1.5, 1)), "2.5 base + 1 quality = 3.5");
-    }
-
-    @Test
-    void localTierLeavesLuckUnchanged() {
-        assertEquals(2.5f, LootScaling.effectiveLuck(2.5f, ProsperityConfig.LOCAL_SENTINEL),
-                "the local sentinel's +0 quality leaves base luck untouched");
     }
 
     // ---- applyStructureOverride ----
