@@ -92,7 +92,7 @@ If a player breaks an instanced loot container:
   - The component is latent: a naturally-placed storage container carries it but, until loot is generated, it serializes to nothing and stays byte-identical to vanilla.
 - Virtual container screen: `SimpleInventory` wrapped in a `SimpleMenuProvider`. The `AbstractContainerMenu` subclass syncs slot changes back to the CCA component on close.
 - `UseBlockCallback.EVENT` handler checks: (1) block entity exists, (2) is `RandomizableContainerBlockEntity`, (3) has a loot table OR has a CCA component with `generated=true`. If none of these, pass through to vanilla.
-- Mixin into `RandomizableContainerBlockEntity#unpackLootTable()` as a safety net — if the CCA component exists and `generated=true`, skip vanilla generation entirely. This catches edge cases where vanilla code calls unpack directly.
+- Mixin into `RandomizableContainer#unpackLootTable()` (the default method the block entity inherits) as a safety net — if the CCA component exists and `generated=true`, skip vanilla generation entirely. This catches edge cases where vanilla code calls unpack directly.
 
 ---
 

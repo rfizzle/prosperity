@@ -20,6 +20,7 @@
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.InstancedLootComponentGameTest",
             "com.rfizzle.prosperity.gametest.InstancedLootGameTest",
+            "com.rfizzle.prosperity.gametest.LootNullificationGameTest",
             "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest"
         ],
         "cardinal-components": ["com.rfizzle.prosperity.component.ProsperityComponents"]

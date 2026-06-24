@@ -41,10 +41,14 @@ import net.minecraft.world.phys.BlockHitResult;
  * keeps the vanilla lid animation and open/close sounds in sync without touching the block entity's
  * own state.
  *
- * <p>Scope is single containers up to one chest's worth of slots. Double chests (S-007), loot-table
- * nullification with the hopper-safety mixin (S-006), the unlooted-indicator packets (S-009), and
- * the first-generation notification (S-021) land in their own stories. The generation and persist
- * steps are split out as plain static methods so gametests can drive them without a live screen.
+ * <p>On first generation the block entity's vanilla loot table is nulled and the
+ * {@link com.rfizzle.prosperity.mixin.RandomizableContainerUnpackMixin unpack-safety mixin} blocks
+ * any leftover unpack call, so hoppers and comparators cannot drain the global loot.
+ *
+ * <p>Scope is single containers up to one chest's worth of slots. Double chests (S-007), the
+ * unlooted-indicator packets (S-009), and the first-generation notification (S-021) land in their
+ * own stories. The generation and persist steps are split out as plain static methods so gametests
+ * can drive them without a live screen.
  */
 public final class InstancedLootInteraction {
 
@@ -124,7 +128,9 @@ public final class InstancedLootInteraction {
 
     /**
      * Return the player's stored inventory, generating and persisting it on first visit. Records the
-     * generation tick and preserves the original loot table/seed for S-006's nullification.
+     * generation tick, preserves the original loot table/seed in the component, and nulls the vanilla
+     * {@code lootTable}/{@code lootTableSeed} fields on the block entity so a hopper or comparator
+     * cannot trigger vanilla's {@code unpackLootTable} and drain the global loot (S-006).
      */
     public static NonNullList<ItemStack> generateAndStore(ServerLevel level, BlockPos pos,
             RandomizableContainerBlockEntity be, InstancedLootComponent component, ServerPlayer player) {
@@ -138,6 +144,11 @@ public final class InstancedLootInteraction {
                 component.isGenerated() ? component.getOriginalLootTable() : be.getLootTable();
         long seed = component.isGenerated() ? component.getOriginalSeed() : be.getLootTableSeed();
         component.markGenerated(be.getLootTable(), be.getLootTableSeed());
+        // Sever the block entity's link to the global loot table now that the original is preserved
+        // in the component. The unpack-safety mixin backstops any direct call that slips past this.
+        be.setLootTable(null);
+        be.setLootTableSeed(0L);
+        be.setChanged();
 
         NonNullList<ItemStack> generated =
                 InstancedLootGenerator.generate(level, pos, tableKey, seed, player, be.getContainerSize());

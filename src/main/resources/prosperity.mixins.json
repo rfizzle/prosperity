@@ -3,7 +3,9 @@
     "minVersion": "0.8",
     "package": "com.rfizzle.prosperity.mixin",
     "compatibilityLevel": "JAVA_21",
-    "mixins": [],
+    "mixins": [
+        "RandomizableContainerUnpackMixin"
+    ],
     "client": [],
     "injectors": {
         "defaultRequire": 1

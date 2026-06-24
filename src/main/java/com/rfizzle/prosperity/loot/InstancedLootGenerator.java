@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.loot;
 
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceKey;
@@ -18,10 +19,13 @@ import org.jetbrains.annotations.Nullable;
  * {@code RandomizableContainer#unpackLootTable} but fills a transient {@link SimpleContainer}
  * instead of the block entity, so the result can be stored per-player in the CCA component.
  *
+ * <p>The roll seed is the container's preserved seed folded together with the player's UUID
+ * ({@link #playerSeed}), so each player gets their own loot from the same container while a
+ * given (seed, UUID) pair always rolls the same items &mdash; a return visit after a refresh
+ * regenerates identically.
+ *
  * <p>This is the seam later stories extend: distance/structure scaling (S-011/S-012) and the
- * loot-modifier event (S-013) hook the luck and post-resolution stacks here, and S-006 will
- * fold the player UUID into the seed for deterministic-but-private generation. S-005 uses the
- * container's own seed, so naturally-placed chests (seed {@code 0}) randomize per player.
+ * loot-modifier event (S-013) hook the luck and post-resolution stacks here.
  */
 public final class InstancedLootGenerator {
 
@@ -49,11 +53,23 @@ public final class InstancedLootGenerator {
                 .withParameter(LootContextParams.THIS_ENTITY, player)
                 .withLuck(player.getLuck())
                 .create(LootContextParamSets.CHEST);
-        table.fill(container, params, seed);
+        table.fill(container, params, playerSeed(seed, player.getUUID()));
 
         for (int slot = 0; slot < size; slot++) {
             items.set(slot, container.getItem(slot));
         }
         return items;
+    }
+
+    /**
+     * Fold a container's base loot seed together with a player's UUID into a stable per-player
+     * roll seed. Deterministic for a given (base, UUID) pair and never {@code 0L}, which vanilla
+     * treats as "pick a fresh random seed" &mdash; the guard keeps generation reproducible even
+     * for naturally-placed chests whose base seed is {@code 0}.
+     */
+    static long playerSeed(long base, UUID uuid) {
+        long mixed = base ^ (uuid.getMostSignificantBits() * 0x9E3779B97F4A7C15L)
+                ^ Long.rotateLeft(uuid.getLeastSignificantBits(), 32);
+        return mixed == 0L ? 1L : mixed;
     }
 }
