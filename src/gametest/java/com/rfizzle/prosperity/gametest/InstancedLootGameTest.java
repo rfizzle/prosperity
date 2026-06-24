@@ -1,8 +1,8 @@
 package com.rfizzle.prosperity.gametest;
 
 import com.rfizzle.prosperity.Prosperity;
-import com.rfizzle.prosperity.component.InstancedLootComponent;
-import com.rfizzle.prosperity.component.ProsperityComponents;
+import com.rfizzle.prosperity.attachment.InstancedLootData;
+import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.InstancedLootMenu;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
@@ -76,18 +76,23 @@ public class InstancedLootGameTest implements FabricGameTest {
     public void lootChestInstancesPerPlayer(GameTestHelper helper) {
         BlockPos rel = new BlockPos(1, 1, 1);
         RandomizableContainerBlockEntity be = placeLootContainer(helper, rel, Blocks.CHEST);
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.get(be);
 
         ServerPlayer playerA = spawnPlayerAt(helper, rel);
         ServerPlayer playerB = spawnPlayerAt(helper, rel);
 
+        // First open of a never-opened loot chest must still instance even though no attachment
+        // exists yet (the missing-attachment gate regression).
+        helper.assertTrue(ProsperityAttachments.get(be) == null,
+                "a never-opened loot chest must carry no attachment up front");
         helper.assertTrue(rightClick(helper, playerA, rel) == InteractionResult.SUCCESS,
                 "opening a loot chest must be intercepted");
         helper.assertTrue(rightClick(helper, playerB, rel) == InteractionResult.SUCCESS,
                 "the second player's open must also be intercepted");
 
-        NonNullList<ItemStack> invA = component.getInventory(playerA.getUUID());
-        NonNullList<ItemStack> invB = component.getInventory(playerB.getUUID());
+        InstancedLootData data = ProsperityAttachments.get(be);
+        helper.assertTrue(data != null, "opening must attach instanced-loot data");
+        NonNullList<ItemStack> invA = data.getInventory(playerA.getUUID());
+        NonNullList<ItemStack> invB = data.getInventory(playerB.getUUID());
         helper.assertTrue(invA != null && invB != null, "both players must have a generated inventory");
         helper.assertFalse(invA == invB, "each player must own a distinct inventory instance");
 
@@ -106,11 +111,12 @@ public class InstancedLootGameTest implements FabricGameTest {
     public void instancePersistsOnClose(GameTestHelper helper) {
         BlockPos rel = new BlockPos(1, 1, 1);
         RandomizableContainerBlockEntity be = placeLootContainer(helper, rel, Blocks.CHEST);
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.get(be);
 
         ServerPlayer player = spawnPlayerAt(helper, rel);
         helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
                 "opening a loot chest must be intercepted");
+        InstancedLootData data = ProsperityAttachments.get(be);
+        helper.assertTrue(data != null, "opening must attach instanced-loot data");
 
         // Rearrange the open screen and close it as the player would.
         helper.assertTrue(player.containerMenu instanceof InstancedLootMenu,
@@ -120,7 +126,7 @@ public class InstancedLootGameTest implements FabricGameTest {
         menu.getContainer().setItem(1, ItemStack.EMPTY);
         player.closeContainer();
 
-        NonNullList<ItemStack> stored = component.getInventory(player.getUUID());
+        NonNullList<ItemStack> stored = data.getInventory(player.getUUID());
         helper.assertTrue(stored.size() == be.getContainerSize(), "persisted inventory keeps its size");
         helper.assertTrue(ItemStack.matches(stored.get(0), new ItemStack(Items.DIAMOND, 5)),
                 "the rearranged slot must persist on close");
@@ -129,7 +135,7 @@ public class InstancedLootGameTest implements FabricGameTest {
         // Reopening must retrieve the saved state, not regenerate fresh loot.
         helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
                 "reopening a looted chest must still be intercepted");
-        NonNullList<ItemStack> reopened = component.getInventory(player.getUUID());
+        NonNullList<ItemStack> reopened = data.getInventory(player.getUUID());
         helper.assertTrue(ItemStack.matches(reopened.get(0), new ItemStack(Items.DIAMOND, 5)),
                 "a return visit must show the player's prior state, not new loot");
 
@@ -144,13 +150,12 @@ public class InstancedLootGameTest implements FabricGameTest {
         helper.setBlock(rel, Blocks.CHEST);
         RandomizableContainerBlockEntity be =
                 (RandomizableContainerBlockEntity) helper.getBlockEntity(rel);
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.get(be);
 
         ServerPlayer player = spawnPlayerAt(helper, rel);
         helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.PASS,
                 "a non-loot container must fall through to vanilla");
-        helper.assertFalse(component.hasInventory(player.getUUID()),
-                "a non-loot container must not generate an instance");
+        helper.assertTrue(ProsperityAttachments.get(be) == null,
+                "a non-loot container must not attach an instance");
 
         player.discard();
         helper.succeed();
@@ -161,7 +166,6 @@ public class InstancedLootGameTest implements FabricGameTest {
     public void disabledConfigOpensVanilla(GameTestHelper helper) {
         BlockPos rel = new BlockPos(1, 1, 1);
         RandomizableContainerBlockEntity be = placeLootContainer(helper, rel, Blocks.CHEST);
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.get(be);
         ServerPlayer player = spawnPlayerAt(helper, rel);
 
         boolean saved = Prosperity.getConfig().enableInstancedLoot;
@@ -169,8 +173,8 @@ public class InstancedLootGameTest implements FabricGameTest {
             Prosperity.getConfig().enableInstancedLoot = false;
             helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.PASS,
                     "disabled instancing must fall through to vanilla");
-            helper.assertFalse(component.hasInventory(player.getUUID()),
-                    "disabled instancing must not generate an instance");
+            helper.assertTrue(ProsperityAttachments.get(be) == null,
+                    "disabled instancing must not attach an instance");
         } finally {
             Prosperity.getConfig().enableInstancedLoot = saved;
         }

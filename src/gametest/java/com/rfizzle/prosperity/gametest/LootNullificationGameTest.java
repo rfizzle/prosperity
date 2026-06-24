@@ -1,7 +1,7 @@
 package com.rfizzle.prosperity.gametest;
 
-import com.rfizzle.prosperity.component.InstancedLootComponent;
-import com.rfizzle.prosperity.component.ProsperityComponents;
+import com.rfizzle.prosperity.attachment.InstancedLootData;
+import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.minecraft.core.BlockPos;
@@ -94,10 +94,9 @@ public class LootNullificationGameTest implements FabricGameTest {
     public void unpackCancelledForGeneratedContainer(GameTestHelper helper) {
         BlockPos rel = new BlockPos(1, 1, 1);
         RandomizableContainerBlockEntity be = placeLootContainer(helper, rel, Blocks.CHEST);
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.get(be);
 
         // Mark generated without nulling the field, so only the mixin can stop vanilla unpack here.
-        component.markGenerated(TABLE, SEED);
+        ProsperityAttachments.update(be, data -> data.markGenerated(TABLE, SEED));
         be.unpackLootTable(null);
 
         helper.assertTrue(be.getLootTable() == TABLE,
@@ -148,18 +147,19 @@ public class LootNullificationGameTest implements FabricGameTest {
     public void regenerationIsDeterministic(GameTestHelper helper) {
         BlockPos rel = new BlockPos(1, 1, 1);
         RandomizableContainerBlockEntity be = placeLootContainer(helper, rel, Blocks.CHEST);
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.get(be);
         ServerPlayer player = spawnPlayerAt(helper, rel);
 
         helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
                 "opening a loot chest must be intercepted");
-        NonNullList<ItemStack> first = copyOf(component.getInventory(player.getUUID()));
+        InstancedLootData data = ProsperityAttachments.get(be);
+        helper.assertTrue(data != null, "opening must attach instanced-loot data");
+        NonNullList<ItemStack> first = copyOf(data.getInventory(player.getUUID()));
 
         // Refresh: clear the player's entry and reopen. The preserved seed + UUID must roll the same.
-        component.clearForPlayer(player.getUUID());
+        ProsperityAttachments.update(be, d -> d.clearForPlayer(player.getUUID()));
         helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
                 "reopening after a clear must regenerate");
-        NonNullList<ItemStack> second = component.getInventory(player.getUUID());
+        NonNullList<ItemStack> second = data.getInventory(player.getUUID());
 
         helper.assertTrue(second != null && second.size() == first.size(),
                 "regeneration must produce the same number of slots");

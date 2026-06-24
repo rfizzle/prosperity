@@ -1,4 +1,4 @@
-package com.rfizzle.prosperity.component;
+package com.rfizzle.prosperity.attachment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,9 +18,10 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
@@ -31,14 +32,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tier-2 (fabric-loader-junit) NBT round-trip tests for {@link InstancedLootComponentImpl}.
- * Needs the vanilla registries for {@code ItemStack} codec serialization, so it bootstraps
- * Minecraft. The component is instantiated directly with a {@code null} owner — CCA
- * registration is exercised by the gametest, not here.
+ * Tier-2 (fabric-loader-junit) Codec round-trip tests for {@link InstancedLootData}. Needs the
+ * vanilla registries for {@code ItemStack} codec serialization, so it bootstraps Minecraft. The
+ * data is round-tripped through {@link InstancedLootData#CODEC} with registry-aware NBT ops,
+ * exactly as the Fabric attachment serializes it on the block entity's own NBT.
  */
-class InstancedLootComponentTest {
+class InstancedLootDataTest {
 
-    private static HolderLookup.Provider registries;
+    private static RegistryOps<Tag> ops;
 
     private static final ResourceKey<LootTable> DUNGEON =
             ResourceKey.create(Registries.LOOT_TABLE, ResourceLocation.withDefaultNamespace("chests/simple_dungeon"));
@@ -47,15 +48,13 @@ class InstancedLootComponentTest {
     static void bootstrap() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
-        registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        HolderLookup.Provider registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        ops = RegistryOps.create(NbtOps.INSTANCE, registries);
     }
 
-    private static InstancedLootComponentImpl roundTrip(InstancedLootComponentImpl source) {
-        CompoundTag tag = new CompoundTag();
-        source.writeToNbt(tag, registries);
-        InstancedLootComponentImpl restored = new InstancedLootComponentImpl(null);
-        restored.readFromNbt(tag, registries);
-        return restored;
+    private static InstancedLootData roundTrip(InstancedLootData source) {
+        Tag tag = InstancedLootData.CODEC.encodeStart(ops, source).getOrThrow();
+        return InstancedLootData.CODEC.parse(ops, tag).getOrThrow();
     }
 
     private static void assertInventoriesMatch(NonNullList<ItemStack> expected, NonNullList<ItemStack> actual) {
@@ -68,7 +67,7 @@ class InstancedLootComponentTest {
 
     @Test
     void roundTrip_empty() {
-        InstancedLootComponentImpl restored = roundTrip(new InstancedLootComponentImpl(null));
+        InstancedLootData restored = roundTrip(new InstancedLootData());
 
         assertFalse(restored.isGenerated());
         assertNull(restored.getOriginalLootTable());
@@ -81,7 +80,7 @@ class InstancedLootComponentTest {
     @Test
     void roundTrip_singlePlayer_preservesGenerationMetadata() {
         UUID player = new UUID(7L, 11L);
-        InstancedLootComponentImpl source = new InstancedLootComponentImpl(null);
+        InstancedLootData source = new InstancedLootData();
         source.markGenerated(DUNGEON, 0xCAFEBABEL);
         source.setTierName("frontier");
         source.setStructure(ResourceLocation.withDefaultNamespace("village_plains"));
@@ -91,7 +90,7 @@ class InstancedLootComponentTest {
         inv.set(0, new ItemStack(Items.DIAMOND, 5));
         inv.set(13, new ItemStack(Items.GOLDEN_APPLE, 2));
 
-        InstancedLootComponentImpl restored = roundTrip(source);
+        InstancedLootData restored = roundTrip(source);
 
         assertTrue(restored.isGenerated());
         assertEquals(DUNGEON, restored.getOriginalLootTable());
@@ -107,14 +106,14 @@ class InstancedLootComponentTest {
     void roundTrip_multiPlayer_keepsInventoriesIndependent() {
         UUID a = new UUID(1L, 1L);
         UUID b = new UUID(2L, 2L);
-        InstancedLootComponentImpl source = new InstancedLootComponentImpl(null);
+        InstancedLootData source = new InstancedLootData();
 
         NonNullList<ItemStack> invA = source.getOrCreateInventory(a, 27);
         invA.set(0, new ItemStack(Items.EMERALD, 3));
         NonNullList<ItemStack> invB = source.getOrCreateInventory(b, 27);
         invB.set(26, new ItemStack(Items.NETHERITE_INGOT, 1));
 
-        InstancedLootComponentImpl restored = roundTrip(source);
+        InstancedLootData restored = roundTrip(source);
 
         assertInventoriesMatch(invA, restored.getInventory(a));
         assertInventoriesMatch(invB, restored.getInventory(b));
@@ -123,12 +122,12 @@ class InstancedLootComponentTest {
     }
 
     @Test
-    void roundTrip_redirectMarker() {
+    void roundTrip_doubleChestRedirectMarker() {
         BlockPos primary = new BlockPos(-40, 63, 128);
-        InstancedLootComponentImpl source = new InstancedLootComponentImpl(null);
+        InstancedLootData source = new InstancedLootData();
         source.setRedirect(primary);
 
-        InstancedLootComponentImpl restored = roundTrip(source);
+        InstancedLootData restored = roundTrip(source);
 
         assertEquals(primary, restored.getRedirect());
     }
@@ -140,7 +139,7 @@ class InstancedLootComponentTest {
         named.set(DataComponents.CUSTOM_NAME, Component.literal("Excalibur"));
         named.set(DataComponents.DAMAGE, 42);
 
-        InstancedLootComponentImpl source = new InstancedLootComponentImpl(null);
+        InstancedLootData source = new InstancedLootData();
         NonNullList<ItemStack> inv = source.getOrCreateInventory(player, 27);
         inv.set(4, named);
 
@@ -152,51 +151,44 @@ class InstancedLootComponentTest {
     }
 
     @Test
-    void writeToNbt_ordersPlayersByUuid() {
+    void encode_ordersPlayersByUuid() {
         // Insert out of UUID order; expect the serialized list sorted ascending.
         UUID high = new UUID(3L, 0L);
         UUID mid = new UUID(2L, 0L);
         UUID low = new UUID(1L, 0L);
-        InstancedLootComponentImpl source = new InstancedLootComponentImpl(null);
+        InstancedLootData source = new InstancedLootData();
         source.getOrCreateInventory(high, 27);
         source.getOrCreateInventory(low, 27);
         source.getOrCreateInventory(mid, 27);
 
-        CompoundTag tag = new CompoundTag();
-        source.writeToNbt(tag, registries);
+        CompoundTag tag = (CompoundTag) InstancedLootData.CODEC.encodeStart(ops, source).getOrThrow();
 
-        ListTag players = tag.getList("Players", Tag.TAG_COMPOUND);
+        ListTag players = tag.getList("players", Tag.TAG_COMPOUND);
         List<UUID> order = new ArrayList<>();
         for (int i = 0; i < players.size(); i++) {
-            order.add(NbtUtils.loadUUID(players.getCompound(i).get("UUID")));
+            order.add(parseUuid(players.getCompound(i).getString("uuid")));
         }
         assertEquals(List.of(low, mid, high), order);
-    }
-
-    @Test
-    void writeToNbt_inertComponentWritesNothing() {
-        // A naturally-placed storage container never generates loot; its component must
-        // contribute no NBT so CCA leaves the block entity byte-identical to vanilla.
-        CompoundTag tag = new CompoundTag();
-        new InstancedLootComponentImpl(null).writeToNbt(tag, registries);
-
-        assertTrue(tag.isEmpty(), "inert component must serialize to an empty tag");
     }
 
     @Test
     void clearForPlayer_dropsOnlyThatPlayer() {
         UUID a = new UUID(1L, 0L);
         UUID b = new UUID(2L, 0L);
-        InstancedLootComponentImpl source = new InstancedLootComponentImpl(null);
+        InstancedLootData source = new InstancedLootData();
         source.getOrCreateInventory(a, 27).set(0, new ItemStack(Items.DIAMOND));
         source.setLastGeneratedTick(a, 100L);
         source.getOrCreateInventory(b, 27).set(0, new ItemStack(Items.EMERALD));
 
         source.clearForPlayer(a);
 
-        InstancedLootComponentImpl restored = roundTrip(source);
+        InstancedLootData restored = roundTrip(source);
         assertFalse(restored.hasInventory(a));
         assertEquals(-1L, restored.getLastGeneratedTick(a));
         assertTrue(restored.hasInventory(b));
+    }
+
+    private static UUID parseUuid(String s) {
+        return UUID.fromString(s);
     }
 }

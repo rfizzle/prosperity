@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Resolves a container's loot table into a fresh per-player inventory. This mirrors vanilla's
  * {@code RandomizableContainer#unpackLootTable} but fills a transient {@link SimpleContainer}
- * instead of the block entity, so the result can be stored per-player in the CCA component.
+ * instead of the block entity, so the result can be stored per-player in the instanced-loot attachment.
  *
  * <p>The roll seed is the container's preserved seed folded together with the player's UUID
  * ({@link #playerSeed}), so each player gets their own loot from the same container while a

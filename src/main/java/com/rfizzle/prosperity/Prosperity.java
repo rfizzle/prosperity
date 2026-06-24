@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity;
 
+import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
@@ -19,6 +20,7 @@ public class Prosperity implements ModInitializer {
     @Override
     public void onInitialize() {
         config = ProsperityConfig.load();
+        ProsperityAttachments.init();
         ProsperityNetworking.register();
         InstancedLootInteraction.register();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->

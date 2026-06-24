@@ -15,7 +15,7 @@
           "items": [
             {
               "q": "How is Prosperity different from Lootr?",
-              "a": "Prosperity replaces Lootr's instanced-loot functionality with a zero-trust approach: it never registers custom blocks or replaces block entities. Instead it attaches per-player loot to vanilla containers via Cardinal Components and intercepts interactions through events. On top of instancing, it adds distance-scaled loot quality, unlooted indicators, structure overrides, and a loot modifier API. Remove Lootr before installing — the two should not run together."
+              "a": "Prosperity replaces Lootr's instanced-loot functionality with a zero-trust approach: it never registers custom blocks or replaces block entities. Instead it attaches per-player loot to vanilla containers via persistent Fabric data attachments and intercepts interactions through events. On top of instancing, it adds distance-scaled loot quality, unlooted indicators, structure overrides, and a loot modifier API. Remove Lootr before installing — the two should not run together."
             },
             {
               "q": "Will Prosperity hurt my server's performance?",

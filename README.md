@@ -12,7 +12,7 @@
   <a href="https://github.com/rfizzle/prosperity/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/rfizzle/prosperity/actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
-A loot overhaul for Minecraft 1.21.1 (Fabric). Prosperity gives every player their own instanced loot from naturally-generated containers — no more empty dungeon chests because someone got there first — and rewards exploration with distance-scaled loot quality. It works as a zero-trust proxy over vanilla containers: it never registers custom blocks, retextures world-gen, or replaces block entities. Per-player state rides on vanilla container block entities via the Cardinal Components API.
+A loot overhaul for Minecraft 1.21.1 (Fabric). Prosperity gives every player their own instanced loot from naturally-generated containers — no more empty dungeon chests because someone got there first — and rewards exploration with distance-scaled loot quality. It works as a zero-trust proxy over vanilla containers: it never registers custom blocks, retextures world-gen, or replaces block entities. Per-player state rides on vanilla container block entities via persistent Fabric data attachments.
 
 ## Download
 
@@ -39,15 +39,15 @@ Full feature detail, container handling, and config knobs live in [`design/SPEC.
 
 ## Installation
 
-**Requirements:** Minecraft 1.21.1, Fabric Loader 0.16.10+, Fabric API, Cardinal Components API (CCA) 6.x, Java 21
+**Requirements:** Minecraft 1.21.1, Fabric Loader 0.16.10+, Fabric API, Java 21
 
-Drop the jar (and its required dependencies) into `mods/` on both server and client. Config generates at `config/prosperity.json` on first launch — tune everything with `/prosperity reload`.
+Drop the jar (and Fabric API) into `mods/` on both server and client. Config generates at `config/prosperity.json` on first launch — tune everything with `/prosperity reload`.
 
 ---
 
 ## Development
 
-Cardinal Components API is a **required runtime dependency** — Prosperity attaches per-player loot state to vanilla container block entities through CCA block entity components.
+Fabric API is the only non-trivial required dependency — Prosperity attaches per-player loot state to vanilla container block entities through persistent Fabric data attachments.
 
 ```sh
 ./gradlew build          # produces build/libs/prosperity-<version>.jar

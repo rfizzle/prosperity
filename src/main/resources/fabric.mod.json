@@ -18,12 +18,11 @@
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
-            "com.rfizzle.prosperity.gametest.InstancedLootComponentGameTest",
+            "com.rfizzle.prosperity.gametest.InstancedLootDataGameTest",
             "com.rfizzle.prosperity.gametest.InstancedLootGameTest",
             "com.rfizzle.prosperity.gametest.LootNullificationGameTest",
             "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest"
-        ],
-        "cardinal-components": ["com.rfizzle.prosperity.component.ProsperityComponents"]
+        ]
     },
     "suggests": {
         "modmenu": "*",
@@ -40,13 +39,6 @@
         "fabricloader": ">=0.16.10",
         "minecraft": "~1.21.1",
         "java": ">=21",
-        "fabric-api": "*",
-        "cardinal-components-base": "*",
-        "cardinal-components-block": "*"
-    },
-    "custom": {
-        "cardinal-components": [
-            "prosperity:instanced_loot"
-        ]
+        "fabric-api": "*"
     }
 }

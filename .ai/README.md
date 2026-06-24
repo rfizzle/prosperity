@@ -12,8 +12,8 @@ The CI prompts (`code-reviewer.md`, `spec-writer.md`) and the review criteria
 (`review-criteria.yml`) are **not** kept here — the generic suite defaults in
 [rfizzle/concord](https://github.com/rfizzle/concord) `.ai/` are used.
 Domain-specific review emphasis (e.g. the per-interaction container hot path
-and CCA component serialization) lives in `AGENTS.md`, which the workflows
-always inject into the prompt.
+and instanced-loot attachment serialization) lives in `AGENTS.md`, which the
+workflows always inject into the prompt.
 
 Resolution order in the reusable workflows: explicit `prompt-file` /
 `criteria-file` workflow input → repo-local `.ai/` file (whole-file override)

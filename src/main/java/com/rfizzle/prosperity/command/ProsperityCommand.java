@@ -6,8 +6,8 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.rfizzle.prosperity.Prosperity;
-import com.rfizzle.prosperity.component.InstancedLootComponent;
-import com.rfizzle.prosperity.component.ProsperityComponents;
+import com.rfizzle.prosperity.attachment.InstancedLootData;
+import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
@@ -29,7 +29,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import org.jetbrains.annotations.Nullable;
 
@@ -132,14 +131,15 @@ public final class ProsperityCommand {
         CommandSourceStack src = ctx.getSource();
         ServerLevel level = src.getLevel();
         BlockPos pos = BlockPosArgument.getLoadedBlockPos(ctx, "pos");
-        if (componentAt(level, pos) == null) {
-            src.sendFailure(Component.translatable("command.prosperity.no_container", formatPos(pos)));
-            return 0;
-        }
 
         Collection<GameProfile> profiles = perPlayer ? GameProfileArgument.getGameProfiles(ctx, "player") : null;
         Collection<UUID> uuids = profiles == null ? null : profileUuids(profiles);
         final int removed = clearContainer(level, pos, uuids);
+        if (removed < 0) {
+            // No proxy-managed loot container at the position (missing, or plain storage).
+            src.sendFailure(Component.translatable("command.prosperity.no_container", formatPos(pos)));
+            return 0;
+        }
         final String posStr = formatPos(pos);
 
         if (perPlayer) {
@@ -162,23 +162,32 @@ public final class ProsperityCommand {
      * clients to drop their indicator for the position. Exposed for gametests.
      */
     public static int clearContainer(ServerLevel level, BlockPos pos, @Nullable Collection<UUID> uuids) {
-        InstancedLootComponent component = componentAt(level, pos);
-        if (component == null) {
+        if (!(level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity container)) {
             return -1;
+        }
+        InstancedLootData data = ProsperityAttachments.get(container);
+        // A plain storage container (no loot table, no generated attachment) is not proxy-managed.
+        if (container.getLootTable() == null && (data == null || !data.isGenerated())) {
+            return -1;
+        }
+        if (data == null) {
+            // A loot container nobody has opened yet: managed, but no instances to clear.
+            return 0;
         }
         int removed;
         if (uuids == null) {
-            removed = component.playerIds().size();
-            component.clearAll();
+            removed = data.playerIds().size();
+            data.clearAll();
         } else {
             removed = 0;
             for (UUID id : uuids) {
-                if (component.hasInventory(id)) {
+                if (data.hasInventory(id)) {
                     removed++;
                 }
-                component.clearForPlayer(id);
+                data.clearForPlayer(id);
             }
         }
+        container.setChanged();
         if (removed > 0) {
             notifyTracking(level, pos);
         }
@@ -214,15 +223,6 @@ public final class ProsperityCommand {
     }
 
     // ---- shared helpers ----
-
-    @Nullable
-    static InstancedLootComponent componentAt(ServerLevel level, BlockPos pos) {
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof RandomizableContainerBlockEntity) {
-            return ProsperityComponents.INSTANCED_LOOT.getNullable(be);
-        }
-        return null;
-    }
 
     private static void notifyTracking(ServerLevel level, BlockPos pos) {
         // The client receiver for this payload lands in E-003; the canSend guard makes the

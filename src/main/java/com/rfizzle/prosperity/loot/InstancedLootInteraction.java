@@ -1,8 +1,8 @@
 package com.rfizzle.prosperity.loot;
 
 import com.rfizzle.prosperity.Prosperity;
-import com.rfizzle.prosperity.component.InstancedLootComponent;
-import com.rfizzle.prosperity.component.ProsperityComponents;
+import com.rfizzle.prosperity.attachment.InstancedLootData;
+import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
@@ -34,6 +34,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.BlockHitResult;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Core instanced-loot loop (S-005). Intercepts right-clicks on naturally-generated containers,
@@ -90,28 +91,30 @@ public final class InstancedLootInteraction {
             // Sizes that do not map to a chest menu (e.g. a 5-slot hopper) stay vanilla.
             return InteractionResult.PASS;
         }
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.getNullable(container);
-        if (component == null || !isLootContainer(container, component)) {
+        InstancedLootData data = ProsperityAttachments.get(container);
+        if (!isLootContainer(container, data)) {
             // Player-placed storage (no loot table, never generated) stays shared and vanilla.
+            // Gate on the loot table, not the attachment's presence: a never-opened loot chest has
+            // no attachment yet, so gating on presence would silently leak first-open instancing.
             return InteractionResult.PASS;
         }
 
-        serveInstance((ServerLevel) level, pos, container, component, serverPlayer);
+        serveInstance((ServerLevel) level, pos, container, serverPlayer);
         return InteractionResult.SUCCESS;
     }
 
     /** Whether the container carries (or has consumed) a loot table and so should be instanced. */
     public static boolean isLootContainer(RandomizableContainerBlockEntity container,
-            InstancedLootComponent component) {
-        return container.getLootTable() != null || component.isGenerated();
+            @Nullable InstancedLootData data) {
+        return container.getLootTable() != null || (data != null && data.isGenerated());
     }
 
     /** Generate-or-retrieve the player's inventory, then open the matching vanilla chest screen. */
     public static void serveInstance(ServerLevel level, BlockPos pos,
-            RandomizableContainerBlockEntity be, InstancedLootComponent component, ServerPlayer player) {
+            RandomizableContainerBlockEntity be, ServerPlayer player) {
         UUID uuid = player.getUUID();
         int size = be.getContainerSize();
-        NonNullList<ItemStack> stored = generateAndStore(level, pos, be, component, player);
+        NonNullList<ItemStack> stored = generateAndStore(level, pos, be, player);
 
         SimpleContainer screenInventory = new SimpleContainer(size);
         for (int slot = 0; slot < size; slot++) {
@@ -133,46 +136,52 @@ public final class InstancedLootInteraction {
      * cannot trigger vanilla's {@code unpackLootTable} and drain the global loot (S-006).
      */
     public static NonNullList<ItemStack> generateAndStore(ServerLevel level, BlockPos pos,
-            RandomizableContainerBlockEntity be, InstancedLootComponent component, ServerPlayer player) {
+            RandomizableContainerBlockEntity be, ServerPlayer player) {
         UUID uuid = player.getUUID();
-        NonNullList<ItemStack> existing = component.getInventory(uuid);
+        InstancedLootData existing = ProsperityAttachments.get(be);
         if (existing != null) {
-            return existing;
+            NonNullList<ItemStack> stored = existing.getInventory(uuid);
+            if (stored != null) {
+                return stored;
+            }
         }
 
+        boolean alreadyGenerated = existing != null && existing.isGenerated();
         ResourceKey<LootTable> tableKey =
-                component.isGenerated() ? component.getOriginalLootTable() : be.getLootTable();
-        long seed = component.isGenerated() ? component.getOriginalSeed() : be.getLootTableSeed();
-        component.markGenerated(be.getLootTable(), be.getLootTableSeed());
-        // Sever the block entity's link to the global loot table now that the original is preserved
-        // in the component. The unpack-safety mixin backstops any direct call that slips past this.
-        be.setLootTable(null);
-        be.setLootTableSeed(0L);
-        be.setChanged();
+                alreadyGenerated ? existing.getOriginalLootTable() : be.getLootTable();
+        long seed = alreadyGenerated ? existing.getOriginalSeed() : be.getLootTableSeed();
+        ResourceKey<LootTable> beTable = be.getLootTable();
+        long beSeed = be.getLootTableSeed();
 
         NonNullList<ItemStack> generated =
                 InstancedLootGenerator.generate(level, pos, tableKey, seed, player, be.getContainerSize());
-        component.setInventory(uuid, generated);
-        component.setLastGeneratedTick(uuid, level.getGameTime());
+
+        ProsperityAttachments.update(be, data -> {
+            data.markGenerated(beTable, beSeed);
+            data.setInventory(uuid, generated);
+            data.setLastGeneratedTick(uuid, level.getGameTime());
+        });
+        // Sever the block entity's link to the global loot table now that the original is preserved
+        // in the attachment. The unpack-safety mixin backstops any direct call that slips past this.
+        be.setLootTable(null);
+        be.setLootTableSeed(0L);
+        be.setChanged();
         return generated;
     }
 
-    /** Write a screen inventory back to the player's component entry. */
-    public static void persist(InstancedLootComponent component, UUID uuid, Container container) {
+    /** Write a screen inventory back to the player's attachment entry. */
+    public static void persist(RandomizableContainerBlockEntity be, UUID uuid, Container container) {
         int size = container.getContainerSize();
         NonNullList<ItemStack> out = NonNullList.withSize(size, ItemStack.EMPTY);
         for (int slot = 0; slot < size; slot++) {
             out.set(slot, container.getItem(slot));
         }
-        component.setInventory(uuid, out);
+        ProsperityAttachments.update(be, data -> data.setInventory(uuid, out));
     }
 
     private static void onClose(ServerLevel level, BlockPos pos, UUID uuid, Container screenInventory) {
         if (level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity be) {
-            InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.getNullable(be);
-            if (component != null) {
-                persist(component, uuid, screenInventory);
-            }
+            persist(be, uuid, screenInventory);
             playClose(level, pos, be);
         }
     }

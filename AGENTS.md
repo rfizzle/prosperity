@@ -9,10 +9,12 @@ point at the same content so each agent finds what it expects to read.
 Prosperity is a Minecraft 1.21.1 Fabric mod — a loot overhaul that gives every
 player their own instanced loot from naturally-generated containers and rewards
 exploration with distance-based loot scaling. Java 21, Fabric Loader 0.16.10,
-Loom 1.9. **Required dependency:** Cardinal Components API (CCA) 6.x — per-player
-loot state is attached to vanilla container block entities via CCA block entity
-components (the mod is a zero-trust proxy and never registers custom blocks or
-replaces vanilla block entities). The feature surface is documented in
+Loom 1.9. The only non-trivial required dependency is Fabric API itself —
+per-player loot state is attached to vanilla container block entities via
+persistent Fabric data attachments (`AttachmentRegistry.create(…).persistent(CODEC)`),
+the same mechanism the rest of the Concord suite uses (the mod is a zero-trust
+proxy and never registers custom blocks or replaces vanilla block entities). The
+feature surface is documented in
 [`README.md`](README.md), [`design/SPEC.md`](design/SPEC.md), and
 [prosperity.rfizzle.com](https://prosperity.rfizzle.com). Work is tracked in
 GitHub Issues — see the [Development lifecycle](#development-lifecycle) section below.
@@ -67,11 +69,14 @@ Fabric APIs must use gametests instead.
   mod ID inlined.
 - **Mappings:** Official Mojang mappings (not Yarn). Use Mojang class/method
   names everywhere (`CompoundTag`, not `NbtCompound`; `Level`, not `World`).
-- **CCA components:** Per-player container state lives under
-  `com.rfizzle.prosperity.component` (e.g. `InstancedLootComponent`,
-  registered via `ProsperityComponents`). Components attach to vanilla
-  `RandomizableContainerBlockEntity` instances — never replace the vanilla
-  block entity, model, or renderer.
+- **Data attachments:** Per-player container state lives under
+  `com.rfizzle.prosperity.attachment` (`InstancedLootData`, registered via
+  `ProsperityAttachments`). It is a persistent Fabric data attachment on vanilla
+  `RandomizableContainerBlockEntity` instances — never replace the vanilla block
+  entity, model, or renderer. The attachment is created on demand (never
+  auto-attached), so interception gates on the loot table, not the attachment's
+  presence. In-place mutation does not auto-dirty the block entity: route every
+  write through `ProsperityAttachments.update`, which calls `setChanged()`.
 - **Assets:** The mod ships almost no custom block/textures by design —
   container blocks stay vanilla. Client-side sprite overlays and a HUD icon
   live under `assets/prosperity/`. Visual indicators render via

@@ -1,8 +1,8 @@
 package com.rfizzle.prosperity.mixin;
 
 import com.rfizzle.prosperity.Prosperity;
-import com.rfizzle.prosperity.component.InstancedLootComponent;
-import com.rfizzle.prosperity.component.ProsperityComponents;
+import com.rfizzle.prosperity.attachment.InstancedLootData;
+import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import net.minecraft.world.RandomizableContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>Targets the {@link RandomizableContainer} interface because {@code unpackLootTable} is a default
  * method there, not declared on the block entity. The interface is also implemented by minecart
  * containers, hence the {@code instanceof RandomizableContainerBlockEntity} guard &mdash; only block
- * entities carry our CCA component.
+ * entities carry the block-entity instanced-loot attachment.
  */
 @Mixin(RandomizableContainer.class)
 public interface RandomizableContainerUnpackMixin {
@@ -34,8 +34,8 @@ public interface RandomizableContainerUnpackMixin {
             if (!(this instanceof RandomizableContainerBlockEntity be)) {
                 return;
             }
-            InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.getNullable(be);
-            if (component != null && component.isGenerated()) {
+            InstancedLootData data = ProsperityAttachments.get(be);
+            if (data != null && data.isGenerated()) {
                 ci.cancel();
             }
         } catch (RuntimeException e) {

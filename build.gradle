@@ -70,14 +70,6 @@ def runGitDescribe(String tagPrefix) {
 repositories {
     mavenCentral()
     maven {
-        name = 'Ladysnake'
-        url = 'https://maven.ladysnake.org/releases'
-        content {
-            includeGroup 'org.ladysnake'
-            includeGroupByRegex 'org\\.ladysnake\\..*'
-        }
-    }
-    maven {
         name = 'TerraformersMC'
         url = 'https://maven.terraformersmc.com/'
         content {
@@ -187,13 +179,6 @@ dependencies {
 
     // Client source set
     "clientImplementation"("net.fabricmc.fabric-api:fabric-api:${project.fabric_version}")
-
-    // Cardinal Components API — REQUIRED. Per-player loot state is attached to vanilla
-    // container block entities via CCA block-entity components. base + block modules.
-    modImplementation "org.ladysnake.cardinal-components-api:cardinal-components-base:${project.cardinal_components_version}"
-    modImplementation "org.ladysnake.cardinal-components-api:cardinal-components-block:${project.cardinal_components_version}"
-    include "org.ladysnake.cardinal-components-api:cardinal-components-base:${project.cardinal_components_version}"
-    include "org.ladysnake.cardinal-components-api:cardinal-components-block:${project.cardinal_components_version}"
 
     // ModMenu 11.x — Config screen entry point for Fabric 1.21.1. Compile-only + dev runtime
     // so end users get the integration only when they install ModMenu themselves.

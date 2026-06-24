@@ -1,8 +1,7 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
-import com.rfizzle.prosperity.component.InstancedLootComponent;
-import com.rfizzle.prosperity.component.ProsperityComponents;
 import com.rfizzle.prosperity.config.DistanceTier;
 import java.util.List;
 import java.util.UUID;
@@ -56,21 +55,23 @@ public class ProsperityCommandGameTest implements FabricGameTest {
         BlockPos abs = helper.absolutePos(rel);
         ServerLevel level = helper.getLevel();
 
-        InstancedLootComponent component = ProsperityComponents.INSTANCED_LOOT.get(chest);
-        component.markGenerated(null, 0L);
-        component.getOrCreateInventory(PLAYER_A, 27);
-        component.getOrCreateInventory(PLAYER_B, 27);
+        ProsperityAttachments.update(chest, data -> {
+            data.markGenerated(null, 0L);
+            data.getOrCreateInventory(PLAYER_A, 27);
+            data.getOrCreateInventory(PLAYER_B, 27);
+        });
 
         // Clearing one player removes exactly that instance and leaves the other intact.
         int removedOne = ProsperityCommand.clearContainer(level, abs, List.of(PLAYER_A));
         helper.assertTrue(removedOne == 1, "clearing one player must report one instance removed");
-        helper.assertFalse(component.hasInventory(PLAYER_A), "player A's instance must be gone");
-        helper.assertTrue(component.hasInventory(PLAYER_B), "player B's instance must remain");
+        helper.assertFalse(ProsperityAttachments.get(chest).hasInventory(PLAYER_A), "player A's instance must be gone");
+        helper.assertTrue(ProsperityAttachments.get(chest).hasInventory(PLAYER_B), "player B's instance must remain");
 
         // Clearing all wipes the remaining instance and reports the count.
         int removedAll = ProsperityCommand.clearContainer(level, abs, null);
         helper.assertTrue(removedAll == 1, "clearing all must report the one remaining instance");
-        helper.assertTrue(component.playerIds().isEmpty(), "no instances may remain after a full clear");
+        helper.assertTrue(ProsperityAttachments.get(chest).playerIds().isEmpty(),
+                "no instances may remain after a full clear");
 
         helper.succeed();
     }

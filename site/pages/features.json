@@ -16,7 +16,7 @@
         {
           "type": "prose",
           "html": [
-            "Every naturally generated container serves each player their own independent loot the first time they open it. The vanilla block, model, block entity, and renderer are never touched — Prosperity attaches per-player loot to vanilla containers via Cardinal Components, intercepting interactions through events.",
+            "Every naturally generated container serves each player their own independent loot the first time they open it. The vanilla block, model, block entity, and renderer are never touched — Prosperity attaches per-player loot to vanilla containers via persistent Fabric data attachments, intercepting interactions through events.",
             "After the first generation, the container's vanilla loot table is nullified to prevent hopper and comparator exploits. This replaces the functionality of Lootr."
           ]
         },

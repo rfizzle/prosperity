@@ -22,8 +22,8 @@ Prosperity is an instanced loot overhaul for **Minecraft 1.21.1 (Fabric)**. It
 gives every player their own loot from naturally generated containers — no more
 racing to the good chests on a shared server — and rewards exploration with
 distance-scaled loot quality. It works by attaching per-player loot to vanilla
-containers via Cardinal Components and intercepting interactions through events;
-it never registers custom blocks or replaces block entities.
+containers via persistent Fabric data attachments and intercepting interactions
+through events; it never registers custom blocks or replaces block entities.
 
 **Vanilla+ by design.** A drop-in replacement for Lootr with extra reach.
 Zero external dependencies beyond Fabric API.
