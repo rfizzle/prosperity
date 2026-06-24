@@ -1,0 +1,76 @@
+package com.rfizzle.prosperity.client.network;
+
+import com.rfizzle.prosperity.client.indicator.UnlootedIndicatorCache;
+import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
+import com.rfizzle.prosperity.network.ContainerLootedS2CPayload;
+import com.rfizzle.prosperity.network.ContainerRemovedS2CPayload;
+import com.rfizzle.prosperity.network.RequestUnlootedC2SPayload;
+import com.rfizzle.prosperity.network.UnlootedContainersS2CPayload;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
+
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * Client half of the visual-indicator protocol (SPEC §2 / S-010): receive the server config and
+ * per-chunk unlooted answers, request a chunk's data on load, and invalidate the cache on loot,
+ * removal, chunk unload, and disconnect.
+ */
+public final class ProsperityClientNetworking {
+
+    private ProsperityClientNetworking() {
+    }
+
+    public static void init() {
+        registerReceivers();
+        registerChunkRequests();
+        registerCleanup();
+    }
+
+    private static void registerReceivers() {
+        ClientPlayNetworking.registerGlobalReceiver(ConfigSyncS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() ->
+                        ClientProsperityData.setServerConfig(ProsperityConfig.fromJson(payload.configJson()))));
+
+        ClientPlayNetworking.registerGlobalReceiver(UnlootedContainersS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> {
+                    ChunkPos chunkPos = payload.chunkPos();
+                    Set<BlockPos> positions = new HashSet<>(payload.entries().size());
+                    for (UnlootedContainersS2CPayload.Entry entry : payload.entries()) {
+                        positions.add(entry.toBlockPos(chunkPos));
+                    }
+                    UnlootedIndicatorCache.put(chunkPos, positions);
+                }));
+
+        ClientPlayNetworking.registerGlobalReceiver(ContainerLootedS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> UnlootedIndicatorCache.removePos(payload.pos())));
+
+        ClientPlayNetworking.registerGlobalReceiver(ContainerRemovedS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> UnlootedIndicatorCache.removePos(payload.pos())));
+    }
+
+    private static void registerChunkRequests() {
+        // Ask the server for the chunk's unlooted containers once per load. The server gates on
+        // enableVisualIndicators (replying empty when off) and rate-limits per player, so an
+        // unconditional request here is safe; markRequested suppresses duplicate in-flight asks.
+        ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
+            ChunkPos pos = chunk.getPos();
+            if (UnlootedIndicatorCache.markRequested(pos)
+                    && ClientPlayNetworking.canSend(RequestUnlootedC2SPayload.TYPE)) {
+                ClientPlayNetworking.send(new RequestUnlootedC2SPayload(pos));
+            }
+        });
+
+        ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) ->
+                UnlootedIndicatorCache.removeChunk(chunk.getPos()));
+    }
+
+    private static void registerCleanup() {
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> UnlootedIndicatorCache.clear());
+    }
+}

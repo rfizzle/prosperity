@@ -23,10 +23,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ProsperityNetworking {
 
-    // RequestUnlootedC2S triggers a per-chunk block-entity scan (wired in S-009). Gate it
-    // per player so a spammed client cannot queue repeated scans on the server thread.
-    private static final Map<UUID, Long> LAST_UNLOOTED_REQUEST_MS = new ConcurrentHashMap<>();
-    private static final long REQUEST_UNLOOTED_COOLDOWN_MS = 2000;
+    // RequestUnlootedC2S triggers a per-chunk block-entity scan. The client sends one request per
+    // chunk it loads, so a single player legitimately bursts many requests at login or while moving;
+    // gate with a per-player sliding window that admits those bursts but throttles a flood far above
+    // any real chunk-load rate (anti-DoS on the server-thread scan). Each window holds
+    // [windowStartMs, count] and is touched only on the player's single netty receiver thread.
+    private static final Map<UUID, long[]> UNLOOTED_REQUEST_WINDOW = new ConcurrentHashMap<>();
+    private static final long REQUEST_WINDOW_MS = 1000;
+    private static final int MAX_REQUESTS_PER_WINDOW = 512;
 
     private ProsperityNetworking() {
     }
@@ -34,6 +38,7 @@ public final class ProsperityNetworking {
     public static void register() {
         registerPayloadTypes();
         registerServerHandlers();
+        registerJoinSync();
         registerDisconnectCleanup();
     }
 
@@ -49,16 +54,36 @@ public final class ProsperityNetworking {
     private static void registerServerHandlers() {
         ServerPlayNetworking.registerGlobalReceiver(RequestUnlootedC2SPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            if (!checkCooldown(LAST_UNLOOTED_REQUEST_MS, player.getUUID(), REQUEST_UNLOOTED_COOLDOWN_MS)) {
+            if (!allowRequest(player.getUUID())) {
                 return;
             }
             player.server.execute(() -> handleRequestUnlooted(player, payload));
         });
     }
 
+    private static void registerJoinSync() {
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> sendJoinSync(handler.getPlayer()));
+    }
+
+    /**
+     * Push the server config to a player's client (S-010). The client's indicator renderer reads
+     * the synced {@code enableVisualIndicators}/{@code indicatorRenderDistance}/{@code indicatorXrayDistance}
+     * to gate and size overlays, so it must land before the client requests per-chunk data. Public so
+     * gametests can drive the emission without the real {@code JOIN} event, and so {@code /prosperity reload}
+     * can resync without a reconnect.
+     */
+    public static void sendJoinSync(ServerPlayer player) {
+        if (player.connection == null) {
+            return;
+        }
+        if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
+            ServerPlayNetworking.send(player, new ConfigSyncS2CPayload(Prosperity.getConfig().toJson()));
+        }
+    }
+
     private static void registerDisconnectCleanup() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                LAST_UNLOOTED_REQUEST_MS.remove(handler.getPlayer().getUUID()));
+                UNLOOTED_REQUEST_WINDOW.remove(handler.getPlayer().getUUID()));
     }
 
     private static void handleRequestUnlooted(ServerPlayer player, RequestUnlootedC2SPayload payload) {
@@ -76,8 +101,8 @@ public final class ProsperityNetworking {
 
     /**
      * Tell a single player that they have just generated loot from the container at {@code pos}, so
-     * their client drops its unlooted indicator there (S-009). The {@code canSend} guard makes this a
-     * no-op until the E-003 client receiver lands.
+     * their client drops its unlooted indicator there. The {@code canSend} guard skips the send for a
+     * client that has not registered the receiver (e.g. a vanilla client).
      */
     public static void sendContainerLooted(ServerPlayer player, BlockPos pos) {
         if (ServerPlayNetworking.canSend(player, ContainerLootedS2CPayload.TYPE)) {
@@ -88,7 +113,7 @@ public final class ProsperityNetworking {
     /**
      * Tell every client tracking {@code pos} that the loot container there is gone, so each drops
      * its unlooted indicator. Used on container break (S-008) and on command reset/refresh (S-004).
-     * The {@code canSend} guard makes this a no-op until the E-003 client receiver lands.
+     * The {@code canSend} guard skips clients that have not registered the receiver.
      */
     public static void sendContainerRemoved(ServerLevel level, BlockPos pos) {
         ContainerRemovedS2CPayload payload = new ContainerRemovedS2CPayload(pos);
@@ -99,13 +124,18 @@ public final class ProsperityNetworking {
         }
     }
 
-    private static boolean checkCooldown(Map<UUID, Long> map, UUID id, long cooldownMs) {
+    /** Admit up to {@link #MAX_REQUESTS_PER_WINDOW} chunk requests per player per {@link #REQUEST_WINDOW_MS}. */
+    private static boolean allowRequest(UUID id) {
         long now = System.currentTimeMillis();
-        Long last = map.get(id);
-        if (last != null && now - last < cooldownMs) {
+        long[] window = UNLOOTED_REQUEST_WINDOW.computeIfAbsent(id, k -> new long[]{now, 0});
+        if (now - window[0] >= REQUEST_WINDOW_MS) {
+            window[0] = now;
+            window[1] = 0;
+        }
+        if (window[1] >= MAX_REQUESTS_PER_WINDOW) {
             return false;
         }
-        map.put(id, now);
+        window[1]++;
         return true;
     }
 }
