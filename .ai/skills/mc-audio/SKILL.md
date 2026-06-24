@@ -47,7 +47,7 @@ live under `.ai/skills/mc-audio/examples/`.
 S=.ai/skills/mc-audio/scripts/sfx.py
 python3 $S .ai/skills/mc-audio/examples/ui-blip.sfx          # synth + render report
 python3 $S --list-waveforms                                  # available oscillators
-python3 $S CUE.sfx -o art/audio/<cue>.ogg                    # write the master
+python3 $S CUE.sfx -o art/audio/<cue>.ogg                    # render preview + report (gitignored)
 ```
 
 **You cannot hear the output — so close the loop with objective signals, then a human.**
@@ -68,11 +68,12 @@ that the sound needs a listen before it lands.
 
 ## Companion `.sfx` files (the repeatability rule)
 
-Every committed sound master ships its `.sfx` source **beside it**, same basename:
-`art/audio/pylon-alarm.ogg` ↔ `art/audio/pylon-alarm.sfx`. The `.sfx` is the source of
-truth — re-renders reproducibly, edits in seconds. Masters live in the mod's `art/audio/`;
-`assets/<mod>/sounds/` holds the derived `.ogg`. Re-touching a sound recreates it through
-its `.sfx`.
+`art/audio/` holds the committed `.sfx` source of truth (same basename as the sound, e.g.
+`art/audio/pylon-alarm.sfx`). The rendered `.ogg` is **not** kept there: render a preview
+into `art/audio/` to inspect it — the `.ogg` and `.report.png` there are throwaway and
+gitignored — then ship the final `.ogg` to `assets/<mod>/sounds/<event>.ogg`, the only
+committed copy. The `.sfx` re-renders reproducibly, so re-touching a sound means editing
+the `.sfx` and re-rendering.
 
 ## Quick checklist
 
@@ -82,5 +83,5 @@ its `.sfx`.
       back and judged
 - [ ] Human ear-check requested before it lands
 - [ ] `SoundEvent` registered, `sounds.json` entry + subtitle key + lang translation
-- [ ] `.sfx` source committed beside the master (same basename) in `art/audio/`; derived
-      `.ogg` in `assets/<mod>/sounds/`
+- [ ] `.sfx` source committed in `art/audio/`; the shipping `.ogg` in `assets/<mod>/sounds/`
+      (the `.ogg`/report rendered into `art/audio/` are gitignored throwaways)

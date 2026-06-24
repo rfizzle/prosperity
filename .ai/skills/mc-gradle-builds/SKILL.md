@@ -172,7 +172,8 @@ Externalize all versions in `gradle.properties`:
 minecraft_version=1.21.1
 loader_version=0.16.10
 fabric_version=0.116.1+1.21.1
-mod_version=0.3.0
+# Local/dev base only — releases derive the version from the pushed tag.
+mod_version=0.0.0
 ```
 
 Inject version into `fabric.mod.json`:
@@ -186,9 +187,15 @@ processResources {
 }
 ```
 
-## SemVer from git tags
+## SemVer from the pushed tag
 
-Derive a SemVer-compliant version from `mod_version` + git state:
+The pushed `v*` tag is the single source of version truth. The release workflow injects
+it as `-Pmod_version=<tag>`, so the built jar's version is exactly the tag. The
+`mod_version=0.0.0` in `gradle.properties` is only the local/dev base: with no tag
+injected, `computeModVersion()` derives `0.0.0+g<sha>` from git state so local builds are
+clearly non-releases, and it returns the injected tag verbatim on a release build (the
+`out == "v${base}"` branch) — so no build.gradle change is needed to adopt tag-driven
+releases:
 
 ```groovy
 version = computeModVersion()
