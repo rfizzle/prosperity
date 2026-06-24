@@ -244,6 +244,9 @@ public final class InstancedLootInteraction {
         });
         primaryAdapter.clearLootTable();
         secondaryAdapter.clearLootTable();
+        // The double chest's single indicator is anchored at the primary half (the scan emits only
+        // there), so drop that one for this player on first generation.
+        primaryAdapter.notifyGenerated(player);
         return combined;
     }
 
@@ -294,6 +297,8 @@ public final class InstancedLootInteraction {
             data.setLastGeneratedTick(uuid, adapter.level().getGameTime());
         });
         adapter.clearLootTable();
+        // First generation only (return visits returned above): drop this player's unlooted indicator.
+        adapter.notifyGenerated(player);
         return generated;
     }
 

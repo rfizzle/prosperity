@@ -2,12 +2,14 @@ package com.rfizzle.prosperity.loot;
 
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
+import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -87,6 +89,11 @@ public final class BlockEntityContainerAdapter implements ContainerAdapter {
         if (level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity current) {
             InstancedLootInteraction.persist(current, player, screenInventory);
         }
+    }
+
+    @Override
+    public void notifyGenerated(ServerPlayer player) {
+        ProsperityNetworking.sendContainerLooted(player, pos);
     }
 
     @Override

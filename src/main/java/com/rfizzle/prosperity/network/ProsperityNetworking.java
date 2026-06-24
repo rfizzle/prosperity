@@ -1,5 +1,7 @@
 package com.rfizzle.prosperity.network;
 
+import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.loot.UnlootedContainers;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -8,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,11 +62,27 @@ public final class ProsperityNetworking {
     }
 
     private static void handleRequestUnlooted(ServerPlayer player, RequestUnlootedC2SPayload payload) {
-        if (player.connection == null) {
+        if (player.connection == null || !Prosperity.getConfig().enableVisualIndicators) {
             return;
         }
-        // TODO(S-009): scan the chunk's block entities for instanced containers the player has
-        // not generated and reply with UnlootedContainersS2CPayload. Transport only for now.
+        if (!ServerPlayNetworking.canSend(player, UnlootedContainersS2CPayload.TYPE)) {
+            return;
+        }
+        List<UnlootedContainersS2CPayload.Entry> entries =
+                UnlootedContainers.scanChunk(player.serverLevel(), payload.chunkPos(), player.getUUID());
+        // Reply even when empty so the client can clear any stale indicators it cached for the chunk.
+        ServerPlayNetworking.send(player, new UnlootedContainersS2CPayload(payload.chunkPos(), entries));
+    }
+
+    /**
+     * Tell a single player that they have just generated loot from the container at {@code pos}, so
+     * their client drops its unlooted indicator there (S-009). The {@code canSend} guard makes this a
+     * no-op until the E-003 client receiver lands.
+     */
+    public static void sendContainerLooted(ServerPlayer player, BlockPos pos) {
+        if (ServerPlayNetworking.canSend(player, ContainerLootedS2CPayload.TYPE)) {
+            ServerPlayNetworking.send(player, new ContainerLootedS2CPayload(pos));
+        }
     }
 
     /**

@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.Vec3;
@@ -55,6 +56,14 @@ public interface ContainerAdapter {
 
     /** Write the closed screen's contents back to the player's stored inventory. */
     void persist(UUID player, Container screenInventory);
+
+    /**
+     * Tell the player's client that they have just generated loot here, so it drops the unlooted
+     * indicator (S-009). Called once, on the generation path only. Block sources push a
+     * {@code BlockPos}-keyed {@code ContainerLootedS2C}; minecarts are entities the block-keyed
+     * indicator protocol cannot address, so their adapter no-ops until the entity-anchored path (S-038).
+     */
+    void notifyGenerated(ServerPlayer player);
 
     /** Play the open sound and (for blocks) animate the lid. */
     void openFeedback();

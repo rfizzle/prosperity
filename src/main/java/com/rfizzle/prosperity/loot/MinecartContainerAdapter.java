@@ -8,6 +8,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
@@ -92,6 +93,12 @@ public final class MinecartContainerAdapter implements ContainerAdapter {
             out.set(slot, screenInventory.getItem(slot));
         }
         ProsperityAttachments.update(cart, data -> data.setInventory(player, out));
+    }
+
+    @Override
+    public void notifyGenerated(ServerPlayer player) {
+        // Minecart indicators are entity-anchored, which the block-keyed indicator protocol cannot
+        // address; their looted push lands with the entity-anchored sync (S-038).
     }
 
     @Override

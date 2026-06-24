@@ -25,7 +25,8 @@
             "com.rfizzle.prosperity.gametest.InstancedLootGameTest",
             "com.rfizzle.prosperity.gametest.LootNullificationGameTest",
             "com.rfizzle.prosperity.gametest.MinecartInstancingGameTest",
-            "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest"
+            "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest",
+            "com.rfizzle.prosperity.gametest.UnlootedSyncGameTest"
         ]
     },
     "suggests": {
