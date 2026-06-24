@@ -81,11 +81,15 @@ If a player breaks an instanced loot container:
 
 ### Implementation Notes
 
-- CCA component: `InstancedLootComponent` attached to `RandomizableContainerBlockEntity` via a CCA block entity component. Contains:
-  - `Map<UUID, DefaultedList<ItemStack>> playerInventories` — per-player loot.
-  - `ResourceLocation originalLootTable` — preserved after nullification.
+- CCA component: `InstancedLootComponent` attached to `RandomizableContainerBlockEntity` via a CCA block entity component (declared in `fabric.mod.json` `custom.cardinal-components` so CCA's bootstrap generates its type). Contains:
+  - `Map<UUID, NonNullList<ItemStack>> playerInventories` — per-player loot.
+  - `ResourceKey<LootTable> originalLootTable` — preserved after nullification (the block entity's own loot-table key type, so it copies in/out without conversion).
   - `long originalSeed` — preserved after nullification.
   - `boolean generated` — whether any player has triggered generation (and the vanilla loot table has been nullified).
+  - `Map<UUID, Long> lastGeneratedTick` — per-player absolute game time of generation, for loot refresh (§8).
+  - cached `String tierName` / `ResourceLocation structure` — resolved scaling state for notifications and tooltips (§3, §6).
+  - `BlockPos redirect` — on a double chest's secondary half, points at the primary half that holds the shared inventory.
+  - The component is latent: a naturally-placed storage container carries it but, until loot is generated, it serializes to nothing and stays byte-identical to vanilla.
 - Virtual container screen: `SimpleInventory` wrapped in a `SimpleMenuProvider`. The `AbstractContainerMenu` subclass syncs slot changes back to the CCA component on close.
 - `UseBlockCallback.EVENT` handler checks: (1) block entity exists, (2) is `RandomizableContainerBlockEntity`, (3) has a loot table OR has a CCA component with `generated=true`. If none of these, pass through to vanilla.
 - Mixin into `RandomizableContainerBlockEntity#unpackLootTable()` as a safety net — if the CCA component exists and `generated=true`, skip vanilla generation entirely. This catches edge cases where vanilla code calls unpack directly.

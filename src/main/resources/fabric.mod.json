@@ -17,7 +17,7 @@
         "main": ["com.rfizzle.prosperity.Prosperity"],
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
-        "fabric-gametest": [],
+        "fabric-gametest": ["com.rfizzle.prosperity.gametest.InstancedLootComponentGameTest"],
         "cardinal-components": ["com.rfizzle.prosperity.component.ProsperityComponents"]
     },
     "suggests": {
@@ -38,5 +38,10 @@
         "fabric-api": "*",
         "cardinal-components-base": "*",
         "cardinal-components-block": "*"
+    },
+    "custom": {
+        "cardinal-components": [
+            "prosperity:instanced_loot"
+        ]
     }
 }
