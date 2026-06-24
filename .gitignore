@@ -1,48 +1,70 @@
-# gradle / build output
-# Root-anchored: these are created only at the repo root. A bare `out/`,
-# `classes/`, etc. would also match a same-named source package anywhere in the
-# tree and silently drop it (as a bare `config/` did to the Java config package).
+# concord:gitignore:start
+# Concord-managed — synced from concord; edit there, not here. Root-only build,
+# runtime, and tooling artifacts are anchored with a leading "/" so they can
+# never match a nested package/resource directory of the same name. Put
+# repo-specific ignores OUTSIDE this block.
+
+# Gradle / compile output
 /.gradle/
 /build/
 /out/
+/bin/
 /classes/
+/net/
 
-# loom dev runtime
+# Loom dev runtime
 /run/
 /mods/
 /logs/
 /config/
 
-# IDE
-.idea/
-*.iml
-*.ipr
-*.iws
-.settings/
-.vscode/
-.classpath
-.project
-*.launch
+# Generated website (concord template)
+/_site/
 
-# local AI / planning state
+# Local AI / planning state
+/.plan/
 .claude/settings.local.json
 .claude/projects/
 .claude/scheduled_tasks.lock
-.plan/
+
+# IDE / editor (global — these names never collide with a source dir)
+.idea/
+.vscode/
+.settings/
+.classpath
+.project
+*.iml
+*.ipr
+*.iws
+*.launch
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# JVM crash dumps & loom dev-runtime logs (never source; match anywhere)
+hs_err_pid*.log
+replay_pid*.log
+gametest_output.log
+
+# Glyph & SFX pipeline byproducts (mc-textures /glyph, mc-audio /sfx). art/ holds
+# the .glyph/.sfx specs — the committed source of truth. Every rendered byproduct
+# is throwaway: the shipping master lives in the mod's src/main/resources/assets/
+# tree (textures/, sounds/), never in art/. Ignore the renders:
+art/glyphs/**/*.png
+art/glyphs/**/*.gif
+art/glyphs/**/*.mcmeta
+art/audio/**/*.ogg
+art/audio/**/*.wav
+art/audio/**/*.report.png
+# concord:gitignore:end
+
+# --- Prosperity-owned ignores (outside the concord block) ---
 
 # Fabric datagen hash cache — timestamps inside these files change every run,
 # so committing them would make `./gradlew runDatagen` non-idempotent against
 # git. The actual generated assets/data under src/main/generated are committed.
 src/main/generated/.cache/
 
-# generated website
-_site/
-
-# OS junk
-.DS_Store
-Thumbs.db
+# WSL marker files
 *:Zone.Identifier
-
-# stray runtime artifacts
-replay_pid*.log
-hs_err_pid*.log
