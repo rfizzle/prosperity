@@ -3,6 +3,7 @@ package com.rfizzle.prosperity.loot;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
+import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
@@ -110,6 +111,29 @@ public final class InstancedLootInteraction {
     public static boolean isLootContainer(RandomizableContainerBlockEntity container,
             @Nullable InstancedLootData data) {
         return container.getLootTable() != null || (data != null && data.isGenerated());
+    }
+
+    /**
+     * Called from the block-entity removal mixin (S-008) for every destroyed block entity. When the
+     * removed entity was an instanced loot container, tell tracking clients to drop its unlooted
+     * indicator. Fires for any destruction cause (break, explosion, {@code /setblock}, piston) but
+     * never on chunk unload — the mixin targets {@code LevelChunk#removeBlockEntity}, which the unload
+     * path bypasses. The per-player attachment lives in the block entity's own NBT and dies with it,
+     * so no separate server-side state needs cleaning here.
+     *
+     * <p>Breaking one half of a double chest removes only that half's indicator; the surviving half
+     * stays consistent through the single-container open path (its stored inventory is served or
+     * regenerated as a single chest, and a now-dangling redirect is never read on that path).
+     *
+     * <p>TODO(S-035/S-036): chest/hopper minecarts are entities (no block-entity removal) and
+     * brushable blocks are not {@code RandomizableContainerBlockEntity}, so both fall outside this
+     * gate and get their indicator cleanup in their own adapter stories.
+     */
+    public static void onContainerRemoved(ServerLevel level, BlockPos pos, BlockEntity be) {
+        if (be instanceof RandomizableContainerBlockEntity container
+                && isLootContainer(container, ProsperityAttachments.get(container))) {
+            ProsperityNetworking.sendContainerRemoved(level, pos);
+        }
     }
 
     /**

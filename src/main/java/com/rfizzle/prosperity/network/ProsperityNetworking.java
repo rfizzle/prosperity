@@ -1,8 +1,11 @@
 package com.rfizzle.prosperity.network;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
@@ -61,6 +64,20 @@ public final class ProsperityNetworking {
         }
         // TODO(S-009): scan the chunk's block entities for instanced containers the player has
         // not generated and reply with UnlootedContainersS2CPayload. Transport only for now.
+    }
+
+    /**
+     * Tell every client tracking {@code pos} that the loot container there is gone, so each drops
+     * its unlooted indicator. Used on container break (S-008) and on command reset/refresh (S-004).
+     * The {@code canSend} guard makes this a no-op until the E-003 client receiver lands.
+     */
+    public static void sendContainerRemoved(ServerLevel level, BlockPos pos) {
+        ContainerRemovedS2CPayload payload = new ContainerRemovedS2CPayload(pos);
+        for (ServerPlayer player : PlayerLookup.tracking(level, pos)) {
+            if (ServerPlayNetworking.canSend(player, ContainerRemovedS2CPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+            }
+        }
     }
 
     private static boolean checkCooldown(Map<UUID, Long> map, UUID id, long cooldownMs) {

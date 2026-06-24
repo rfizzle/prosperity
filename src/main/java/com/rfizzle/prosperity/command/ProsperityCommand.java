@@ -11,12 +11,11 @@ import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
-import com.rfizzle.prosperity.network.ContainerRemovedS2CPayload;
+import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -225,14 +224,7 @@ public final class ProsperityCommand {
     // ---- shared helpers ----
 
     private static void notifyTracking(ServerLevel level, BlockPos pos) {
-        // The client receiver for this payload lands in E-003; the canSend guard makes the
-        // send a no-op until then, so resets stay warning-free against a pre-indicator client.
-        ContainerRemovedS2CPayload payload = new ContainerRemovedS2CPayload(pos);
-        for (ServerPlayer player : PlayerLookup.tracking(level, pos)) {
-            if (ServerPlayNetworking.canSend(player, ContainerRemovedS2CPayload.TYPE)) {
-                ServerPlayNetworking.send(player, payload);
-            }
-        }
+        ProsperityNetworking.sendContainerRemoved(level, pos);
     }
 
     private static Collection<UUID> profileUuids(Collection<GameProfile> profiles) {
