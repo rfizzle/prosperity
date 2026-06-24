@@ -5,7 +5,11 @@
     "name": "Prosperity",
     "description": "A loot overhaul for Minecraft. Per-player instanced container loot plus distance-based loot scaling, so every chest is yours to discover and exploration always pays off.",
     "authors": ["rfizzle"],
-    "contact": {},
+    "contact": {
+        "homepage": "https://prosperity.rfizzle.com",
+        "sources": "https://github.com/rfizzle/prosperity",
+        "issues": "https://github.com/rfizzle/prosperity/issues"
+    },
     "license": "MIT",
     "icon": "assets/prosperity/icon.png",
     "environment": "*",
@@ -13,6 +17,7 @@
         "main": ["com.rfizzle.prosperity.Prosperity"],
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
+        "fabric-gametest": [],
         "cardinal-components": ["com.rfizzle.prosperity.component.ProsperityComponents"]
     },
     "suggests": {

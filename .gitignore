@@ -27,6 +27,11 @@ config/
 .claude/scheduled_tasks.lock
 .plan/
 
+# Fabric datagen hash cache — timestamps inside these files change every run,
+# so committing them would make `./gradlew runDatagen` non-idempotent against
+# git. The actual generated assets/data under src/main/generated are committed.
+src/main/generated/.cache/
+
 # generated website
 _site/
 

@@ -129,6 +129,11 @@ loom {
 }
 
 sourceSets {
+    main {
+        resources {
+            srcDirs += [ "src/main/generated" ]
+        }
+    }
     gametest {
         compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
@@ -140,8 +145,26 @@ configurations {
     gametestRuntimeOnly.extendsFrom runtimeOnly
 }
 
+// Minecraft's GameTestServer aborts ("No test functions were given!") when zero @GameTest
+// functions are registered, so runGametest would fail CI until the first gametest lands.
+// Skip the run while the gametest source set is empty; it runs normally once tests exist.
+// Loom registers runGametest during afterEvaluate, so match it lazily rather than by name.
+tasks.matching { it.name == 'runGametest' }.configureEach {
+    onlyIf {
+        !sourceSets.gametest.allJava.files.isEmpty()
+    }
+}
+
 loom {
     runs {
+        datagen {
+            inherit server
+            name "Data Generation"
+            vmArg "-Dfabric-api.datagen"
+            vmArg "-Dfabric-api.datagen.output-dir=${file("src/main/generated")}"
+            vmArg "-Dfabric-api.datagen.modid=prosperity"
+            runDir "build/datagen"
+        }
         gametest {
             server()
             name "Game Test"
@@ -210,7 +233,7 @@ dependencies {
     }
 
     // Tests
-    testImplementation platform("org.junit:junit-bom:5.10.2")
+    testImplementation platform("org.junit:junit-bom:${project.junit_version}")
     testImplementation "org.junit.jupiter:junit-jupiter"
     testImplementation "org.junit.jupiter:junit-jupiter-params"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
@@ -241,12 +264,46 @@ jacocoTestReport {
     }
 }
 
+tasks.register('verifyDatagenIdempotent') {
+    description = 'Runs datagen and asserts no tracked diffs or untracked files in src/main/generated/'
+    group = 'verification'
+    dependsOn 'runDatagen'
+    doLast {
+        def genDir = file('src/main/generated').absolutePath
+        def diffResult = providers.exec {
+            commandLine 'git', 'diff', '--exit-code', genDir
+            ignoreExitValue = true
+        }
+        if (diffResult.result.get().exitValue != 0) {
+            throw new GradleException(
+                    'src/main/generated/ has unstaged changes after runDatagen. ' +
+                    'Run ./gradlew runDatagen and commit the results.')
+        }
+        def untrackedOutput = providers.exec {
+            commandLine 'git', 'ls-files', '--others', '--exclude-standard', genDir
+            ignoreExitValue = true
+        }
+        def untracked = untrackedOutput.standardOutput.asText.get().trim()
+        if (!untracked.isEmpty()) {
+            throw new GradleException(
+                    'src/main/generated/ has untracked files after runDatagen:\n' + untracked +
+                    '\nRun ./gradlew runDatagen, then git add and commit the results.')
+        }
+    }
+}
+
 processResources {
     inputs.property "version", project.version
 
     filesMatching("fabric.mod.json") {
         expand "version": project.version
     }
+
+    exclude ".gitkeep"
+}
+
+processClientResources {
+    exclude ".gitkeep"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -264,4 +321,10 @@ jar {
     from("LICENSE") {
         rename { "${it}_${project.archives_base_name}" }
     }
+    exclude ".gitkeep"
+}
+
+tasks.named('sourcesJar') {
+    exclude ".gitkeep"
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
