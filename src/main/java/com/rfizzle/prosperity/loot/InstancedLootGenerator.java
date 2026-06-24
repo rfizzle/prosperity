@@ -1,7 +1,6 @@
 package com.rfizzle.prosperity.loot;
 
 import java.util.UUID;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -12,6 +11,7 @@ import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -34,9 +34,10 @@ public final class InstancedLootGenerator {
 
     /**
      * Generate {@code size} slots of loot from {@code tableKey} with {@code player}'s context.
-     * Returns an all-empty list when the table is absent or empty.
+     * {@code origin} is the loot source's world position (a block's center or a minecart's live
+     * position). Returns an all-empty list when the table is absent or empty.
      */
-    public static NonNullList<ItemStack> generate(ServerLevel level, BlockPos pos,
+    public static NonNullList<ItemStack> generate(ServerLevel level, Vec3 origin,
             @Nullable ResourceKey<LootTable> tableKey, long seed, ServerPlayer player, int size) {
         NonNullList<ItemStack> items = NonNullList.withSize(size, ItemStack.EMPTY);
         if (tableKey == null) {
@@ -49,7 +50,7 @@ public final class InstancedLootGenerator {
 
         SimpleContainer container = new SimpleContainer(size);
         LootParams params = new LootParams.Builder(level)
-                .withParameter(LootContextParams.ORIGIN, pos.getCenter())
+                .withParameter(LootContextParams.ORIGIN, origin)
                 .withParameter(LootContextParams.THIS_ENTITY, player)
                 .withLuck(player.getLuck())
                 .create(LootContextParamSets.CHEST);

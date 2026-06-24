@@ -4,6 +4,7 @@ import com.rfizzle.prosperity.Prosperity;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
+import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,6 +33,18 @@ public final class ProsperityAttachments {
                     .persistent(InstancedLootData.CODEC)
                     .initializer(InstancedLootData::new));
 
+    /**
+     * Per-player instanced loot for container minecarts (chest and hopper carts). The same
+     * {@link InstancedLootData} state as {@link #INSTANCED_LOOT}, registered as a distinct
+     * entity-targeted attachment so one state class and codec cover every loot-source shape. Attached
+     * on demand when a player first opens the cart — interception gates on the loot table, not on the
+     * attachment's presence.
+     */
+    public static final AttachmentType<InstancedLootData> INSTANCED_MINECART_LOOT =
+            AttachmentRegistry.create(Prosperity.id("instanced_minecart_loot"), builder -> builder
+                    .persistent(InstancedLootData.CODEC)
+                    .initializer(InstancedLootData::new));
+
     private ProsperityAttachments() {
     }
 
@@ -54,6 +67,24 @@ public final class ProsperityAttachments {
         InstancedLootData data = be.getAttachedOrCreate(INSTANCED_LOOT);
         mutation.accept(data);
         be.setChanged();
+        return data;
+    }
+
+    /** The instanced-loot data on minecart {@code cart}, or {@code null} if none has been attached yet. */
+    @Nullable
+    public static InstancedLootData get(AbstractMinecartContainer cart) {
+        return cart.getAttached(INSTANCED_MINECART_LOOT);
+    }
+
+    /**
+     * Apply a mutation to the instanced-loot data on minecart {@code cart}, creating it if absent.
+     * Unlike block entities, an entity serializes with its chunk on every save (vanilla mutates a
+     * minecart's contents in place the same way), so no explicit dirty call is needed.
+     */
+    public static InstancedLootData update(AbstractMinecartContainer cart,
+            Consumer<InstancedLootData> mutation) {
+        InstancedLootData data = cart.getAttachedOrCreate(INSTANCED_MINECART_LOOT);
+        mutation.accept(data);
         return data;
     }
 }

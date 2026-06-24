@@ -13,9 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -24,14 +22,10 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.BarrelBlock;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ChestBlock;
-import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
-import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -44,16 +38,17 @@ import org.jetbrains.annotations.Nullable;
  * keeps the vanilla lid animation and open/close sounds in sync without touching the block entity's
  * own state.
  *
- * <p>On first generation the block entity's vanilla loot table is nulled and the
- * {@link com.rfizzle.prosperity.mixin.RandomizableContainerUnpackMixin unpack-safety mixin} blocks
- * any leftover unpack call, so hoppers and comparators cannot drain the global loot.
+ * <p>The single-source loop runs against a {@link ContainerAdapter}, so the same generate-or-retrieve,
+ * nullify, serve, and persist code drives both block-entity containers (here) and container minecarts
+ * ({@link MinecartLootInteraction}). On first generation the source's vanilla loot table is nulled and
+ * the unpack-safety mixins block any leftover unpack call, so hoppers and comparators cannot drain the
+ * global loot (S-006).
  *
  * <p>A double chest is served as one 54-slot instance (S-007): both halves' loot is generated and
  * stored on the primary half (the lexicographically smaller position, see {@link DoubleChestLayout}),
  * the secondary half holds only a redirect marker, and both halves' loot tables are nulled. The
- * unlooted-indicator packets (S-009) and the first-generation notification (S-021) land in their own
- * stories. The generation and persist steps are split out as plain static methods so gametests can
- * drive them without a live screen.
+ * generation and persist steps are split out as plain static methods so gametests can drive them
+ * without a live screen.
  */
 public final class InstancedLootInteraction {
 
@@ -97,18 +92,19 @@ public final class InstancedLootInteraction {
         }
         int size = container.getContainerSize();
         if (size <= 0 || size > 54 || size % 9 != 0) {
-            // Sizes that do not map to a chest menu (e.g. a 5-slot hopper) stay vanilla.
+            // Sizes that do not map to a chest menu (e.g. a 5-slot block hopper) stay vanilla.
             return InteractionResult.PASS;
         }
-        InstancedLootData data = ProsperityAttachments.get(container);
-        if (!isLootContainer(container, data)) {
+        BlockEntityContainerAdapter adapter =
+                new BlockEntityContainerAdapter((ServerLevel) level, pos, container);
+        if (!adapter.isLootContainer()) {
             // Player-placed storage (no loot table, never generated) stays shared and vanilla.
             // Gate on the loot table, not the attachment's presence: a never-opened loot chest has
             // no attachment yet, so gating on presence would silently leak first-open instancing.
             return InteractionResult.PASS;
         }
 
-        serveInstance((ServerLevel) level, pos, container, serverPlayer);
+        serveInstance(adapter, serverPlayer);
         return InteractionResult.SUCCESS;
     }
 
@@ -130,9 +126,9 @@ public final class InstancedLootInteraction {
      * stays consistent through the single-container open path (its stored inventory is served or
      * regenerated as a single chest, and a now-dangling redirect is never read on that path).
      *
-     * <p>TODO(S-035/S-036): chest/hopper minecarts are entities (no block-entity removal) and
-     * brushable blocks are not {@code RandomizableContainerBlockEntity}, so both fall outside this
-     * gate and get their indicator cleanup in their own adapter stories.
+     * <p>Chest/hopper minecarts are entities (no block-entity removal) and brushable blocks are not
+     * {@code RandomizableContainerBlockEntity}, so both fall outside this gate; their indicator
+     * cleanup lands with the visual-indicator system (E-003).
      */
     public static void onContainerRemoved(ServerLevel level, BlockPos pos, BlockEntity be) {
         if (be instanceof RandomizableContainerBlockEntity container
@@ -193,12 +189,12 @@ public final class InstancedLootInteraction {
 
         Component title = Component.translatable("container.chestDouble");
         player.openMenu(new SimpleMenuProvider(
-                (syncId, inventory, opener) -> InstancedLootMenu.create(syncId, inventory, screenInventory,
+                (syncId, inventory, opener) -> InstancedLootMenu.createFor(syncId, inventory, screenInventory,
                         () -> onCloseDouble(level, primaryPos, secondaryPos, uuid, screenInventory)),
                 title));
-        playSound(level, primaryPos, SoundEvents.CHEST_OPEN);
-        animate(level, primaryPos, primary, true);
-        animate(level, secondaryPos, secondary, true);
+        ContainerFeedback.playSound(level, primaryPos, SoundEvents.CHEST_OPEN);
+        ContainerFeedback.animate(level, primaryPos, primary, true);
+        ContainerFeedback.animate(level, secondaryPos, secondary, true);
     }
 
     /**
@@ -219,12 +215,16 @@ public final class InstancedLootInteraction {
             }
         }
 
-        LootRef primaryRef = resolveTable(primary, primaryData);
-        LootRef secondaryRef = resolveTable(secondary, ProsperityAttachments.get(secondary));
+        ContainerAdapter primaryAdapter = new BlockEntityContainerAdapter(level, primaryPos, primary);
+        ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
+        LootRef primaryRef = resolveTable(primaryAdapter);
+        LootRef secondaryRef = resolveTable(secondaryAdapter);
         NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
-                level, primaryPos, primaryRef.key(), primaryRef.seed(), player, DoubleChestLayout.PRIMARY_SLOTS);
+                level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), player,
+                DoubleChestLayout.PRIMARY_SLOTS);
         NonNullList<ItemStack> secondaryLoot = InstancedLootGenerator.generate(
-                level, secondaryPos, secondaryRef.key(), secondaryRef.seed(), player, DoubleChestLayout.PRIMARY_SLOTS);
+                level, secondaryAdapter.origin(), secondaryRef.key(), secondaryRef.seed(), player,
+                DoubleChestLayout.PRIMARY_SLOTS);
 
         NonNullList<ItemStack> combined =
                 NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
@@ -233,50 +233,50 @@ public final class InstancedLootInteraction {
             combined.set(DoubleChestLayout.PRIMARY_SLOTS + slot, secondaryLoot.get(slot));
         }
 
-        ProsperityAttachments.update(primary, data -> {
+        primaryAdapter.update(data -> {
             data.markGenerated(primaryRef.key(), primaryRef.seed());
             data.setInventory(uuid, combined);
             data.setLastGeneratedTick(uuid, level.getGameTime());
         });
-        ProsperityAttachments.update(secondary, data -> {
+        secondaryAdapter.update(data -> {
             data.markGenerated(secondaryRef.key(), secondaryRef.seed());
             data.setRedirect(primaryPos);
         });
-        nullify(primary);
-        nullify(secondary);
+        primaryAdapter.clearLootTable();
+        secondaryAdapter.clearLootTable();
         return combined;
     }
 
-    /** Generate-or-retrieve the player's inventory, then open the matching vanilla chest screen. */
-    public static void serveInstance(ServerLevel level, BlockPos pos,
-            RandomizableContainerBlockEntity be, ServerPlayer player) {
+    /** Generate-or-retrieve the player's inventory, then open the matching vanilla screen. */
+    public static void serveInstance(ContainerAdapter adapter, ServerPlayer player) {
         UUID uuid = player.getUUID();
-        int size = be.getContainerSize();
-        NonNullList<ItemStack> stored = generateAndStore(level, pos, be, player);
+        int size = adapter.size();
+        NonNullList<ItemStack> stored = generateAndStore(adapter, player);
 
         SimpleContainer screenInventory = new SimpleContainer(size);
         for (int slot = 0; slot < size; slot++) {
             screenInventory.setItem(slot, stored.get(slot).copy());
         }
 
-        Component title = be.getDisplayName();
         player.openMenu(new SimpleMenuProvider(
-                (syncId, inventory, opener) -> InstancedLootMenu.create(syncId, inventory, screenInventory,
-                        () -> onClose(level, pos, uuid, screenInventory)),
-                title));
-        playOpen(level, pos, be);
+                (syncId, inventory, opener) -> InstancedLootMenu.createFor(syncId, inventory, screenInventory,
+                        () -> {
+                            adapter.persist(uuid, screenInventory);
+                            adapter.closeFeedback();
+                        }),
+                adapter.displayName()));
+        adapter.openFeedback();
     }
 
     /**
      * Return the player's stored inventory, generating and persisting it on first visit. Records the
-     * generation tick, preserves the original loot table/seed in the component, and nulls the vanilla
-     * {@code lootTable}/{@code lootTableSeed} fields on the block entity so a hopper or comparator
-     * cannot trigger vanilla's {@code unpackLootTable} and drain the global loot (S-006).
+     * generation tick, preserves the original loot table/seed in the attachment, and nulls the vanilla
+     * loot table on the source so a hopper or comparator cannot trigger vanilla's unpack and drain the
+     * global loot (S-006).
      */
-    public static NonNullList<ItemStack> generateAndStore(ServerLevel level, BlockPos pos,
-            RandomizableContainerBlockEntity be, ServerPlayer player) {
+    public static NonNullList<ItemStack> generateAndStore(ContainerAdapter adapter, ServerPlayer player) {
         UUID uuid = player.getUUID();
-        InstancedLootData existing = ProsperityAttachments.get(be);
+        InstancedLootData existing = adapter.data();
         if (existing != null) {
             NonNullList<ItemStack> stored = existing.getInventory(uuid);
             if (stored != null) {
@@ -284,47 +284,36 @@ public final class InstancedLootInteraction {
             }
         }
 
-        LootRef ref = resolveTable(be, existing);
-        NonNullList<ItemStack> generated =
-                InstancedLootGenerator.generate(level, pos, ref.key(), ref.seed(), player, be.getContainerSize());
+        LootRef ref = resolveTable(adapter);
+        NonNullList<ItemStack> generated = InstancedLootGenerator.generate(
+                adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size());
 
-        ProsperityAttachments.update(be, data -> {
+        adapter.update(data -> {
             data.markGenerated(ref.key(), ref.seed());
             data.setInventory(uuid, generated);
-            data.setLastGeneratedTick(uuid, level.getGameTime());
+            data.setLastGeneratedTick(uuid, adapter.level().getGameTime());
         });
-        nullify(be);
+        adapter.clearLootTable();
         return generated;
     }
 
     /**
-     * The loot table and seed to roll from for {@code be}: the original preserved in the attachment
-     * once generation has happened (the live block-entity fields are nulled by then), otherwise the
-     * block entity's own live fields on a first visit.
+     * The loot table and seed to roll from for {@code adapter}: the original preserved in the
+     * attachment once generation has happened (the live source fields are nulled by then), otherwise
+     * the source's own live fields on a first visit.
      */
-    private static LootRef resolveTable(RandomizableContainerBlockEntity be,
-            @Nullable InstancedLootData data) {
+    private static LootRef resolveTable(ContainerAdapter adapter) {
+        InstancedLootData data = adapter.data();
         if (data != null && data.isGenerated()) {
             return new LootRef(data.getOriginalLootTable(), data.getOriginalSeed());
         }
-        return new LootRef(be.getLootTable(), be.getLootTableSeed());
+        return new LootRef(adapter.lootTable(), adapter.lootTableSeed());
     }
 
     private record LootRef(@Nullable ResourceKey<LootTable> key, long seed) {
     }
 
-    /**
-     * Sever a block entity's link to the global loot table once its original has been preserved in
-     * the attachment. The unpack-safety mixin backstops any direct {@code unpackLootTable} call that
-     * slips past this.
-     */
-    private static void nullify(RandomizableContainerBlockEntity be) {
-        be.setLootTable(null);
-        be.setLootTableSeed(0L);
-        be.setChanged();
-    }
-
-    /** Write a screen inventory back to the player's attachment entry. */
+    /** Write a screen inventory back to the player's attachment entry on a block-entity container. */
     public static void persist(RandomizableContainerBlockEntity be, UUID uuid, Container container) {
         int size = container.getContainerSize();
         NonNullList<ItemStack> out = NonNullList.withSize(size, ItemStack.EMPTY);
@@ -334,78 +323,18 @@ public final class InstancedLootInteraction {
         ProsperityAttachments.update(be, data -> data.setInventory(uuid, out));
     }
 
-    private static void onClose(ServerLevel level, BlockPos pos, UUID uuid, Container screenInventory) {
-        if (level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity be) {
-            persist(be, uuid, screenInventory);
-            playClose(level, pos, be);
-        }
-    }
-
     /** Persist the combined inventory back to the primary half and close-animate both halves. */
     private static void onCloseDouble(ServerLevel level, BlockPos primaryPos, BlockPos secondaryPos,
             UUID uuid, Container screenInventory) {
         if (level.getBlockEntity(primaryPos) instanceof RandomizableContainerBlockEntity primary) {
             persist(primary, uuid, screenInventory);
         }
-        playSound(level, primaryPos, SoundEvents.CHEST_CLOSE);
+        ContainerFeedback.playSound(level, primaryPos, SoundEvents.CHEST_CLOSE);
         if (level.getBlockEntity(primaryPos) instanceof ChestBlockEntity primary) {
-            animate(level, primaryPos, primary, false);
+            ContainerFeedback.animate(level, primaryPos, primary, false);
         }
         if (level.getBlockEntity(secondaryPos) instanceof ChestBlockEntity secondary) {
-            animate(level, secondaryPos, secondary, false);
+            ContainerFeedback.animate(level, secondaryPos, secondary, false);
         }
-    }
-
-    // ---- lid animation + sound ----
-
-    private static void playOpen(ServerLevel level, BlockPos pos, BlockEntity be) {
-        playSound(level, pos, openSound(be));
-        animate(level, pos, be, true);
-    }
-
-    private static void playClose(ServerLevel level, BlockPos pos, BlockEntity be) {
-        playSound(level, pos, closeSound(be));
-        animate(level, pos, be, false);
-    }
-
-    private static void playSound(ServerLevel level, BlockPos pos, SoundEvent sound) {
-        float pitch = level.getRandom().nextFloat() * 0.1f + 0.9f;
-        level.playSound(null, pos, sound, SoundSource.BLOCKS, 0.5f, pitch);
-    }
-
-    /**
-     * Trigger the lid animation that vanilla would normally drive through its opener counter.
-     * Chests and shulker boxes animate from a block event; barrels animate from the {@code OPEN}
-     * blockstate. We never touch the block entity's opener counter, so nothing reverts this.
-     */
-    private static void animate(ServerLevel level, BlockPos pos, BlockEntity be, boolean open) {
-        BlockState state = level.getBlockState(pos);
-        if (be instanceof BarrelBlockEntity) {
-            if (state.hasProperty(BarrelBlock.OPEN)) {
-                level.setBlock(pos, state.setValue(BarrelBlock.OPEN, open), Block.UPDATE_ALL);
-            }
-        } else if (be instanceof ChestBlockEntity || be instanceof ShulkerBoxBlockEntity) {
-            level.blockEvent(pos, state.getBlock(), 1, open ? 1 : 0);
-        }
-    }
-
-    private static SoundEvent openSound(BlockEntity be) {
-        if (be instanceof BarrelBlockEntity) {
-            return SoundEvents.BARREL_OPEN;
-        }
-        if (be instanceof ShulkerBoxBlockEntity) {
-            return SoundEvents.SHULKER_BOX_OPEN;
-        }
-        return SoundEvents.CHEST_OPEN;
-    }
-
-    private static SoundEvent closeSound(BlockEntity be) {
-        if (be instanceof BarrelBlockEntity) {
-            return SoundEvents.BARREL_CLOSE;
-        }
-        if (be instanceof ShulkerBoxBlockEntity) {
-            return SoundEvents.SHULKER_BOX_CLOSE;
-        }
-        return SoundEvents.CHEST_CLOSE;
     }
 }

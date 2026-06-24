@@ -33,6 +33,11 @@
               "id": "hopper",
               "title": "Hoppers &amp; Comparators",
               "html": ["Hoppers see an empty container and cannot extract instanced loot; comparators read zero. This is intended — instanced loot lives outside the vanilla inventory."]
+            },
+            {
+              "id": "coverage",
+              "title": "Container Coverage",
+              "html": ["Chests, trapped chests, barrels, shulker boxes, and loot dispensers/droppers are all instanced, plus chest and hopper minecarts — so mineshaft loot, which is overwhelmingly minecarts, is first-class. Each player opens their own instance of a cart just as they do a chest."]
             }
           ]
         }

@@ -3,6 +3,7 @@ package com.rfizzle.prosperity.loot;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.MenuType;
 
@@ -23,7 +24,20 @@ public final class InstancedLootMenu extends ChestMenu {
         this.onClose = onClose;
     }
 
-    /** Build a menu sized to {@code container} (a multiple of nine slots, one to six rows). */
+    /**
+     * Build the menu matching {@code container}'s size: a 5-slot hopper minecart gets a
+     * {@link InstancedHopperMenu}, anything sized to a multiple of nine gets a chest menu. The single
+     * dispatch point used by the serve loop so the block and minecart paths share one factory.
+     */
+    public static AbstractContainerMenu createFor(int syncId, Inventory playerInventory,
+            Container container, Runnable onClose) {
+        if (container.getContainerSize() == 5) {
+            return InstancedHopperMenu.create(syncId, playerInventory, container, onClose);
+        }
+        return create(syncId, playerInventory, container, onClose);
+    }
+
+    /** Build a chest menu sized to {@code container} (a multiple of nine slots, one to six rows). */
     public static InstancedLootMenu create(int syncId, Inventory playerInventory, Container container,
             Runnable onClose) {
         int rows = rowsFor(container.getContainerSize());

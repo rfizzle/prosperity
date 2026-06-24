@@ -23,7 +23,7 @@ A loot overhaul for Minecraft 1.21.1 (Fabric). Prosperity gives every player the
 
 ## Features
 
-- **Instanced loot** — Every naturally-generated container (chests, trapped chests, barrels, end-city shulkers, jungle-temple dispensers) rolls a fresh, private inventory for each player. The first visitor no longer empties the chest for everyone; each player opens their own instance, served through a virtual container UI with full vanilla lid animation and sound. Replaces the role of Lootr.
+- **Instanced loot** — Every naturally-generated container (chests, trapped chests, barrels, end-city shulkers, jungle-temple dispensers, and chest/hopper minecarts in mineshafts) rolls a fresh, private inventory for each player. The first visitor no longer empties the chest for everyone; each player opens their own instance, served through a virtual container UI with full vanilla lid animation and sound. Replaces the role of Lootr.
 - **Visual indicators** — Unopened containers carry a gold sparkle overlay so unlooted treasure is visible at a glance. Rendered client-side via `WorldRenderEvents.LAST` for full compatibility with Sodium, Enhanced Block Entities, and shader packs — no block models are touched.
 - **Distance-based loot scaling** — The further you are from world spawn, the better the haul. Five tiers (Local → Frontier → Wilderness → Outlands → Depths) scale stack sizes and loot quality, with separate handling for the Nether and the End.
 - **Loot Modifier API** — A Fabric-style event (`LootModifierCallback.EVENT`) lets other mods inject luck, stack multipliers, and custom data into the loot context after distance scaling but before the table resolves. Vanilla `generic.luck` is wired in by default. Replaces the role of LootIntegrations.

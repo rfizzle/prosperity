@@ -4,6 +4,7 @@
     "package": "com.rfizzle.prosperity.mixin",
     "compatibilityLevel": "JAVA_21",
     "mixins": [
+        "ContainerEntityUnpackMixin",
         "LevelChunkRemoveBlockEntityMixin",
         "RandomizableContainerUnpackMixin"
     ],
