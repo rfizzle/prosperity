@@ -48,6 +48,22 @@
       ]
     },
     {
+      "id": "mob-loot-scaling",
+      "title": "Mob Loot Scaling",
+      "intro": "Apply the distance tiers to hostile-mob drops on player kills.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>enableMobLootScaling</code>", "bool", "true", "Scale hostile-mob drops by the killer's distance tier."]
+          ]
+        },
+        { "type": "prose", "html": ["When you land the killing blow on a hostile mob, its drops are scaled by the same distance tier used for containers — stack counts multiplied (capped at the item's max stack) and the tier's quality added to the loot luck. Passive mobs and environmental or non-player kills are never scaled. The Nether uses raw coordinates and the End is always the max tier, matching container scaling. This toggle is independent of <code class='text-accent2'>distanceTiers</code> scaling for containers."] }
+      ]
+    },
+    {
       "id": "blacklist",
       "title": "lootTableBlacklist",
       "intro": "Opt-in list of loot tables exempt from all Prosperity behavior. Empty by default — every loot container is instanced.",

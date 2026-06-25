@@ -853,10 +853,11 @@ Same dimension rules as container scaling:
 
 ### Implementation Notes
 
-- Hook into `LivingEntity#dropAllDeathLoot()` or use Fabric's `ServerLivingEntityEvents.AFTER_DEATH` to intercept the loot generation context.
-- Mixin into `LootTable#getRandomItems()` or the loot params builder to inject the modified luck and capture the generated items for stack scaling.
-- Stack scaling post-processing is identical to container scaling — iterate generated `ItemStack` list, multiply counts for stackable items, cap at 64.
-- The hostile mob check uses `MobCategory.MONSTER` or the entity's type tag, not a hardcoded entity list — modded hostile mobs are included automatically.
+- A mixin on `LivingEntity#dropFromLootTable(DamageSource, boolean)` — the method all standard mob death loot funnels through — carries the scaling. Three coordinated injectors share one decision resolved once at `HEAD`: `@Inject` runs the gate and fires `LootModifierCallback` (via the `MobLootScaling` helper), `@ModifyArg` on `LootParams.Builder#withLuck` replaces vanilla's `player.getLuck()` with the event's final luck, and `@ModifyArg` on the `LootTable#getRandomItems(…, Consumer)` drop consumer wraps it to scale each rolled stack. `withLuck` and the consumer both sit inside the player-kill branch, so a non-scalable kill leaves the drop byte-identical to vanilla and fires no event.
+- The gate and the loot-modifier fire live in `MobLootScaling.resolve`, the entity parallel of `LootScaling.resolveForGeneration`; the death position is the `LootModifierContext` `containerPos()` and the tier is the ungated geographic `LootScaling.resolveTier`, so the Nether's raw coordinates and the End's max tier carry over for free.
+- Stack scaling reuses `LootScaling.scaledCount` — multiply each stackable stack's count, floor, cap at the item's max stack — identical to container scaling.
+- The hostile-mob check is `MobCategory.MONSTER`, not a hardcoded entity list, so modded hostiles and the Wither are included automatically. The Ender Dragon uses a bespoke death-drop path that never reaches `dropFromLootTable`, so it is excluded.
+- `enableMobLootScaling` gates this feature independently of `enableDistanceScaling` (which gates only container generation) — they are separate toggles for separate loot sources.
 
 ---
 

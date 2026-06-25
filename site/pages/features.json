@@ -76,6 +76,10 @@
             ["<span class='text-bone'>Depths</span>", "10,000+", "3.5×", "+4"]
           ],
           "note": "Stack quantities scale by the multiplier (capped at 64); quality adds luck to the loot context. The End is always treated as Depths tier."
+        },
+        {
+          "type": "prose",
+          "html": ["The same tiers apply to hostile-mob drops when you land the killing blow, so combat keeps pace with exploration — a mob far from origin drops scaled stacks and rarer loot, while passive mobs and environmental or non-player kills are untouched. Mob scaling is independently togglable."]
         }
       ]
     },
