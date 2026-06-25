@@ -107,6 +107,10 @@ public final class InstancedLootInteraction {
             // no attachment yet, so gating on presence would silently leak first-open instancing.
             return InteractionResult.PASS;
         }
+        if (isBlacklisted(container.getLootTable())) {
+            // Blacklisted loot tables open with full vanilla behavior (SPEC §7).
+            return InteractionResult.PASS;
+        }
 
         serveInstance(adapter, serverPlayer);
         return InteractionResult.SUCCESS;
@@ -116,6 +120,16 @@ public final class InstancedLootInteraction {
     public static boolean isLootContainer(RandomizableContainerBlockEntity container,
             @Nullable InstancedLootData data) {
         return container.getLootTable() != null || (data != null && data.isGenerated());
+    }
+
+    /**
+     * Whether {@code table} is excluded from all Prosperity behavior by the configured blacklist (SPEC §7).
+     * Checked against the source's <em>live</em> loot table: a fresh blacklisted container keeps its table
+     * (so it is never instanced, never nulled, and stays vanilla), while an already-generated container has
+     * a null live table and is served normally — instancing cannot be undone after the fact.
+     */
+    public static boolean isBlacklisted(@Nullable ResourceKey<LootTable> table) {
+        return table != null && Prosperity.getConfig().blacklist().matches(table.location());
     }
 
     /**
@@ -136,7 +150,9 @@ public final class InstancedLootInteraction {
      */
     public static void onContainerRemoved(ServerLevel level, BlockPos pos, BlockEntity be) {
         if (be instanceof RandomizableContainerBlockEntity container
-                && isLootContainer(container, ProsperityAttachments.get(container))) {
+                && isLootContainer(container, ProsperityAttachments.get(container))
+                && !isBlacklisted(container.getLootTable())) {
+            // A blacklisted container never showed an indicator, so it has none to drop.
             ProsperityNetworking.sendContainerRemoved(level, pos);
         }
     }
@@ -162,6 +178,10 @@ public final class InstancedLootInteraction {
             return InteractionResult.PASS;
         }
         if (!isDoubleLootContainer(primary, secondary)) {
+            return InteractionResult.PASS;
+        }
+        if (isBlacklisted(primary.getLootTable()) || isBlacklisted(secondary.getLootTable())) {
+            // Either half blacklisted → the whole double opens vanilla (SPEC §7).
             return InteractionResult.PASS;
         }
 

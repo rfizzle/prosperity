@@ -49,10 +49,10 @@
     },
     {
       "id": "blacklist",
-      "title": "containerBlacklist",
-      "intro": "Opt-in list of container types or positions exempt from all Prosperity behavior. Empty by default — every loot container is instanced.",
+      "title": "lootTableBlacklist",
+      "intro": "Opt-in list of loot tables exempt from all Prosperity behavior. Empty by default — every loot container is instanced.",
       "blocks": [
-        { "type": "prose", "html": ["Blacklisted containers fall back to vanilla loot behavior; distance scaling, injection, and instancing do not apply."] }
+        { "type": "prose", "html": ["Entries are loot-table ids, matched exactly (<code>minecraft:chests/village/village_weaponsmith</code>) or by trailing-<code>*</code> wildcard (<code>somebigmod:*</code> for a whole namespace, <code>minecraft:chests/*</code> for a subtree). Blacklisted containers fall back to vanilla loot behavior — distance scaling, injection, instancing, and the unlooted indicator do not apply."] }
       ]
     },
     {

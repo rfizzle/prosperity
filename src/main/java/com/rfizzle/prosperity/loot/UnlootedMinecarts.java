@@ -44,7 +44,10 @@ public final class UnlootedMinecarts {
             if (!adapter.isLootContainer()) {
                 continue;
             }
-            // TODO(S-015): skip carts whose loot table is blacklisted once the matcher lands.
+            // Blacklisted carts never show the unlooted sparkle (SPEC §7).
+            if (InstancedLootInteraction.isBlacklisted(cart.getLootTable())) {
+                continue;
+            }
             InstancedLootData data = ProsperityAttachments.get(cart);
             if (data != null && data.hasInventory(player)) {
                 continue;

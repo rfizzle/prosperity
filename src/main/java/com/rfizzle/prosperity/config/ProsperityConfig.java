@@ -66,6 +66,18 @@ public class ProsperityConfig {
 
     public ClientConfig client = new ClientConfig();
 
+    /**
+     * Cached matcher derived from {@link #lootTableBlacklist}, rebuilt by {@link #clamp()} on every
+     * load/reload. Transient so it is never serialized; pre-initialized to the empty matcher so it is
+     * non-null even on the corrupted-file fallback path, which skips {@code clamp()}.
+     */
+    private transient LootBlacklist blacklist = LootBlacklist.of(null);
+
+    /** The blacklist matcher for the current {@link #lootTableBlacklist} (SPEC §7). Never null. */
+    public LootBlacklist blacklist() {
+        return blacklist;
+    }
+
     /** Default distance tiers, matching SPEC §3 (names) and §Configuration (boundaries). */
     public static List<DistanceTier> defaultDistanceTiers() {
         List<DistanceTier> tiers = new ArrayList<>();
@@ -133,6 +145,7 @@ public class ProsperityConfig {
         if (lootTableBlacklist == null) {
             lootTableBlacklist = new ArrayList<>();
         }
+        blacklist = LootBlacklist.of(lootTableBlacklist);
         if (client == null) {
             client = new ClientConfig();
         }

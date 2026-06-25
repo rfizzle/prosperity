@@ -59,7 +59,10 @@ public final class UnlootedContainers {
             if (!InstancedLootInteraction.isLootContainer(container, data)) {
                 continue;
             }
-            // TODO(S-015): skip containers whose loot table is blacklisted once the matcher lands.
+            // Blacklisted containers never show the unlooted sparkle (SPEC §7).
+            if (InstancedLootInteraction.isBlacklisted(container.getLootTable())) {
+                continue;
+            }
 
             // The generated secondary half of a double chest holds no inventory of its own (it redirects
             // to the primary); never emit an indicator for it.

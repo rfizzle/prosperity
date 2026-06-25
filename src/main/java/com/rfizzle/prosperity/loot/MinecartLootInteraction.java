@@ -61,6 +61,10 @@ public final class MinecartLootInteraction {
         if (!adapter.isLootContainer()) {
             return InteractionResult.PASS;
         }
+        if (InstancedLootInteraction.isBlacklisted(cart.getLootTable())) {
+            // Blacklisted loot tables open with full vanilla behavior (SPEC §7).
+            return InteractionResult.PASS;
+        }
 
         InstancedLootInteraction.serveInstance(adapter, serverPlayer);
         return InteractionResult.SUCCESS;

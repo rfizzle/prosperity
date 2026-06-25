@@ -509,7 +509,7 @@ Not every loot container benefits from instancing. Some modded containers have c
 
 Entries support two formats:
 - **Exact match:** `"minecraft:chests/village/village_weaponsmith"` — matches only this specific loot table.
-- **Namespace wildcard:** `"somebigmod:*"` — matches all loot tables from this namespace. Useful for blanket-excluding a mod that manages its own container logic.
+- **Wildcard:** any entry ending in `*` matches by prefix. `"somebigmod:*"` excludes a whole namespace (useful for blanket-excluding a mod that manages its own container logic); `"minecraft:chests/*"` excludes a whole subtree; a bare `"*"` excludes everything.
 
 ### Default Blacklist
 
@@ -528,10 +528,10 @@ Empty by default — all loot containers are instanced. The blacklist is opt-in 
 
 ### Implementation Notes
 
-- Blacklist is parsed at config load into two sets: exact `ResourceLocation` matches and namespace prefixes.
-- The `UseBlockCallback` handler checks the container's loot table against the blacklist before any attachment logic. If blacklisted, return `InteractionResult.PASS` immediately (fall through to vanilla).
-- Blacklist check is O(1) for exact matches (HashSet lookup) and O(n) for namespace wildcards (n = number of wildcard entries, typically very small).
-- The blacklist is also respected by the visual indicator system — blacklisted containers never show the unlooted sparkle.
+- Blacklist is parsed at config load into a `LootBlacklist` matcher cached on the live config: a `HashSet` of exact `namespace:path` ids plus a list of wildcard prefixes. Rebuilt by `ProsperityConfig.clamp()` on every load/reload.
+- The matcher is checked against the source's **live** loot table at the interaction gate — both the block `UseBlockCallback` (single and double-chest paths) and the minecart `UseEntityCallback`. A blacklisted container returns `InteractionResult.PASS` (full vanilla behavior) before any instance is generated. Gating on the live table means a fresh blacklisted container is never instanced or nulled, while an already-generated container (live table null) is served normally — instancing cannot be undone retroactively.
+- Blacklist check is O(1) for exact matches (HashSet lookup) and O(n) for wildcards (n = number of wildcard entries, typically very small).
+- The blacklist is also respected by the visual indicator system — both the block and minecart unlooted scans skip blacklisted containers, so they never show the unlooted sparkle.
 
 ---
 
