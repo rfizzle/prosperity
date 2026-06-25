@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Transcribe the 256px Prosperity treasure-chest master into a native .glyph grid.
 
-`art/hud-icon-256.png` is a finished 256×256 pixel-art open treasure chest
-overflowing with gold coins and a diamond-cyan gem (27 colors) — its own
-high-detail artwork, not an upscale of the 32px HUD master. Because it is clean
-indexed pixel art, this script reads it pixel-by-pixel and emits the *exact*
+`art/chest-256.png` is a finished 256×256 pixel-art open treasure chest
+overflowing with gold coins and a diamond-cyan gem (27 colors). Because it is
+clean indexed pixel art, this script reads it pixel-by-pixel and emits the *exact*
 ASCII-grid .glyph — each distinct opaque color becomes a legend token, fully
 transparent pixels become '.'. glyph.py rasterizes it back pixel-identical to the
 master, so the committed `chest-256.glyph` is a re-renderable source for it (ASSETS.md).
@@ -12,12 +11,12 @@ master, so the committed `chest-256.glyph` is a re-renderable source for it (ASS
 Requires ImageMagick (`convert`), already used across the suite's art tooling.
 
 Run:  python3 art/glyphs/chest-256.gen.py
-      python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/chest-256.glyph -o out.png
+      python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/chest-256.glyph -o art/chest-256.png
 """
 import re
 import subprocess
 
-MASTER = "art/hud-icon-256.png"
+MASTER = "art/chest-256.png"
 OUT = "art/glyphs/chest-256.glyph"
 
 dump = subprocess.run(

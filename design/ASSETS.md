@@ -25,7 +25,7 @@
 | Asset | `.glyph` source | Final asset |
 |---|---|---|
 | Unlooted container overlay | `art/glyphs/unlooted-sparkle.glyph` | `assets/prosperity/textures/overlay/unlooted.png` |
-| HUD loot-tier icon (treasure chest) | `art/glyphs/hud_icon.glyph` (transcribed from `art/hud-icon-16.png` by `art/glyphs/hud_icon.gen.py`) | `assets/prosperity/textures/gui/hud_icon.png` |
+| HUD loot-tier icon (treasure chest) | `art/glyphs/hud_icon.glyph` (self-contained; renders the 32px chest) | `assets/prosperity/textures/gui/hud_icon.png` |
 
 ## Not yet created
 
