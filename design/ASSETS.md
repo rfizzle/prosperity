@@ -15,8 +15,6 @@
 | Asset | `art/` master | Final / derived copies |
 |---|---|---|
 | Full logo | `art/logo.png` | `site/assets/logo.png` |
-| Mod icon (full-res) | `art/icon.png` | (master) |
-| Mod icon (128) | `art/icon-128.png` | `assets/prosperity/icon.png` (in-jar), `site/assets/icon.png` |
 | OG image | — | `site/assets/og-image.png` |
 | Apple touch icon | — | `site/assets/apple-touch-icon.png` |
 
@@ -26,6 +24,8 @@
 |---|---|---|
 | Unlooted container overlay | `art/glyphs/unlooted-sparkle.glyph` | `assets/prosperity/textures/overlay/unlooted.png` |
 | HUD loot-tier icon (treasure chest) | `art/glyphs/hud_icon.glyph` (self-contained; renders the 32px chest) | `assets/prosperity/textures/gui/hud_icon.png` |
+| 256px treasure chest | `art/glyphs/chest-256.glyph` (from `chest-256.gen.py`) | `art/chest-256.png` master |
+| Mod icon (chest medallion) | `art/glyphs/icon.glyph` (from `icon.gen.py`: computed medallion + baked-in chest) | `art/icon-512.png`/`art/icon-128.png` masters → `assets/prosperity/icon.png` (256, in-jar), `site/assets/icon.png` |
 
 ## Not yet created
 
