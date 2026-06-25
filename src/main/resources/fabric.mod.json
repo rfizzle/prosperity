@@ -26,6 +26,7 @@
             "com.rfizzle.prosperity.gametest.InstancedLootGameTest",
             "com.rfizzle.prosperity.gametest.LootInjectionGameTest",
             "com.rfizzle.prosperity.gametest.LootModifierGameTest",
+            "com.rfizzle.prosperity.gametest.LootNotificationGameTest",
             "com.rfizzle.prosperity.gametest.LootNullificationGameTest",
             "com.rfizzle.prosperity.gametest.LootScalingGameTest",
             "com.rfizzle.prosperity.gametest.MinecartIndicatorGameTest",

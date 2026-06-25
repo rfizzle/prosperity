@@ -16,5 +16,17 @@
     "command.prosperity.refresh.all": "Refreshed loot at [%s] for all players (%s instances cleared)",
     "command.prosperity.refresh.player": "Refreshed %s's loot at [%s] (%s instances cleared)",
     "command.prosperity.reload": "Reloaded Prosperity config and synced to %s player(s)",
-    "command.prosperity.reload_failed": "Config reload failed: %s"
+    "command.prosperity.reload_failed": "Config reload failed: %s",
+    "prosperity.notification.loot_generated": "✦ %s",
+    "prosperity.notification.modifiers": " — %sx stacks, +%s quality",
+    "prosperity.notification.structure": " (%s)",
+    "prosperity.structure.monument": "Ocean Monument",
+    "prosperity.structure.stronghold": "Stronghold",
+    "prosperity.structure.ancient_city": "Ancient City",
+    "prosperity.structure.trail_ruins": "Trail Ruins",
+    "prosperity.structure.village_plains": "Plains Village",
+    "prosperity.structure.village_desert": "Desert Village",
+    "prosperity.structure.village_savanna": "Savanna Village",
+    "prosperity.structure.village_snowy": "Snowy Village",
+    "prosperity.structure.village_taiga": "Taiga Village"
 }

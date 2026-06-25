@@ -282,6 +282,8 @@ public final class InstancedLootInteraction {
         // The double chest's single indicator is anchored at the primary half (the scan emits only
         // there), so drop that one for this player on first generation.
         primaryAdapter.notifyGenerated(player);
+        // First-generation action-bar notification (S-021), reflecting the final modifier values.
+        LootNotification.send(player, level, origin, scaled, mods.stackMultiplier(), mods.luck());
         return combined;
     }
 
@@ -343,6 +345,8 @@ public final class InstancedLootInteraction {
         adapter.clearLootTable();
         // First generation only (return visits returned above): drop this player's unlooted indicator.
         adapter.notifyGenerated(player);
+        // First-generation action-bar notification (S-021), reflecting the final modifier values.
+        LootNotification.send(player, adapter.level(), origin, scaled, mods.stackMultiplier(), mods.luck());
         return generated;
     }
 

@@ -30,6 +30,7 @@ A loot overhaul for Minecraft 1.21.1 (Fabric). Prosperity gives every player the
 - **Loot table injection** — Datapack-driven additive injections (`data/prosperity/loot_injections/<name>.json`) layer extra drops onto existing tables, including wildcard targets, without overwriting vanilla loot.
 - **Structure-specific scaling** — Per-structure overrides tune loot independently of raw distance.
 - **Jade / WTHIT tooltips & loot index** — Container loot status (unlooted, looted, refresh timer) surfaces through Jade/WTHIT, and an EMI/REI/JEI loot index lets players browse what a container can drop.
+- **Loot notifications** — Opening a container for the first time flashes a brief action-bar message naming the loot tier and active modifiers (e.g. `✦ Wilderness — 2.0x stacks, +2 quality`), with the structure appended when an override changed the tier. Independently togglable.
 - **HUD tier badge** — A compact, shared-suite HUD element (priority 3 in the rfizzle HUD strip) shows your current distance loot tier (e.g. `[chest] Frontier`). Independently togglable.
 - **Commands** — `/prosperity info` reports your current tier and multipliers; op-level `reset`, `refresh`, and `reload` manage instanced data and config.
 

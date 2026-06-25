@@ -580,9 +580,9 @@ When a player opens an instanced container **for the first time** (loot generati
 
 ### Implementation Notes
 
-- Server-side: after loot generation completes, send the resolved tier data to the player via the `SystemChat` packet with `overlay=true` (action bar placement).
-- The message is built from the `LootModifierContext` final values, so it reflects all modifiers (distance + structure override + API listeners).
-- Translation key: `prosperity.notification.loot_generated` with `%s` for tier name, `%.2f` for multiplier, `%d` for quality. Structure name appended conditionally.
+- Server-side: after loot generation completes, send the resolved tier data to the player with `ServerPlayer#displayClientMessage(component, true)` — a system-chat packet with `overlay=true` (action bar placement).
+- The message is built from the `LootModifierContext` final values, so it reflects all modifiers (distance + structure override + API listeners): the multiplier and quality shown are the post-listener `stackMultiplier` and `luck` (the latter rounded to a whole number), not the raw tier values.
+- Assembled from three translation keys: `prosperity.notification.loot_generated` (`✦ %s`, the tier name), `prosperity.notification.modifiers` (` — %sx stacks, +%s quality`, appended only when a value is off its baseline — so the bare tier shows at Local), and `prosperity.notification.structure` (` (%s)`, appended only when a structure override changed the tier from the pure distance band). The multiplier renders in natural-decimal form (`2.0`, `2.75`); structure names resolve through `prosperity.structure.*` with a humanized-path fallback for unmapped (e.g. modded) structures.
 
 ---
 
