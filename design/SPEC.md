@@ -786,10 +786,11 @@ When enabled, world-gen loot containers (those with an `InstancedLootData`) rece
 
 ### Implementation Notes
 
-- Mixin into `Block#getDestroyProgress()` (or `PlayerInteractionManager#handleBlockBreakAction`) to intercept break speed for blocks with an `InstancedLootData`.
-- Check: block entity exists, has the attachment, `generated=true`, at least one online player has NOT generated loot → apply multiplier.
-- Creative mode bypass: check `player.isCreative()` before applying.
-- The protection sound plays once when the break animation starts, not per tick.
+- A common mixin on `BlockBehaviour#getDestroyProgress(BlockState, Player, BlockGetter, BlockPos)` divides the returned per-tick mining progress by the protection multiplier. `ContainerProtection.breakMultiplier` supplies the divisor.
+- Protected check (`ContainerProtection.isProtectedServer`): `enableContainerProtection` on, breaker not creative, the block is a `RandomizableContainerBlockEntity` with a `generated` `InstancedLootData`, and at least one online player has no stored inventory. A blacklisted container is never instanced, so it is never `generated` and never protected. Once every online player has generated, no one is pending and protection lifts.
+- The `InstancedLootData` attachment is server-only, so the mixin evaluates protection authoritatively only where `level` is a `ServerLevel`; the server independently gates the actual break (`getDestroyProgress x (ticks+1) >= 0.7`), so the slowdown is enforced even against an unmodified client. To slow the client's cracking animation to match, the client queries the server at break-start (`QueryProtectionC2S` → `ProtectionResultS2C` carrying the multiplier) and the mixin's client branch divides by that answer.
+- The break-start cue (a quiet `ANVIL_LAND` sound plus a small particle burst) fires once from a server-side `AttackBlockCallback`, not per tick.
+- Chest/hopper minecarts are entities with no `getDestroyProgress`, so this block-only protection does not cover them.
 
 ---
 

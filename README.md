@@ -32,6 +32,7 @@ A loot overhaul for Minecraft 1.21.1 (Fabric). Prosperity gives every player the
 - **Jade / WTHIT tooltips & loot index** — Container loot status (unlooted, looted, refresh timer) surfaces through Jade/WTHIT, and an EMI/REI/JEI loot index lets players browse what a container can drop.
 - **Loot notifications** — Opening a container for the first time flashes a brief action-bar message naming the loot tier and active modifiers (e.g. `✦ Wilderness — 2.0x stacks, +2 quality`), with the structure appended when an override changed the tier. Independently togglable.
 - **HUD tier badge** — A compact, shared-suite HUD element (priority 3 in the rfizzle HUD strip) shows your current distance loot tier (e.g. `[chest] Frontier`). Independently togglable.
+- **Container protection** — Optional anti-grief: a loot container that some online player still has pending breaks several times slower (configurable) with a quiet cue when breaking begins, so one player cannot quickly erase everyone else's instanced loot. Creative bypasses it, and protection lifts once every online player has opened the container. Off by default.
 - **Commands** — `/prosperity info` reports your current tier and multipliers; op-level `reset`, `refresh`, and `reload` manage instanced data and config.
 
 Full feature detail, container handling, and config knobs live in [`design/SPEC.md`](design/SPEC.md) and at [prosperity.rfizzle.com](https://prosperity.rfizzle.com).

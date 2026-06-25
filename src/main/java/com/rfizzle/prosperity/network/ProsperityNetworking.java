@@ -1,6 +1,7 @@
 package com.rfizzle.prosperity.network;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.loot.ContainerProtection;
 import com.rfizzle.prosperity.loot.UnlootedContainers;
 import com.rfizzle.prosperity.loot.UnlootedMinecarts;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -34,6 +35,11 @@ public final class ProsperityNetworking {
     private static final long REQUEST_WINDOW_MS = 1000;
     private static final int MAX_REQUESTS_PER_WINDOW = 512;
 
+    // QueryProtectionC2S is sent once per block the client starts breaking (S-017), so the rate is far
+    // lower than the per-chunk indicator request; a tight window suffices to throttle a spammer.
+    private static final Map<UUID, long[]> PROTECTION_QUERY_WINDOW = new ConcurrentHashMap<>();
+    private static final int MAX_PROTECTION_QUERIES_PER_WINDOW = 64;
+
     private ProsperityNetworking() {
     }
 
@@ -46,8 +52,10 @@ public final class ProsperityNetworking {
 
     private static void registerPayloadTypes() {
         PayloadTypeRegistry.playC2S().register(RequestUnlootedC2SPayload.TYPE, RequestUnlootedC2SPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(QueryProtectionC2SPayload.TYPE, QueryProtectionC2SPayload.CODEC);
 
         PayloadTypeRegistry.playS2C().register(ConfigSyncS2CPayload.TYPE, ConfigSyncS2CPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(ProtectionResultS2CPayload.TYPE, ProtectionResultS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(UnlootedContainersS2CPayload.TYPE, UnlootedContainersS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ContainerLootedS2CPayload.TYPE, ContainerLootedS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ContainerRemovedS2CPayload.TYPE, ContainerRemovedS2CPayload.CODEC);
@@ -59,10 +67,18 @@ public final class ProsperityNetworking {
     private static void registerServerHandlers() {
         ServerPlayNetworking.registerGlobalReceiver(RequestUnlootedC2SPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            if (!allowRequest(player.getUUID())) {
+            if (!allowRequest(UNLOOTED_REQUEST_WINDOW, MAX_REQUESTS_PER_WINDOW, player.getUUID())) {
                 return;
             }
             player.server.execute(() -> handleRequestUnlooted(player, payload));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(QueryProtectionC2SPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            if (!allowRequest(PROTECTION_QUERY_WINDOW, MAX_PROTECTION_QUERIES_PER_WINDOW, player.getUUID())) {
+                return;
+            }
+            player.server.execute(() -> handleProtectionQuery(player, payload));
         });
     }
 
@@ -87,8 +103,11 @@ public final class ProsperityNetworking {
     }
 
     private static void registerDisconnectCleanup() {
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                UNLOOTED_REQUEST_WINDOW.remove(handler.getPlayer().getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            UUID id = handler.getPlayer().getUUID();
+            UNLOOTED_REQUEST_WINDOW.remove(id);
+            PROTECTION_QUERY_WINDOW.remove(id);
+        });
     }
 
     private static void handleRequestUnlooted(ServerPlayer player, RequestUnlootedC2SPayload payload) {
@@ -105,6 +124,26 @@ public final class ProsperityNetworking {
         if (ServerPlayNetworking.canSend(player, UnlootedMinecartsS2CPayload.TYPE)) {
             List<Integer> minecarts = UnlootedMinecarts.scanChunk(level, payload.chunkPos(), player.getUUID());
             ServerPlayNetworking.send(player, new UnlootedMinecartsS2CPayload(minecarts));
+        }
+    }
+
+    private static void handleProtectionQuery(ServerPlayer player, QueryProtectionC2SPayload payload) {
+        if (player.connection == null) {
+            return;
+        }
+        float multiplier =
+                ContainerProtection.protectionMultiplierFor(player.serverLevel(), payload.pos(), player);
+        sendProtectionResult(player, payload.pos(), multiplier);
+    }
+
+    /**
+     * Answer a player's break-protection query for {@code pos} with the {@code multiplier} their client
+     * should slow the cracking animation by ({@code 1.0} = unprotected). The {@code canSend} guard skips
+     * clients (e.g. vanilla) that have not registered the receiver.
+     */
+    public static void sendProtectionResult(ServerPlayer player, BlockPos pos, float multiplier) {
+        if (ServerPlayNetworking.canSend(player, ProtectionResultS2CPayload.TYPE)) {
+            ServerPlayNetworking.send(player, new ProtectionResultS2CPayload(pos, multiplier));
         }
     }
 
@@ -158,15 +197,15 @@ public final class ProsperityNetworking {
         }
     }
 
-    /** Admit up to {@link #MAX_REQUESTS_PER_WINDOW} chunk requests per player per {@link #REQUEST_WINDOW_MS}. */
-    private static boolean allowRequest(UUID id) {
+    /** Admit up to {@code maxPerWindow} requests per player per {@link #REQUEST_WINDOW_MS} in {@code windows}. */
+    private static boolean allowRequest(Map<UUID, long[]> windows, int maxPerWindow, UUID id) {
         long now = System.currentTimeMillis();
-        long[] window = UNLOOTED_REQUEST_WINDOW.computeIfAbsent(id, k -> new long[]{now, 0});
+        long[] window = windows.computeIfAbsent(id, k -> new long[]{now, 0});
         if (now - window[0] >= REQUEST_WINDOW_MS) {
             window[0] = now;
             window[1] = 0;
         }
-        if (window[1] >= MAX_REQUESTS_PER_WINDOW) {
+        if (window[1] >= maxPerWindow) {
             return false;
         }
         window[1]++;

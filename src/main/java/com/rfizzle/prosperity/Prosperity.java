@@ -3,6 +3,7 @@ package com.rfizzle.prosperity;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
 import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.loot.ContainerProtection;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.LootModifiers;
 import com.rfizzle.prosperity.loot.MinecartLootInteraction;
@@ -27,6 +28,7 @@ public class Prosperity implements ModInitializer {
         ProsperityNetworking.register();
         InstancedLootInteraction.register();
         MinecartLootInteraction.register();
+        ContainerProtection.register();
         LootModifiers.registerDefaults();
         LootInjectionManager.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->

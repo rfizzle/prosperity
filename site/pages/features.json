@@ -127,6 +127,23 @@
           ]
         }
       ]
+    },
+    {
+      "id": "protection",
+      "title": "Container Protection",
+      "blocks": [
+        {
+          "type": "cards",
+          "mdColumns": 1,
+          "items": [
+            {
+              "id": "anti-grief",
+              "title": "Anti-Grief Break Resistance",
+              "html": ["Optional protection (off by default) makes a loot container that some online player still has pending break several times slower, with a quiet cue when breaking begins — so one player cannot quickly destroy a dungeon's chests and erase everyone else's instanced loot. It is a speed bump, not a wall: creative players break instantly, and protection lifts once every online player has opened the container. Player-placed chests are never affected."]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -62,6 +62,23 @@
       "blocks": [
         { "type": "prose", "html": ["Stub — keys for enabling the overlay, render distance, and the loot-tier action-bar message will be documented here."] }
       ]
+    },
+    {
+      "id": "protection",
+      "title": "Container Protection",
+      "intro": "Optional anti-grief break resistance for instanced loot containers.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>enableContainerProtection</code>", "bool", "false", "Slow down breaking of loot containers that some online player still has pending."],
+            ["<code class='text-accent2 whitespace-nowrap'>protectionBreakMultiplier</code>", "float", "4.0", "How many times longer a protected container takes to break (clamped 1.0–100.0)."]
+          ]
+        },
+        { "type": "prose", "html": ["A protected container takes <code class='text-accent2'>protectionBreakMultiplier</code>× longer to break and plays a quiet cue when breaking starts, so a single player cannot quickly erase everyone else's instanced loot. Protection is a speed bump, not a wall: creative-mode players break instantly, and protection lifts once every online player has opened the container. Player-placed chests are never affected."] }
+      ]
     }
   ]
 }

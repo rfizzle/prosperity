@@ -8,6 +8,8 @@ import com.rfizzle.prosperity.network.ContainerLootedS2CPayload;
 import com.rfizzle.prosperity.network.ContainerRemovedS2CPayload;
 import com.rfizzle.prosperity.network.MinecartLootedS2CPayload;
 import com.rfizzle.prosperity.network.MinecartRemovedS2CPayload;
+import com.rfizzle.prosperity.network.ProtectionResultS2CPayload;
+import com.rfizzle.prosperity.network.QueryProtectionC2SPayload;
 import com.rfizzle.prosperity.network.RequestUnlootedC2SPayload;
 import com.rfizzle.prosperity.network.UnlootedContainersS2CPayload;
 import com.rfizzle.prosperity.network.UnlootedMinecartsS2CPayload;
@@ -15,7 +17,9 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.level.ChunkPos;
 
@@ -67,6 +71,10 @@ public final class ProsperityClientNetworking {
 
         ClientPlayNetworking.registerGlobalReceiver(MinecartRemovedS2CPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> UnlootedMinecartIndicatorCache.remove(payload.entityId())));
+
+        ClientPlayNetworking.registerGlobalReceiver(ProtectionResultS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() ->
+                        ClientProtectionState.get().setResult(payload.pos(), payload.multiplier())));
     }
 
     private static void registerChunkRequests() {
@@ -91,12 +99,23 @@ public final class ProsperityClientNetworking {
                 UnlootedMinecartIndicatorCache.remove(entity.getId());
             }
         });
+
+        // Ask the server whether the block we just started breaking is protected, so the cracking
+        // animation can be slowed to match (S-017). Fires once per target acquisition; the server
+        // rate-limits and replies with the multiplier the mixin then applies.
+        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
+            if (world.isClientSide && ClientPlayNetworking.canSend(QueryProtectionC2SPayload.TYPE)) {
+                ClientPlayNetworking.send(new QueryProtectionC2SPayload(pos));
+            }
+            return InteractionResult.PASS;
+        });
     }
 
     private static void registerCleanup() {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             UnlootedIndicatorCache.clear();
             UnlootedMinecartIndicatorCache.clear();
+            ClientProtectionState.get().clear();
         });
     }
 }
