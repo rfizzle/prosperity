@@ -16,6 +16,7 @@
     "entrypoints": {
         "main": ["com.rfizzle.prosperity.Prosperity"],
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
+        "modmenu": ["com.rfizzle.prosperity.compat.modmenu.ModMenuIntegration"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.BlacklistGameTest",

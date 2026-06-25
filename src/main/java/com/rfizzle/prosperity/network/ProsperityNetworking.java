@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
@@ -100,6 +101,24 @@ public final class ProsperityNetworking {
         if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
             ServerPlayNetworking.send(player, new ConfigSyncS2CPayload(Prosperity.getConfig().toJson()));
         }
+    }
+
+    /**
+     * Push the current server config to every connected player, returning the number of clients that
+     * received it. Used by {@code /prosperity reload} (S-004) and the Mod Menu config screen's save
+     * runnable (S-028) so an in-game config change reaches clients without a reconnect. The
+     * {@code canSend} guard skips clients (e.g. vanilla) that have not registered the receiver.
+     */
+    public static int syncConfigToAll(MinecraftServer server) {
+        ConfigSyncS2CPayload payload = new ConfigSyncS2CPayload(Prosperity.getConfig().toJson());
+        int sent = 0;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+                sent++;
+            }
+        }
+        return sent;
     }
 
     private static void registerDisconnectCleanup() {

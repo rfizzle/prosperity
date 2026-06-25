@@ -1138,8 +1138,8 @@ All user-facing text uses translation keys in `assets/prosperity/lang/en_us.json
 | `prosperity.overlay.*` | `prosperity.overlay.unlooted` | Overlay indicator labels (accessibility) |
 | `prosperity.tier.*` | `prosperity.tier.wilderness` | Distance tier display names |
 | `prosperity.notification.*` | `prosperity.notification.loot_generated` | Action bar loot notifications |
-| `prosperity.config.*` | `prosperity.config.enableDistanceScaling` | Cloth Config screen labels |
-| `prosperity.config.*.tooltip` | `prosperity.config.enableDistanceScaling.tooltip` | Cloth Config field descriptions |
+| `prosperity.config.*` | `prosperity.config.enable_distance_scaling` | Cloth Config screen labels |
+| `prosperity.config.*.tooltip` | `prosperity.config.enable_distance_scaling.tooltip` | Cloth Config field descriptions |
 | `command.prosperity.*` | `command.prosperity.reload` | Command feedback messages |
 | `prosperity.jade.*` | `prosperity.jade.loot_status` | Jade/WTHIT tooltip lines |
 | `prosperity.jade.refresh.*` | `prosperity.jade.refresh.timer` | Jade/WTHIT refresh timer text |

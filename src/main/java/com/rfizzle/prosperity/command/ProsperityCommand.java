@@ -10,13 +10,11 @@ import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.loot.LootScaling;
-import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -24,7 +22,6 @@ import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
@@ -186,21 +183,9 @@ public final class ProsperityCommand {
             src.sendFailure(Component.translatable("command.prosperity.reload_failed", String.valueOf(e.getMessage())));
             return 0;
         }
-        final int synced = syncConfigToAll(src.getServer());
+        final int synced = ProsperityNetworking.syncConfigToAll(src.getServer());
         src.sendSuccess(() -> Component.translatable("command.prosperity.reload", synced), true);
         return Command.SINGLE_SUCCESS;
-    }
-
-    private static int syncConfigToAll(MinecraftServer server) {
-        ConfigSyncS2CPayload payload = new ConfigSyncS2CPayload(Prosperity.getConfig().toJson());
-        int sent = 0;
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
-                ServerPlayNetworking.send(player, payload);
-                sent++;
-            }
-        }
-        return sent;
     }
 
     // ---- shared helpers ----

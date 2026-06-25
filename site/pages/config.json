@@ -5,13 +5,14 @@
   "ogTitle": "Config — Prosperity",
   "ogDescription": "Config reference for prosperity.json with distance tiers, structure overrides, and more.",
   "title": "Configuration",
-  "lede": "Every Prosperity setting, organized by section. Tune values by hand or reload them live without a restart.",
+  "lede": "Every Prosperity setting, organized by section. Tune values in-game with Mod Menu, edit them by hand, or reload them live without a restart.",
   "width": "5xl",
   "sections": [
     {
       "title": "File Location &amp; Reload",
       "plainTitle": true,
       "blocks": [
+        { "type": "prose", "html": ["With <a class='text-accent2' href='https://modrinth.com/mod/modmenu'>Mod Menu</a> and <a class='text-accent2' href='https://modrinth.com/mod/cloth-config'>Cloth Config</a> installed, every setting is editable from an in-game screen (Mods &rarr; Prosperity &rarr; Configure), with labels and tooltips per key. Saving writes the file and applies the change live; distance tiers, structure overrides, and the blacklist are edited as one row per entry. Both mods are optional &mdash; without them, edit the file directly."] },
         { "type": "prose", "html": ["The config file is auto-generated with defaults on first launch at:"] },
         { "type": "code", "code": ".minecraft/config/prosperity.json", "bottomGap": true },
         { "type": "prose", "html": ["Server operators can apply changes without a restart with:"] },
