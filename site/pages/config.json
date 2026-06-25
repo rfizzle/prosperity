@@ -80,6 +80,25 @@
       ]
     },
     {
+      "id": "tier-hud",
+      "title": "Tier HUD Badge",
+      "intro": "Client-side badge showing your current distance loot tier. These keys live in the client block of prosperity.json and are never synced.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>enableTierHud</code>", "bool", "true", "Show the tier HUD badge."],
+            ["<code class='text-accent2 whitespace-nowrap'>hudAnchor</code>", "enum", "TOP_LEFT", "Screen corner: TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT."],
+            ["<code class='text-accent2 whitespace-nowrap'>hudOffsetX</code>", "int", "4", "Horizontal inset from the anchored corner, in pixels."],
+            ["<code class='text-accent2 whitespace-nowrap'>hudOffsetY</code>", "int", "4", "Vertical inset from the anchored corner, in pixels."]
+          ]
+        },
+        { "type": "prose", "html": ["The badge shows a treasure-chest glyph and your current tier name, the name drawn in the tier's color; crossing a tier boundary briefly flashes the label gold. The tier is read from your position each frame using the server's synced tier boundaries (the Nether uses raw coordinates and the End is always the max tier, matching loot scaling). It is hidden while the GUI is hidden (F1), a screen is open, or you are spectating or dead. Prosperity holds slot 3 in the shared rfizzle HUD strip, so it stacks below Tribulation and Mercantile when those are installed."] }
+      ]
+    },
+    {
       "id": "loot-refresh",
       "title": "Loot Refresh",
       "intro": "Optional per-player restocking so explored containers regenerate after a cooldown.",

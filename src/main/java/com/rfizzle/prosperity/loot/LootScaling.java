@@ -55,8 +55,20 @@ public final class LootScaling {
      * {@code enableDistanceScaling}; the generation path gates application of the tier separately.
      */
     public static DistanceTier resolveTier(ServerLevel level, double x, double z) {
-        ProsperityConfig cfg = Prosperity.getConfig();
-        if (cfg.endAlwaysMaxTier && level.dimension() == Level.END) {
+        return resolveTier(Prosperity.getConfig(), level.dimension() == Level.END, x, z);
+    }
+
+    /**
+     * The pure, dimension-agnostic core of {@link #resolveTier(ServerLevel, double, double)}: the
+     * caller supplies the config and whether the position is in the End, so this needs no
+     * {@link ServerLevel} and the tier HUD (S-024) can share it client-side against the synced
+     * config (the client cannot read the server's {@link Prosperity#getConfig()} or a
+     * {@code ServerLevel}). MC-free and unit tested; the two {@code resolveTier} entry points are the
+     * single source of truth so server generation and the client HUD never report a different tier
+     * for the same spot.
+     */
+    public static DistanceTier resolveTier(ProsperityConfig cfg, boolean isEnd, double x, double z) {
+        if (cfg.endAlwaysMaxTier && isEnd) {
             return maxTier(cfg);
         }
         return cfg.tierFor(Math.sqrt(x * x + z * z));
