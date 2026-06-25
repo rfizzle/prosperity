@@ -410,11 +410,11 @@ The special target `"prosperity:all_chests"` injects into every loot table match
 
 ### Implementation Notes
 
-- Injection data is loaded during resource reload via a custom `ResourceReloadListener`.
-- At loot generation time (section 1, step 4), after distance tier is determined, the injection registry is queried for entries matching the container's loot table at the resolved tier.
-- Matching entries are appended to the loot pool's entry list before resolution. This uses the same `LootPool.Builder` mechanism that vanilla datapacks use, so it interoperates with vanilla's own loot table overrides.
-- The injection registry is a `Map<ResourceLocation, List<TieredInjection>>` keyed by target loot table, built at resource reload. Lookup is O(1) per loot table.
-- Wildcard targets are expanded to concrete loot table IDs at load time by scanning the `LootDataManager`.
+- Injection data is loaded on `SERVER_STARTING` (and re-loaded on `END_DATA_PACK_RELOAD` for runtime `/reload`) by `LootInjectionManager`, which reads each file with a registry-aware codec so item components deserialize against the loaded enchantment/effect registries.
+- At loot generation time (section 1, step 4), after the distance tier is determined, `LootInjectionManager.augment` queries the injection registry for entries matching the container's loot table whose `min_tier` is at or below the resolved tier.
+- Injection is purely additive: the eligible entries form a single weighted pool and exactly one is drawn (deterministically, from the container's per-player seed) and placed in a spare slot. Vanilla loot is never displaced — injected rewards sit alongside the rolled items rather than competing with them in a vanilla pool.
+- The injection registry is a `Map<ResourceLocation, List<TieredInjection>>` keyed by target loot table, rebuilt wholesale and published atomically on each load. Lookup is O(1) per loot table.
+- Wildcard targets are expanded to concrete loot table IDs at load time by scanning the resource manager for loot tables whose path contains a `chests/` segment.
 
 ---
 

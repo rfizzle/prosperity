@@ -1,0 +1,22 @@
+{
+  "injections": [
+    {
+      "target": "prosperity:all_chests",
+      "min_tier": "wilderness",
+      "entries": [
+        {
+          "item": "minecraft:enchanted_golden_apple",
+          "weight": 2
+        },
+        {
+          "item": "minecraft:diamond_horse_armor",
+          "weight": 2
+        },
+        {
+          "item": "minecraft:music_disc_otherside",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

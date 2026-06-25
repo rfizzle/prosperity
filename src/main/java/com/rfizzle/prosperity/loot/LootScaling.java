@@ -136,10 +136,11 @@ public final class LootScaling {
     /**
      * The configured tier named {@code name}, the {@link ProsperityConfig#LOCAL_SENTINEL} when the
      * config has no {@code "local"} tier of its own, or {@code null} when the name resolves to nothing.
-     * The configured list wins over the sentinel so a custom {@code "local"} tier is honored.
+     * The configured list wins over the sentinel so a custom {@code "local"} tier is honored. Shared
+     * with loot injection (S-014), which resolves a datapack {@code min_tier} name to gate by distance.
      */
     @Nullable
-    private static DistanceTier tierByName(ProsperityConfig cfg, @Nullable String name) {
+    public static DistanceTier tierByName(ProsperityConfig cfg, @Nullable String name) {
         if (name == null) {
             return null;
         }

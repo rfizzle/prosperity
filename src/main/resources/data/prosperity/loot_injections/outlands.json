@@ -1,0 +1,28 @@
+{
+  "injections": [
+    {
+      "target": "prosperity:all_chests",
+      "min_tier": "outlands",
+      "entries": [
+        {
+          "item": "minecraft:netherite_upgrade_smithing_template",
+          "weight": 2
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": { "levels": { "minecraft:sharpness": 5 } }
+          },
+          "weight": 3
+        },
+        {
+          "item": "minecraft:diamond_pickaxe",
+          "components": {
+            "minecraft:enchantments": { "levels": { "minecraft:efficiency": 4 } }
+          },
+          "weight": 2
+        }
+      ]
+    }
+  ]
+}

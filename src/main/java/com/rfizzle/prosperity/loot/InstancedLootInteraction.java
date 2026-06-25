@@ -5,6 +5,7 @@ import com.rfizzle.prosperity.api.LootModifierContext;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
+import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
@@ -242,6 +243,8 @@ public final class InstancedLootInteraction {
             combined.set(slot, primaryLoot.get(slot));
             combined.set(DoubleChestLayout.PRIMARY_SLOTS + slot, secondaryLoot.get(slot));
         }
+        // One injected reward for the whole double chest, drawn against the primary half's table (S-014).
+        LootInjectionManager.augment(combined, primaryRef.key(), tier, primaryRef.seed(), uuid);
 
         primaryAdapter.update(data -> {
             data.markGenerated(primaryRef.key(), primaryRef.seed());
@@ -307,6 +310,8 @@ public final class InstancedLootInteraction {
         NonNullList<ItemStack> generated = InstancedLootGenerator.generate(
                 adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size(),
                 mods.luck(), mods.stackMultiplier());
+        // Add one tier-eligible injected reward in an empty slot (S-014).
+        LootInjectionManager.augment(generated, ref.key(), tier, ref.seed(), uuid);
 
         adapter.update(data -> {
             data.markGenerated(ref.key(), ref.seed());
