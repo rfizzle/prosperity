@@ -235,7 +235,12 @@ public final class InstancedLootInteraction {
         if (primaryData != null) {
             NonNullList<ItemStack> stored = primaryData.getInventory(uuid);
             if (stored != null) {
-                return stored;
+                if (!LootRefresh.isExpired(primaryData, uuid, level.getGameTime())) {
+                    return stored;
+                }
+                // Cooldown elapsed: clear the player's combined instance from the primary half, where
+                // the inventory and tick both live, so it re-rolls below (S-016).
+                ProsperityAttachments.update(primary, data -> data.clearForPlayer(uuid));
             }
         }
 
@@ -320,7 +325,12 @@ public final class InstancedLootInteraction {
         if (existing != null) {
             NonNullList<ItemStack> stored = existing.getInventory(uuid);
             if (stored != null) {
-                return stored;
+                if (!LootRefresh.isExpired(existing, uuid, adapter.level().getGameTime())) {
+                    return stored;
+                }
+                // Cooldown elapsed: drop the player's instance so a fresh one is rolled below (S-016).
+                // The preserved original loot table stays, so generation re-rolls from it.
+                adapter.update(data -> data.clearForPlayer(uuid));
             }
         }
 

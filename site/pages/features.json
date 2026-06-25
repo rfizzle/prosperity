@@ -123,6 +123,11 @@
               "id": "action-bar",
               "title": "Loot Tier Feedback",
               "html": ["Opening an instanced container shows an action-bar message with the loot tier and active modifiers, so the risk-versus-reward loop of exploration is visible. The shared HUD strip can also display your current distance tier."]
+            },
+            {
+              "id": "loot-refresh",
+              "title": "Loot Refresh",
+              "html": ["Optional restocking (off by default) lets a container's loot regenerate per player after a configurable cooldown, so explored structures stay worth revisiting on long-running worlds. Each player's cooldown is independent; once it elapses the unlooted sparkle reappears and the next open rolls fresh loot."]
             }
           ]
         }

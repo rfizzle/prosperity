@@ -25,8 +25,10 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * {@link UnlootedContainersS2CPayload.Entry entries} the client can place and size.
  *
  * <p>A container is unlooted for a player when it is a loot container ({@link InstancedLootInteraction#isLootContainer})
- * and the player has no stored inventory there. A refresh (S-016) clears the stored inventory, so the
- * container reappears in this scan automatically. A double chest yields a single entry anchored at its
+ * and the player has no stored inventory there. It also counts as unlooted once that player's loot has
+ * passed its refresh cooldown ({@link LootRefresh}, S-016): the scan treats an expired instance as
+ * unlooted again even before the player reopens it, so the sparkle returns with no per-tick work. A
+ * double chest yields a single entry anchored at its
  * primary half (the lexicographically smaller position): the generated secondary carries a redirect and
  * is skipped, and a pre-generation secondary is skipped by chest geometry, so only the primary emits —
  * sized to the combined 54 slots.
@@ -80,8 +82,10 @@ public final class UnlootedContainers {
                 slots = DoubleChestLayout.TOTAL_SLOTS;
             }
 
-            // Looted for this player once they have a stored inventory here.
-            if (data != null && data.hasInventory(player)) {
+            // Looted for this player once they have a stored inventory here, unless the refresh
+            // cooldown has elapsed (S-016) — then the sparkle reappears until they regenerate.
+            if (data != null && data.hasInventory(player)
+                    && !LootRefresh.isExpired(data, player, level.getGameTime())) {
                 continue;
             }
 

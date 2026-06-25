@@ -19,7 +19,8 @@ import net.minecraft.world.phys.AABB;
  *
  * <p>A container minecart is unlooted for a player when it is a loot container
  * ({@link MinecartContainerAdapter#isLootContainer}) and the player has no stored inventory in its
- * attachment. Carts are addressed by network id ({@link AbstractMinecartContainer#getId()}) rather
+ * attachment, or once that inventory has passed its refresh cooldown ({@link LootRefresh}, S-016).
+ * Carts are addressed by network id ({@link AbstractMinecartContainer#getId()}) rather
  * than {@code BlockPos} because they move; the client anchors each sparkle to the live entity it
  * resolves by id every frame.</p>
  */
@@ -48,8 +49,11 @@ public final class UnlootedMinecarts {
             if (InstancedLootInteraction.isBlacklisted(cart.getLootTable())) {
                 continue;
             }
+            // Looted for this player once they have a stored inventory, unless the refresh cooldown
+            // has elapsed (S-016) — then the cart's sparkle reappears until they regenerate.
             InstancedLootData data = ProsperityAttachments.get(cart);
-            if (data != null && data.hasInventory(player)) {
+            if (data != null && data.hasInventory(player)
+                    && !LootRefresh.isExpired(data, player, level.getGameTime())) {
                 continue;
             }
             ids.add(cart.getId());
