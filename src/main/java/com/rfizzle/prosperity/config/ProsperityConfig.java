@@ -11,7 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Server + client config surface from SPEC §Configuration. Serialized to
@@ -61,6 +63,8 @@ public class ProsperityConfig {
     public float protectionBreakMultiplier = 4.0f;
     public boolean enableMobLootScaling = true;
     public boolean endAlwaysMaxTier = true;
+    /** Loot index (S-025, SPEC §11): loot-table id &rarr; structure id overrides for unmapped tables. */
+    public Map<String, String> lootTableStructures = new LinkedHashMap<>();
 
     // --- Client Config ---
 
@@ -144,6 +148,9 @@ public class ProsperityConfig {
         }
         if (lootTableBlacklist == null) {
             lootTableBlacklist = new ArrayList<>();
+        }
+        if (lootTableStructures == null) {
+            lootTableStructures = new LinkedHashMap<>();
         }
         blacklist = LootBlacklist.of(lootTableBlacklist);
         if (client == null) {

@@ -7,6 +7,7 @@ import com.rfizzle.prosperity.loot.ContainerProtection;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.LootModifiers;
 import com.rfizzle.prosperity.loot.MinecartLootInteraction;
+import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import net.fabricmc.api.ModInitializer;
@@ -31,6 +32,7 @@ public class Prosperity implements ModInitializer {
         ContainerProtection.register();
         LootModifiers.registerDefaults();
         LootInjectionManager.init();
+        LootIndexDataSource.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 ProsperityCommand.register(dispatcher));
         LOGGER.info("Prosperity initialized");

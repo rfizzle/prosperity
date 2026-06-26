@@ -153,6 +153,29 @@ public final class LootInjectionManager {
         return REGISTRY.keySet();
     }
 
+    /**
+     * The injections registered for {@code table}, flattened to (prototype stack, gating tier name)
+     * pairs for the loot index (S-025). The wildcard is already expanded into concrete tables in the
+     * registry, so this returns the entries that actually apply to {@code table}. Empty when none do.
+     */
+    public static List<InjectedView> injectionsFor(ResourceLocation table) {
+        List<Tiered> list = REGISTRY.get(table);
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        List<InjectedView> out = new ArrayList<>();
+        for (Tiered tiered : list) {
+            for (Entry entry : tiered.entries()) {
+                out.add(new InjectedView(entry.stack(), tiered.minTier()));
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    /** A read-only view of one injectable entry for the loot index: its prototype stack and gating tier. */
+    public record InjectedView(ItemStack stack, String minTier) {
+    }
+
     /** The injection groups whose {@code min_tier} resolves and is at or below {@code containerTier}. */
     static List<Entry> eligibleEntries(List<Tiered> list, DistanceTier containerTier, ProsperityConfig cfg) {
         List<Entry> out = new ArrayList<>();

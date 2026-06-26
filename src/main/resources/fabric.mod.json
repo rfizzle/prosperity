@@ -34,6 +34,7 @@
             "com.rfizzle.prosperity.gametest.LootNullificationGameTest",
             "com.rfizzle.prosperity.gametest.LootRefreshGameTest",
             "com.rfizzle.prosperity.gametest.LootScalingGameTest",
+            "com.rfizzle.prosperity.gametest.LootTableInspectorGameTest",
             "com.rfizzle.prosperity.gametest.MinecartIndicatorGameTest",
             "com.rfizzle.prosperity.gametest.MinecartInstancingGameTest",
             "com.rfizzle.prosperity.gametest.MobLootScalingGameTest",

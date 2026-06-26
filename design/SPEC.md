@@ -729,9 +729,10 @@ Entries added by Prosperity's loot injection system (section 5) are visually dis
 
 ### Data Source
 
-- Loot table contents are extracted from the `LootDataManager` at runtime — not hardcoded. This automatically picks up datapack modifications.
-- Prosperity loot injections are loaded from the injection registry (section 5).
-- Loot table → structure mapping is built by scanning `StructureTemplatePool` and structure definitions for referenced loot tables. Where automatic detection fails (some loot tables are referenced only in code, not data), a hardcoded fallback map covers all vanilla structures.
+- Loot table contents are extracted from the running server's reloadable loot registry at runtime — not hardcoded. The index walks each table's pools and entries (item entries, tag entries expanded, nested-table references and composite groups recursed) to enumerate its item sources, so it automatically picks up datapack modifications.
+- Built server-side on `SERVER_STARTING` and after `/reload`, then published as an immutable snapshot the viewers read. Singleplayer's integrated server populates it for the client viewers; on a remote dedicated server the client has no loot data, so the index is empty (the limitation shared by every recipe-viewer loot plugin).
+- Prosperity loot injections are loaded from the injection registry (section 5); injected entries carry their `min_tier`, vanilla entries show "Any tier."
+- Loot table → structure mapping uses a hardcoded vanilla map: most vanilla structure→loot links live in Java (legacy structures, and the dungeon worldgen feature), not in data, so they cannot be scanned. Tables the map does not cover — modded or otherwise unknown — still appear, bucketed under a generic "Other" structure (chest icon), and are logged once at build so a pack author can assign them a structure via the `lootTableStructures` config map.
 
 ### Multi-Loader Support
 
@@ -992,6 +993,7 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
 | `enableMobLootScaling` | bool | true | Toggle distance scaling for mob drops |
 | `endAlwaysMaxTier` | bool | true | Treat all End containers as max distance tier |
+| `lootTableStructures` | map | {} | Loot index (§11): loot-table id → structure id overrides for tables the hardcoded vanilla map does not cover |
 
 #### Default Distance Tiers
 

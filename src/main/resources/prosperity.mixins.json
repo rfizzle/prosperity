@@ -5,11 +5,17 @@
     "compatibilityLevel": "JAVA_21",
     "mixins": [
         "BlockBehaviourDestroyProgressMixin",
+        "CompositeEntryBaseAccessor",
         "ContainerEntityUnpackMixin",
         "EntityRemoveMixin",
         "LevelChunkRemoveBlockEntityMixin",
         "LivingEntityDropLootMixin",
-        "RandomizableContainerUnpackMixin"
+        "LootItemAccessor",
+        "LootPoolAccessor",
+        "LootTableAccessor",
+        "NestedLootTableAccessor",
+        "RandomizableContainerUnpackMixin",
+        "TagEntryAccessor"
     ],
     "client": [],
     "injectors": {
