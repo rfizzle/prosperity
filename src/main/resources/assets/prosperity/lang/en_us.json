@@ -79,5 +79,14 @@
     "prosperity.structure.village_desert": "Desert Village",
     "prosperity.structure.village_savanna": "Savanna Village",
     "prosperity.structure.village_snowy": "Snowy Village",
-    "prosperity.structure.village_taiga": "Taiga Village"
+    "prosperity.structure.village_taiga": "Taiga Village",
+    "prosperity.jade.status.unlooted": "Unlooted",
+    "prosperity.jade.status.looted": "Looted",
+    "prosperity.jade.status.refreshed": "Refreshed",
+    "prosperity.jade.status.vanilla": "Vanilla loot (not instanced)",
+    "prosperity.jade.tier": "%s tier (%sx stacks)",
+    "prosperity.jade.override.fixed": "%s — fixed %s",
+    "prosperity.jade.override.minimum": "%s — min. %s",
+    "prosperity.jade.override.maximum": "%s — max. %s",
+    "prosperity.jade.refresh": "Refreshes in: %s"
 }

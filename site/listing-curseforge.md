@@ -75,7 +75,7 @@ Full config reference: [prosperity.rfizzle.com/config.html](https://prosperity.r
 - **Java** 21+
 - Works on **dedicated servers and singleplayer**
 - Remove **Lootr** before installing — Prosperity replaces its functionality
-- Optional integrations: **Jade/WTHIT** (loot tier tooltips), **EMI/REI/JEI** (loot injection recipes)
+- Optional integrations: **Jade/WTHIT** (loot status, tier &amp; refresh-timer tooltips), **EMI/REI/JEI** (loot injection recipes)
 
 ---
 

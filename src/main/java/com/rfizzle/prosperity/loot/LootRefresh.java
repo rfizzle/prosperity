@@ -42,6 +42,18 @@ public final class LootRefresh {
     }
 
     /**
+     * Ticks remaining until loot generated at {@code lastGeneratedTick} expires, clamped at {@code 0}
+     * (never negative). Does not consult the enabled toggle &mdash; callers gate on it separately; this
+     * is pure countdown math for the tooltip refresh timer (§10).
+     */
+    public static long remainingTicks(long lastGeneratedTick, long currentTick, int refreshDays) {
+        if (lastGeneratedTick < 0) {
+            return 0L;
+        }
+        return Math.max(0L, cooldownTicks(refreshDays) - (currentTick - lastGeneratedTick));
+    }
+
+    /**
      * Whether {@code player}'s stored loot in {@code data} has passed its refresh cooldown as of
      * {@code currentTick}, reading the live config toggle and cooldown. The convenience overload of
      * {@link #isExpired(long, long, boolean, int)} used by the generate and scan paths.

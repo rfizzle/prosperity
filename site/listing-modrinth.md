@@ -87,7 +87,7 @@ Prosperity detects and integrates with these mods when present. **None are
 bundled** — install whichever you already use.
 
 - [Jade](https://modrinth.com/mod/jade) / [WTHIT](https://modrinth.com/mod/wthit)
-  — loot tier tooltip overlays
+  — container loot-status, distance-tier, structure-override, and refresh-timer tooltips
 - [EMI](https://modrinth.com/mod/emi) / [REI](https://modrinth.com/mod/rei) /
   [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) — loot injection recipes
 

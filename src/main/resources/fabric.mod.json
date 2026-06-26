@@ -17,10 +17,12 @@
         "main": ["com.rfizzle.prosperity.Prosperity"],
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
         "modmenu": ["com.rfizzle.prosperity.compat.modmenu.ModMenuIntegration"],
+        "jade": ["com.rfizzle.prosperity.compat.jade.ProsperityJadePlugin"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.BlacklistGameTest",
             "com.rfizzle.prosperity.gametest.ContainerProtectionGameTest",
+            "com.rfizzle.prosperity.gametest.ContainerTooltipGameTest",
             "com.rfizzle.prosperity.gametest.ContainerRemovalGameTest",
             "com.rfizzle.prosperity.gametest.DoubleChestGameTest",
             "com.rfizzle.prosperity.gametest.FakePlayerGuardGameTest",
