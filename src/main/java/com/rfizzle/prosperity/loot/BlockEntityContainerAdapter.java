@@ -18,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * {@link ContainerAdapter} over a {@code RandomizableContainerBlockEntity} (chests, barrels, shulker
- * boxes, dispensers, droppers) &mdash; the common static-container case. The deferred operations
+ * boxes, dispensers, droppers, hoppers) &mdash; the common static-container case. The deferred operations
  * ({@link #persist}, {@link #closeFeedback()}) re-resolve the block entity by position, since it may
  * have been broken or unloaded while the screen was open.
  */

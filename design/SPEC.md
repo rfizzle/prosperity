@@ -26,7 +26,7 @@ When a player right-clicks a container that has (or had) a valid `LootTable`:
 4. **Generate or retrieve:**
    - **First visit (UUID absent):** Generate loot using the container's `LootTable` and the player's context (luck, position). Store the result in the map under this player's UUID. Nullify the vanilla `lootTable` field on the block entity after the first generation for *any* player (prevents hopper/comparator exploits that trigger vanilla's `unpackLootTable`).
    - **Return visit (UUID present):** Retrieve the player's saved inventory from the map.
-5. **Serve virtual UI** — Open a `SimpleInventory`-backed container screen sized to match the original container (27 slots for chests, 27 for barrels, 5 for hoppers if applicable). The inventory is populated from the player's instanced loot.
+5. **Serve virtual UI** — Open a `SimpleInventory`-backed container screen sized to match the original container (27 slots for chests, 27 for barrels, 5 for hoppers — both block hoppers and hopper minecarts). The inventory is populated from the player's instanced loot.
 6. **Sync animations** — On open: `world.blockEvent(pos, block, 1, 1)` + `world.playSound()` (chest open sound). On close: `world.blockEvent(pos, block, 1, 0)` + `world.playSound()` (chest close sound). This triggers the vanilla lid animation and audio without needing access to the block entity's internal animation state.
 7. **Persist** — On close, write the current inventory state back to the attachment map (and mark the block entity changed). Changes (items taken, items left, items rearranged) are saved per-player.
 
@@ -38,7 +38,7 @@ Prosperity instances every naturally-generated, loot-table-bearing container, ac
 - Chests (single and double), trapped chests (single and double)
 - Barrels
 - Shulker boxes (end city loot)
-- Dispensers (jungle temple), droppers (if modded loot tables target them)
+- Dispensers (jungle temple), droppers, and hoppers (the latter two if modded loot tables target them — vanilla world generation does not place loot-bearing droppers or block hoppers, but any 5-slot block hopper bearing a loot table is instanced and served through a hopper menu)
 
 **Container entities** — `AbstractMinecartContainer`:
 - Chest minecarts and hopper minecarts. Mineshaft loot is overwhelmingly chest minecarts, so this is first-class coverage, not an afterthought.

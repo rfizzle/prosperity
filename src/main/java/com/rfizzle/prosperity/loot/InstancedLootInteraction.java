@@ -95,8 +95,9 @@ public final class InstancedLootInteraction {
             return serveDouble((ServerLevel) level, pos, container, state, serverPlayer);
         }
         int size = container.getContainerSize();
-        if (size <= 0 || size > 54 || size % 9 != 0) {
-            // Sizes that do not map to a chest menu (e.g. a 5-slot block hopper) stay vanilla.
+        if (size != 5 && (size <= 0 || size > 54 || size % 9 != 0)) {
+            // Require a chest-menu size (a positive multiple of nine up to 54) or the 5-slot block
+            // hopper, which is served through a hopper menu; any other size stays vanilla.
             return InteractionResult.PASS;
         }
         BlockEntityContainerAdapter adapter =
