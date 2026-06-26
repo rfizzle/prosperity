@@ -2,10 +2,13 @@ package com.rfizzle.prosperity.client.network;
 
 import com.rfizzle.prosperity.client.indicator.UnlootedIndicatorCache;
 import com.rfizzle.prosperity.client.indicator.UnlootedMinecartIndicatorCache;
+import com.rfizzle.prosperity.compat.index.LootIndexViewerRefresh;
 import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
 import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
 import com.rfizzle.prosperity.network.ContainerLootedS2CPayload;
 import com.rfizzle.prosperity.network.ContainerRemovedS2CPayload;
+import com.rfizzle.prosperity.network.LootIndexS2CPayload;
 import com.rfizzle.prosperity.network.MinecartLootedS2CPayload;
 import com.rfizzle.prosperity.network.MinecartRemovedS2CPayload;
 import com.rfizzle.prosperity.network.ProtectionResultS2CPayload;
@@ -24,6 +27,7 @@ import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.level.ChunkPos;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -75,6 +79,19 @@ public final class ProsperityClientNetworking {
         ClientPlayNetworking.registerGlobalReceiver(ProtectionResultS2CPayload.TYPE, (payload, context) ->
                 context.client().execute(() ->
                         ClientProtectionState.get().setResult(payload.pos(), payload.multiplier())));
+
+        // Publish the server's loot index so the recipe viewers can browse instanced loot on a remote
+        // dedicated server (S-047). Skip it on an integrated server (singleplayer / LAN host): that
+        // client already reads the full in-JVM snapshot, which must not be overwritten by the capped
+        // synced copy. After applying, nudge EMI to re-read it (REI/JEI rely on join ordering).
+        ClientPlayNetworking.registerGlobalReceiver(LootIndexS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> {
+                    if (context.client().getSingleplayerServer() != null) {
+                        return;
+                    }
+                    LootIndexDataSource.acceptSynced(payload.rows());
+                    LootIndexViewerRefresh.refreshViewers();
+                }));
     }
 
     private static void registerChunkRequests() {
@@ -116,6 +133,9 @@ public final class ProsperityClientNetworking {
             UnlootedIndicatorCache.clear();
             UnlootedMinecartIndicatorCache.clear();
             ClientProtectionState.get().clear();
+            // Drop any synced loot index so a previous server's rows don't linger into the next world
+            // (harmless on an integrated host, where SERVER_STOPPED already resets the snapshot).
+            LootIndexDataSource.acceptSynced(List.of());
         });
     }
 }

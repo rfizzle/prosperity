@@ -33,6 +33,9 @@ public class Prosperity implements ModInitializer {
         LootModifiers.registerDefaults();
         LootInjectionManager.init();
         LootIndexDataSource.init();
+        // After LootIndexDataSource.init() so the /reload broadcast listener fires after the index's
+        // own rebuild listener (registration order) — remote clients get the freshly-rebuilt snapshot.
+        ProsperityNetworking.registerLootIndexReloadSync();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 ProsperityCommand.register(dispatcher));
         LOGGER.info("Prosperity initialized");

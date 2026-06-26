@@ -30,12 +30,15 @@ import net.minecraft.world.level.storage.loot.LootTable;
  *
  * <p>Loot tables live in the running server's reloadable registries, so the index is built
  * server-side on {@code SERVER_STARTING} and after a {@code /reload}, then published as an immutable
- * snapshot. Singleplayer's integrated server populates it for the client viewers; on a remote
- * dedicated server the client has no loot data, so the snapshot is empty — the limitation shared by
- * every recipe-viewer loot plugin.
+ * snapshot. Singleplayer's integrated server populates it in-JVM for the client viewers. On a remote
+ * dedicated server the client has no loot data, so the server syncs the assembled index to the client
+ * via {@link com.rfizzle.prosperity.network.LootIndexS2CPayload} and the client receiver publishes it
+ * here through {@link #acceptSynced(List)} (S-047).
  *
  * <p><b>Threading:</b> {@link #SNAPSHOT} is rebuilt wholesale on the server thread and published
- * atomically; its contents are immutable. Viewers read the volatile reference from the client thread.
+ * atomically; its contents are immutable. The remote client publishes the synced snapshot from the
+ * client thread (only when no integrated server is running, so an integrated host's full in-JVM
+ * snapshot is never overwritten by the capped sync). Viewers read the volatile reference.
  */
 public final class LootIndexDataSource {
 
@@ -57,6 +60,16 @@ public final class LootIndexDataSource {
     /** The current loot index, or an empty list before the first build / on a loot-less client. */
     public static List<LootIndexEntry> snapshot() {
         return SNAPSHOT;
+    }
+
+    /**
+     * Publish a snapshot received from the server over the network (S-047), so a remote client whose
+     * own registries hold no loot data can still browse the index. Called by the client receiver only
+     * when no integrated server is running — an integrated host already builds the full snapshot in
+     * {@link #rebuild(MinecraftServer)} and must not be overwritten by the capped synced copy.
+     */
+    public static void acceptSynced(List<LootIndexEntry> rows) {
+        SNAPSHOT = List.copyOf(rows);
     }
 
     public static int size() {

@@ -4,6 +4,8 @@ import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.loot.ContainerProtection;
 import com.rfizzle.prosperity.loot.UnlootedContainers;
 import com.rfizzle.prosperity.loot.UnlootedMinecarts;
+import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -63,6 +65,18 @@ public final class ProsperityNetworking {
         PayloadTypeRegistry.playS2C().register(UnlootedMinecartsS2CPayload.TYPE, UnlootedMinecartsS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(MinecartLootedS2CPayload.TYPE, MinecartLootedS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(MinecartRemovedS2CPayload.TYPE, MinecartRemovedS2CPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(LootIndexS2CPayload.TYPE, LootIndexS2CPayload.CODEC);
+    }
+
+    /**
+     * Re-broadcast the loot index to every connected player after a {@code /reload} rebuilds it (S-047).
+     * Registered from {@link com.rfizzle.prosperity.Prosperity#onInitialize()} <b>after</b>
+     * {@link LootIndexDataSource#init()} so this {@code END_DATA_PACK_RELOAD} listener runs after the
+     * index's own rebuild listener — Fabric fires lifecycle listeners in registration order, so the
+     * broadcast always sends the freshly-rebuilt snapshot, not the previous one.
+     */
+    public static void registerLootIndexReloadSync() {
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, manager, success) -> syncLootIndexToAll(server));
     }
 
     private static void registerServerHandlers() {
@@ -101,6 +115,13 @@ public final class ProsperityNetworking {
         if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
             ServerPlayNetworking.send(player, new ConfigSyncS2CPayload(Prosperity.getConfig().toJson()));
         }
+        // Then the loot index (S-047), so a remote client's recipe viewers can browse instanced loot
+        // they have no datapack for. The client receiver ignores it on an integrated server, where the
+        // viewers already read the full in-JVM snapshot. Config-before-data: the index's tier chips
+        // resolve against the synced distanceTiers above.
+        if (ServerPlayNetworking.canSend(player, LootIndexS2CPayload.TYPE)) {
+            ServerPlayNetworking.send(player, LootIndexS2CPayload.of(LootIndexDataSource.snapshot()));
+        }
     }
 
     /**
@@ -114,6 +135,25 @@ public final class ProsperityNetworking {
         int sent = 0;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+                sent++;
+            }
+        }
+        return sent;
+    }
+
+    /**
+     * Push the current loot index to every connected player, returning the number of clients that
+     * received it (S-047). Used by {@link #registerLootIndexReloadSync()} after a {@code /reload}
+     * rebuild so remote clients mirror the server's current index without a reconnect. The payload is
+     * built once and reused; the {@code canSend} guard skips clients that have not registered the
+     * receiver (e.g. vanilla).
+     */
+    public static int syncLootIndexToAll(MinecraftServer server) {
+        LootIndexS2CPayload payload = LootIndexS2CPayload.of(LootIndexDataSource.snapshot());
+        int sent = 0;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (ServerPlayNetworking.canSend(player, LootIndexS2CPayload.TYPE)) {
                 ServerPlayNetworking.send(player, payload);
                 sent++;
             }
