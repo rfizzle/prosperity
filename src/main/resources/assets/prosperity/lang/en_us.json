@@ -53,7 +53,6 @@
     "prosperity.config.hud_offset_x.tooltip": "Horizontal offset, in pixels, of the tier HUD badge from its anchor corner.",
     "prosperity.config.hud_offset_y": "HUD Offset Y",
     "prosperity.config.hud_offset_y.tooltip": "Vertical offset, in pixels, of the tier HUD badge from its anchor corner.",
-    "prosperity.hud.tier": "Tier: %s",
     "prosperity.tier.local": "Local",
     "prosperity.tier.frontier": "Frontier",
     "prosperity.tier.wilderness": "Wilderness",

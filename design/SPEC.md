@@ -127,7 +127,7 @@ In vanilla (and even with instanced loot), players cannot tell whether they've a
 ### Visual Design
 
 - A small 2D sprite rendered in world space, centered 0.25 blocks above the container's top face, always facing the camera (billboard).
-- Sprite: a simple sparkle/star icon (16x16 texture, `assets/prosperity/textures/overlay/unlooted.png`). Gold color to evoke treasure.
+- Sprite: a four-point sparkle that pulses over a 4-frame animated strip (16×16 per frame, stored as a 16×64 sheet, `assets/prosperity/textures/overlay/unlooted.png`, source `art/glyphs/unlooted-sparkle.glyph`). Gold body with diamond-cyan core to evoke treasure.
 - Subtle bobbing animation (sinusoidal Y offset, ±0.05 blocks, 2-second period).
 - Renders through walls up to **8 blocks** (configurable) — useful in mineshafts where containers are behind walls. Beyond 8 blocks, occluded containers are hidden.
 - Maximum render distance: **48 blocks** (configurable). Beyond this, indicators are not rendered for performance.
@@ -146,7 +146,7 @@ In vanilla (and even with instanced loot), players cannot tell whether they've a
   - When a chunk is loaded on the client, the client sends a lightweight request for instanced container positions in that chunk.
   - The server responds with a list of `BlockPos` entries in that chunk where the requesting player has **not** yet generated loot, along with the container type (for sizing the indicator).
   - The client caches this data per-chunk and invalidates it when: (a) the player opens a container, (b) a chunk is unloaded, (c) the player receives a sync packet indicating a container has been broken.
-- **Packet: `UnlootedContainersS2C`** — sent per-chunk, contains a list of `BlockPos` (relative to chunk origin, packed as shorts for compactness).
+- **Packet: `UnlootedContainersS2C`** — sent per-chunk, contains a list of entries relative to the chunk origin: the in-chunk XZ packed into one byte (`(relX << 4) | relZ`), the world Y as a short, and the container's slot count as a VarInt (the client derives single-vs-double from `slots == 54`).
 - **Packet: `ContainerLootedS2C`** — sent when the player opens an instanced container, so the client removes the indicator.
 - **Packet: `ContainerRemovedS2C`** — sent when a loot container is broken, so all clients remove the indicator.
 
@@ -398,12 +398,12 @@ Files at `data/prosperity/loot_injections/<name>.json`:
 
 Prosperity ships a default set of injections to make distance scaling feel meaningful out of the box:
 
-| Tier | Example Injections |
+| Tier | Injections (`prosperity:all_chests`) |
 |---|---|
-| Frontier | Sharpness III / Protection III books, iron horse armor |
-| Wilderness | Enchanted golden apples, diamond horse armor, music discs |
-| Outlands | Netherite upgrade template, Sharpness V books, enchanted diamond tools |
-| Depths | Multiple netherite upgrade templates, treasure enchantment books (Mending, Silk Touch), trident |
+| Frontier | Sharpness III book, Protection III book, iron horse armor |
+| Wilderness | Enchanted golden apple, diamond horse armor, Otherside music disc |
+| Outlands | Netherite upgrade template, Sharpness V book, Efficiency IV diamond pickaxe |
+| Depths | Netherite upgrade template (×2), Mending book, Silk Touch book, trident |
 
 The default set is conservative — it adds items that already exist in vanilla progression but are normally structure-locked or extremely rare. Pack makers can extend or replace via datapacks.
 
@@ -757,7 +757,7 @@ A shared `LootIndexDataSource` class builds the index once; each plugin adapter 
 - All three viewers are compile-only optional dependencies.
 - Plugin classes registered via respective entrypoint mechanisms (EMI: `emi` entrypoint in `fabric.mod.json`, REI: `rei_client` entrypoint, JEI: `@JeiPlugin` annotation).
 - Loot data is rebuilt on resource reload (captures datapack changes).
-- Custom `EmiRecipeCategory` / `DisplayCategory` / `IRecipeCategory` named "Loot Tables" with a chest icon.
+- Custom `EmiRecipeCategory` / `DisplayCategory` / `IRecipeCategory` named "Loot Tables". The category tab icon reuses the mod brand icon (`assets/prosperity/icon.png`) scaled to the 16×16 category slot — the suite convention rather than a bespoke chest glyph.
 - Each loot table entry is one recipe entry. The recipe viewer handles search indexing automatically once items are registered as outputs.
 - Structure icon mapping stored in a registry class (`StructureIcons`) with a `Map<ResourceLocation, Item>`. Modded structures fall back to `Items.CHEST`.
 
@@ -821,7 +821,7 @@ When a player kills a mob, the mob's drop loot table is processed with the same 
 ### Scope
 
 - **Hostile mobs only.** Passive mobs (cows, pigs, chickens) are not affected — their drops are farming resources, not exploration rewards. Scaling them would just inflate passive farms.
-- **Mob type filter:** Applied to mobs in the `minecraft:hostile` entity type tag (or equivalent hostile detection). Bosses (Ender Dragon, Wither) are included.
+- **Mob type filter:** Applied to mobs in `MobCategory.MONSTER`, so modded hostiles and the Wither are covered automatically (see the implementation note). The Ender Dragon is excluded — its bespoke death-drop path never reaches `dropFromLootTable`.
 - **Player kills only.** Mobs that die from environmental damage, other mobs, or despawning do not receive scaling. The `LootContext` must have a `LAST_DAMAGE_PLAYER` parameter.
 
 ### Loot Modifier API Integration
@@ -879,7 +879,7 @@ Distance tiers are invisible during normal gameplay. The action bar notification
 ### Behavior
 
 A small badge rendered in a corner of the screen showing the current distance tier:
-- **Icon:** A 16x16 pixel art icon unique to Prosperity (gem, compass, or chest — see `art/hud-exploration/`).
+- **Icon:** A treasure-chest pixel-art icon unique to Prosperity, rendered 16×16 (authored at 32×32 for HUD-STANDARD glyph density and blitted down; source `art/glyphs/hud_icon.glyph`).
 - **Text:** The tier name (e.g. "Wilderness") rendered next to the icon.
 - **Background:** Semi-transparent dark rectangle behind the icon + text, with padding.
 - **Tier color:** The text color changes based on the current tier.
@@ -908,8 +908,8 @@ The badge follows a shared visual convention so that multiple overhaul mods' HUD
 
 - **Anchor:** Configurable corner (default: top-left). All overhaul mods should default to the same corner.
 - **Stacking order:** Each mod has a priority index that determines its vertical position. Stacking order from top: Tribulation (priority 0), Prosperity (priority 1), Mercantile (priority 2), Meridian (priority 3).
-- **Offset calculation:** Each badge renders at `anchorY + (badgeHeight + spacing) * priority`. Default badge height is 14px (icon height + padding), spacing is 2px.
-- **Badge dimensions:** Icon (10x10 rendered, from 16x16 texture) + 4px gap + text + 4px horizontal padding on each side, 3px vertical padding.
+- **Offset calculation:** Each badge renders at `anchorY + (badgeHeight + spacing) * priority`. Badge height is the HUD-STANDARD 20px slot (16px icon + 2px vertical padding top and bottom), spacing is 2px.
+- **Badge dimensions:** Icon (16×16 rendered, from a 32×32 texture) + 3px gap + text + 4px horizontal padding on each side, 2px vertical padding.
 - **Background:** `0x80000000` (50% opacity black) — same as Tribulation's current background.
 - **Font:** Minecraft's default font with shadow.
 - **No frame texture.** Each badge is self-contained — no shared frame that looks empty when only one mod is installed.
@@ -938,7 +938,7 @@ Each mod checks for the presence of other overhaul mods at client init (via `Fab
 - Client-side only. Rendered via `HudRenderCallback` (Fabric API).
 - Tier is calculated from `player.getX()` / `player.getZ()` — no server communication needed for position.
 - Tier config (tier boundaries) is synced from server to client on join (same config sync mechanism used for other features).
-- Icon texture: `assets/prosperity/textures/gui/hud_icon.png` (16x16), authored through the `/glyph` pipeline with its `.glyph` source in `art/glyphs/`.
+- Icon texture: `assets/prosperity/textures/gui/hud_icon.png` (32×32, blitted down to 16×16), authored through the `/glyph` pipeline with its `.glyph` source at `art/glyphs/hud_icon.glyph`.
 - Transition animation: store `lastTierChangeTime` and current/previous tier. On each render, if `currentTime - lastTierChangeTime < 1500ms`, lerp text color from gold to tier color.
 - Priority offset: `int priority = 0; if (FabricLoader.getInstance().isModLoaded("tribulation")) priority++;` — Prosperity always renders below Tribulation if present.
 
@@ -1142,18 +1142,15 @@ All user-facing text uses translation keys in `assets/prosperity/lang/en_us.json
 
 | Pattern | Example | Used For |
 |---|---|---|
-| `prosperity.container.*` | `prosperity.container.unlooted` | Container state labels |
-| `prosperity.overlay.*` | `prosperity.overlay.unlooted` | Overlay indicator labels (accessibility) |
-| `prosperity.tier.*` | `prosperity.tier.wilderness` | Distance tier display names |
+| `prosperity.tier.*` | `prosperity.tier.wilderness` | Distance tier display names (action bar, HUD badge) |
+| `prosperity.structure.*` | `prosperity.structure.monument` | Structure display names in notifications |
 | `prosperity.notification.*` | `prosperity.notification.loot_generated` | Action bar loot notifications |
 | `prosperity.config.*` | `prosperity.config.enable_distance_scaling` | Cloth Config screen labels |
 | `prosperity.config.*.tooltip` | `prosperity.config.enable_distance_scaling.tooltip` | Cloth Config field descriptions |
-| `command.prosperity.*` | `command.prosperity.reload` | Command feedback messages |
-| `prosperity.jade.*` | `prosperity.jade.loot_status` | Jade/WTHIT tooltip lines |
-| `prosperity.jade.refresh.*` | `prosperity.jade.refresh.timer` | Jade/WTHIT refresh timer text |
-| `prosperity.loot_index.*` | `prosperity.loot_index.category_name` | EMI/REI/JEI loot index UI |
-| `prosperity.hud.*` | `prosperity.hud.tier_name` | HUD badge tier display names |
-| `prosperity.info.*` | `prosperity.info.distance` | `/prosperity info` output |
+| `command.prosperity.*` | `command.prosperity.info` | Command feedback messages (incl. `/prosperity info` output) |
+| `prosperity.jade.*` | `prosperity.jade.status.looted` | Jade/WTHIT tooltip lines (status, tier, override, refresh timer) |
+| `prosperity.loot_index.*` | `prosperity.loot_index.injected` | EMI/REI/JEI loot index UI |
+| `category.prosperity.*` / `emi.category.prosperity.*` | `category.prosperity.loot_tables` | Recipe-viewer category title |
 
 Parameterized messages use `String.format` style (`%s`, `%d`) — e.g. `"prosperity.tier.info": "%s tier (%.1fx stacks, +%d quality)"`.
 
