@@ -83,7 +83,7 @@ public final class ProsperityClientNetworking {
         // Publish the server's loot index so the recipe viewers can browse instanced loot on a remote
         // dedicated server (S-047). Skip it on an integrated server (singleplayer / LAN host): that
         // client already reads the full in-JVM snapshot, which must not be overwritten by the capped
-        // synced copy. After applying, nudge EMI to re-read it (REI/JEI rely on join ordering).
+        // synced copy. After applying, force-refresh EMI and JEI to re-read it (REI relies on join ordering).
         ClientPlayNetworking.registerGlobalReceiver(LootIndexS2CPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
                     if (context.client().getSingleplayerServer() != null) {
