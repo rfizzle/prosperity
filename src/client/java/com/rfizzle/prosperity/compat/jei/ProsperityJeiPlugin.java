@@ -1,10 +1,14 @@
 package com.rfizzle.prosperity.compat.jei;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.client.network.ClientProsperityData;
+import com.rfizzle.prosperity.compat.index.LootIndexFilterMarkers;
 import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry;
 import com.rfizzle.prosperity.loot.index.StructureIcons;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
@@ -21,6 +25,8 @@ import net.minecraft.world.item.ItemStack;
  * (S-029) and {@code ProsperityReiClientPlugin} (S-030). Registers the "Loot Tables" category, adds one
  * recipe per loot-index row from {@link LootIndexDataSource#snapshot()}, and registers each structure's
  * representative item as a catalyst so JEI's recipe tree gives a per-structure view (the structure filter).
+ * The tier and source marker items (S-042) are registered as catalysts the same way, surfacing the tier
+ * and source filter chips beside the structure chips.
  *
  * <p>Discovered by JEI-Fabric via the {@code jei_mod_plugin} entrypoint in {@code fabric.mod.json}; the
  * {@link JeiPlugin} annotation is load-bearing on Forge/NeoForge only but is kept for cross-loader parity.
@@ -60,6 +66,13 @@ public final class ProsperityJeiPlugin implements IModPlugin {
         structures.addAll(StructureIcons.mappedStructures());
         for (ResourceLocation structure : structures) {
             registration.addRecipeCatalyst(new ItemStack(StructureIcons.iconFor(structure)), LootTableRecipeCategory.RECIPE_TYPE);
+        }
+
+        // The tier + source filter chips (S-042): each marker links the category like a structure does.
+        List<ItemStack> chips = new ArrayList<>(LootIndexFilterMarkers.tierChips(ClientProsperityData.config().distanceTiers));
+        chips.addAll(LootIndexFilterMarkers.sourceChips());
+        for (ItemStack chip : chips) {
+            registration.addRecipeCatalyst(chip, LootTableRecipeCategory.RECIPE_TYPE);
         }
     }
 

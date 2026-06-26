@@ -170,7 +170,7 @@
             {
               "id": "loot-tables-category",
               "title": "Browse Loot in EMI, REI &amp; JEI",
-              "html": ["A \"Loot Tables\" category in EMI, REI, and JEI lists every item a structure can drop — one row per item source, tagged with the structure it comes from and the tier where it becomes available. Search by an item to find where it drops (type <code>mending</code> to see every source of Mending), or click a structure's representative item to see just that structure's loot. The index is built from the live loot tables on world load and after <code>/reload</code>, so it reflects datapack changes automatically."]
+              "html": ["A \"Loot Tables\" category in EMI, REI, and JEI lists every item a structure can drop — one row per item source, tagged with the structure it comes from and the tier where it becomes available. Search by an item to find where it drops (type <code>mending</code> to see every source of Mending), or click a structure's representative item to see just that structure's loot. Filter chips sit alongside it: click a distance-tier marker to see everything obtainable at that distance, or a Vanilla / Injected marker to scope the list by source. The index is built from the live loot tables on world load and after <code>/reload</code>, so it reflects datapack changes automatically."]
             },
             {
               "id": "injected-marker",

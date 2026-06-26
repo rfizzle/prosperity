@@ -1,13 +1,17 @@
 package com.rfizzle.prosperity.loot.index;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.rfizzle.prosperity.config.ProsperityConfig;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -88,5 +92,20 @@ class StructureMappingTest {
         assertEquals(Items.CHEST,
                 StructureIcons.iconFor(ResourceLocation.fromNamespaceAndPath("examplemod", "tower")));
         assertTrue(StructureIcons.mappedStructures().size() >= 20, "all vanilla structures covered");
+    }
+
+    @Test
+    void filterMarkersAreDisjointFromStructureIcons() {
+        // The tier/source filter markers (S-042) must never alias a structure icon, or clicking a
+        // filter chip would also surface that structure's rows — the three filter axes stay independent.
+        Set<Item> structureIcons = new HashSet<>();
+        for (ResourceLocation structure : StructureIcons.mappedStructures()) {
+            structureIcons.add(StructureIcons.iconFor(structure));
+        }
+        structureIcons.add(Items.CHEST); // the Other / modded-structure fallback icon
+        for (Item marker : FilterMarkers.allMarkers()) {
+            assertFalse(structureIcons.contains(marker),
+                    "filter marker " + marker + " collides with a structure icon");
+        }
     }
 }

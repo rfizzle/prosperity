@@ -1,6 +1,8 @@
 package com.rfizzle.prosperity.compat.jei;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.client.network.ClientProsperityData;
+import com.rfizzle.prosperity.compat.index.LootIndexFilterMarkers;
 import com.rfizzle.prosperity.compat.index.LootIndexLabels;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry;
 import com.rfizzle.prosperity.loot.index.StructureIcons;
@@ -60,6 +62,11 @@ public final class LootTableRecipeCategory extends AbstractRecipeCategory<LootIn
         builder.addSlot(RecipeIngredientRole.OUTPUT, 27, SLOT_Y)
                 .addItemStack(entry.output())
                 .addRichTooltipCallback((view, tooltip) -> tooltip.add(LootIndexLabels.sourceTooltip(entry)));
+
+        // Tier + source markers (S-042) as invisible catalysts: part of JEI's "uses" tree so the filter
+        // chips link the row, but not drawn into the row layout.
+        builder.addInvisibleIngredients(RecipeIngredientRole.CATALYST)
+                .addItemStacks(LootIndexFilterMarkers.markersFor(entry, ClientProsperityData.config().distanceTiers));
     }
 
     @Override

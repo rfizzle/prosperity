@@ -696,9 +696,12 @@ A single, browseable list of **all** loot table entries across all structures an
 - Bidirectional: search by output item to find where it drops.
 
 **Filtering:**
-- **By structure** — Tab row or dropdown. Click "Stronghold" to see only stronghold loot. "All" is the default.
-- **By distance tier** — Filter to a specific tier to see exactly what's available at that distance.
-- **By source** — Toggle between "Vanilla" (base loot table entries), "Injected" (Prosperity additions from section 5), or "All."
+
+Each filter axis is a marker item registered as a recipe-viewer workstation/catalyst and attached to the matching rows as an invisible ingredient; viewing that item's "uses" narrows the index to those rows. The same mechanism backs all three viewers (EMI, REI, JEI) and all three axes, so the filter logic — which markers a row carries — lives once in the shared layer. Markers are vanilla items disjoint from the structure icons so the three axes never alias.
+
+- **By structure** — The structure's representative icon item. Viewing a structure icon (e.g. the stronghold's) shows only that structure's loot.
+- **By distance tier** — A per-tier marker item. Viewing a tier's marker shows every entry obtainable at that distance: rows gated at that tier or a shallower one, plus all "Any tier" vanilla rows.
+- **By source** — A Vanilla and an Injected marker item. Viewing one scopes the index to that origin (base loot-table entries, or Prosperity additions from section 5); the unfiltered category shows both.
 
 ### Structure Icon Mapping
 
@@ -1051,7 +1054,7 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 - **ModMenu + Cloth Config** — Config screen
 - **Jade** — Container tooltip: loot status, distance tier, structure override, refresh timer (section 10)
 - **WTHIT** — Same as Jade (parallel plugin)
-- **EMI / REI / JEI** — Searchable loot index with structure/tier filtering and injection display (section 11)
+- **EMI / REI / JEI** — Searchable loot index with structure/tier/source filtering and injection display (section 11)
 
 ### Mod Compatibility
 
@@ -1107,7 +1110,7 @@ Features are ordered by dependency and complexity. Infrastructure comes first, t
 ### Phase 7: Mod Integrations
 
 17. **Jade/WTHIT plugin** (section 10) — Container tooltip: loot status, distance tier, structure override, refresh timer.
-18. **Loot index** (section 11) — EMI/REI/JEI plugin. Shared `LootIndexDataSource`, three viewer adapters, structure/tier filtering, injection display.
+18. **Loot index** (section 11) — EMI/REI/JEI plugin. Shared `LootIndexDataSource`, three viewer adapters, structure/tier/source filtering, injection display.
 
 ---
 
@@ -1212,7 +1215,7 @@ Features that require visual/UI verification:
 - Tier HUD badge (position, tier color, transition animation when crossing tier boundaries)
 - HUD stacking with Tribulation installed (correct vertical ordering, no overlap)
 - Jade/WTHIT tooltip rendering (all status states, refresh timer countdown, structure override display)
-- EMI/REI/JEI loot index (search integration, structure/tier filtering, injected entry display)
+- EMI/REI/JEI loot index (search integration, structure/tier/source filtering, injected entry display)
 - Sodium/EBE/Iris visual compatibility
 
 ---

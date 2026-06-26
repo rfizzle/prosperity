@@ -1,6 +1,8 @@
 package com.rfizzle.prosperity.compat.emi;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.client.network.ClientProsperityData;
+import com.rfizzle.prosperity.compat.index.LootIndexFilterMarkers;
 import com.rfizzle.prosperity.compat.index.LootIndexLabels;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry;
 import com.rfizzle.prosperity.loot.index.StructureIcons;
@@ -9,6 +11,7 @@ import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.widget.WidgetHolder;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -20,6 +23,10 @@ import net.minecraft.world.item.ItemStack;
  * catalyst so EMI's "uses" tree links it (the structure filter); the output item is the recipe
  * output so EMI's search finds the row by item. Injected entries carry the gold-sparkle marker and
  * an "Added by Prosperity at [tier]+ tier" tooltip.
+ *
+ * <p>The row's tier and source filter markers (S-042) ride along as {@link #getCatalysts() catalysts}
+ * — found by EMI's "uses" tree but not drawn — so clicking a tier or source chip surfaces the matching
+ * rows without changing the row layout.
  */
 public class LootTableEmiRecipe implements EmiRecipe {
 
@@ -36,12 +43,24 @@ public class LootTableEmiRecipe implements EmiRecipe {
     private final ResourceLocation id;
     private final EmiIngredient structure;
     private final List<EmiStack> outputs;
+    private final List<EmiIngredient> catalysts;
 
     public LootTableEmiRecipe(LootIndexEntry entry, int suffix) {
         this.entry = entry;
         this.structure = EmiStack.of(StructureIcons.iconFor(entry.structure()));
         this.outputs = List.of(EmiStack.of(entry.output()));
         this.id = Prosperity.id("loot_index/" + signature(entry, suffix));
+        this.catalysts = buildCatalysts(entry);
+    }
+
+    private static List<EmiIngredient> buildCatalysts(LootIndexEntry entry) {
+        List<ItemStack> markers =
+                LootIndexFilterMarkers.markersFor(entry, ClientProsperityData.config().distanceTiers);
+        List<EmiIngredient> out = new ArrayList<>(markers.size());
+        for (ItemStack marker : markers) {
+            out.add(EmiStack.of(marker));
+        }
+        return out;
     }
 
     @Override
@@ -59,6 +78,13 @@ public class LootTableEmiRecipe implements EmiRecipe {
         // The structure icon as a recipe input so EMI's recipe/uses tree links it: right-clicking
         // (or searching) the structure's representative item surfaces every loot row for it.
         return List.of(structure);
+    }
+
+    @Override
+    public List<EmiIngredient> getCatalysts() {
+        // Tier + source markers (S-042): part of EMI's "uses" tree so the filter chips link the row,
+        // but not drawn into the custom row layout.
+        return catalysts;
     }
 
     @Override
