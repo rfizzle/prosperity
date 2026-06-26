@@ -29,9 +29,11 @@
 
 ## Not yet created
 
+The EMI/REI/JEI loot-index tab reuses the mod brand icon (`assets/prosperity/icon.png`); no
+bespoke recipe-browser glyph is authored.
+
 | Asset | Source | Final asset |
 |---|---|---|
-| Recipe browser icon (EMI/REI/JEI tab) | `/glyph` | — (planned) |
 | Distance tier icons (set of 5) | `/glyph` | — (planned, Local → Depths) |
 | Website hero background | Gemini | — (planned, `site/`) |
 | Discord embed banner | Gemini | — (planned) |

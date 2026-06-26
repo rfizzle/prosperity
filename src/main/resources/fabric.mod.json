@@ -18,6 +18,7 @@
         "client": ["com.rfizzle.prosperity.client.ProsperityClient"],
         "modmenu": ["com.rfizzle.prosperity.compat.modmenu.ModMenuIntegration"],
         "jade": ["com.rfizzle.prosperity.compat.jade.ProsperityJadePlugin"],
+        "emi": ["com.rfizzle.prosperity.compat.emi.ProsperityEmiPlugin"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.BlacklistGameTest",

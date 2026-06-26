@@ -73,6 +73,14 @@
       ]
     },
     {
+      "id": "loot-table-structures",
+      "title": "lootTableStructures",
+      "intro": "Map of loot-table id to structure id for the recipe-viewer loot index. Empty by default — vanilla chest tables are already mapped to their structure.",
+      "blocks": [
+        { "type": "prose", "html": ["The loot index groups each loot table under a structure (Dungeon, Stronghold, Ocean Monument, …). Vanilla tables are mapped automatically; tables Prosperity does not recognize — modded structures, or datapack tables — appear under <code>Other</code>. Add an entry here (e.g. <code>somemod:chests/sky_temple</code> → <code>somemod:sky_temple</code>) to file them under the right structure instead. Affects only how rows are grouped in the loot index, not loot generation."] }
+      ]
+    },
+    {
       "id": "indicators",
       "title": "indicators",
       "intro": "Client toggle for the unlooted-container sparkle overlay and related feedback.",
