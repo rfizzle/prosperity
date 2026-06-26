@@ -1,8 +1,8 @@
 package com.rfizzle.prosperity.compat.emi;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.compat.index.LootIndexLabels;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry;
-import com.rfizzle.prosperity.loot.index.LootIndexFormat;
 import com.rfizzle.prosperity.loot.index.StructureIcons;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
@@ -10,7 +10,6 @@ import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.widget.WidgetHolder;
 import java.util.List;
-import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -79,7 +78,7 @@ public class LootTableEmiRecipe implements EmiRecipe {
 
     @Override
     public void addWidgets(WidgetHolder widgets) {
-        Component structureName = structureName(entry);
+        Component structureName = LootIndexLabels.structureName(entry);
 
         widgets.addSlot(structure, 0, SLOT_Y)
                 .drawBack(false)
@@ -87,7 +86,7 @@ public class LootTableEmiRecipe implements EmiRecipe {
                 .appendTooltip(structureName);
 
         var output = widgets.addSlot(outputs.get(0), 22, SLOT_Y).recipeContext(this);
-        output.appendTooltip(sourceTooltip(entry));
+        output.appendTooltip(LootIndexLabels.sourceTooltip(entry));
 
         if (entry.origin() == LootIndexEntry.Origin.INJECTED) {
             // Gold-sparkle marker (frame 0 of the 16×64 strip) in the output slot's top-right corner.
@@ -95,33 +94,8 @@ public class LootTableEmiRecipe implements EmiRecipe {
         }
 
         widgets.addText(structureName, TEXT_X, 2, TEXT_COLOR, false);
-        widgets.addText(tierBadge(entry), TEXT_X, 13, TEXT_COLOR, false);
+        widgets.addText(LootIndexLabels.tierBadge(entry), TEXT_X, 13, TEXT_COLOR, false);
         widgets.addTooltipText(List.of(Component.literal(entry.lootTable().toString())), TEXT_X, 0, WIDTH - TEXT_X, HEIGHT);
-    }
-
-    /** The localized structure name, degrading modded/unmapped structures to a title-cased path. */
-    static Component structureName(LootIndexEntry entry) {
-        String path = entry.structure().getPath();
-        return Component.translatableWithFallback(LootIndexFormat.structureKey(path), LootIndexFormat.titleCase(path));
-    }
-
-    /** The on-screen tier badge: {@code "Frontier+"} for an injected entry, "Any tier" for vanilla. */
-    static Component tierBadge(LootIndexEntry entry) {
-        return entry.minTier()
-                .map(name -> Component.translatable("prosperity.loot_index.tier", tierName(name)))
-                .orElseGet(() -> Component.translatable("prosperity.loot_index.any_tier"));
-    }
-
-    /** The output slot's appended tooltip line: the injection note for injected rows, else the source. */
-    static Component sourceTooltip(LootIndexEntry entry) {
-        if (entry.origin() == LootIndexEntry.Origin.INJECTED) {
-            return Component.translatable("prosperity.loot_index.injected", tierBadge(entry)).withStyle(ChatFormatting.GOLD);
-        }
-        return Component.translatable("prosperity.loot_index.source.vanilla").withStyle(ChatFormatting.GRAY);
-    }
-
-    private static Component tierName(String name) {
-        return Component.translatableWithFallback("prosperity.tier." + name, LootIndexFormat.titleCase(name));
     }
 
     private static String signature(LootIndexEntry entry, int suffix) {
