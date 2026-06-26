@@ -20,6 +20,7 @@
         "jade": ["com.rfizzle.prosperity.compat.jade.ProsperityJadePlugin"],
         "emi": ["com.rfizzle.prosperity.compat.emi.ProsperityEmiPlugin"],
         "rei_client": ["com.rfizzle.prosperity.compat.rei.ProsperityReiClientPlugin"],
+        "jei_mod_plugin": ["com.rfizzle.prosperity.compat.jei.ProsperityJeiPlugin"],
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.BlacklistGameTest",
