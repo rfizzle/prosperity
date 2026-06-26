@@ -1,0 +1,12 @@
+{
+    "prosperity:wthit": {
+        "entrypoints": {
+            "common": "com.rfizzle.prosperity.compat.wthit.ProsperityWthitCommonPlugin",
+            "client": "com.rfizzle.prosperity.compat.wthit.ProsperityWthitClientPlugin"
+        },
+        "side": "*",
+        "required": {
+            "wthit": "*"
+        }
+    }
+}
