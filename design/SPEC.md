@@ -341,6 +341,7 @@ Vanilla loot tables are static definitions. Distance scaling (section 3) adjusts
 Custom loot entries are defined in datapack files and injected into vanilla loot table resolution at runtime. Each entry specifies:
 - The **target loot table** to inject into (e.g. `minecraft:chests/simple_dungeon`).
 - The **minimum distance tier** required for the entry to be eligible.
+- An optional **dimension filter** restricting the entry to specific dimensions.
 - The **item(s)** to add, with full data component support.
 - An optional **weight** controlling how often the entry appears relative to the pool it joins.
 
@@ -371,6 +372,7 @@ Files at `data/prosperity/loot_injections/<name>.json`:
     {
       "target": "minecraft:chests/stronghold_corridor",
       "min_tier": "outlands",
+      "dimensions": [ "minecraft:the_nether" ],
       "entries": [
         {
           "item": "minecraft:netherite_upgrade_smithing_template",
@@ -386,6 +388,7 @@ Files at `data/prosperity/loot_injections/<name>.json`:
 - `replace`: If `true`, replaces all Prosperity injections for the affected target loot tables. Does not affect vanilla entries.
 - `target`: `ResourceLocation` of the vanilla loot table to inject into.
 - `min_tier`: Minimum distance tier name (matches config tier names: `local`, `frontier`, `wilderness`, `outlands`, `depths`). Entry is only eligible if the container is at or above this tier.
+- `dimensions`: Optional list of dimension IDs the entry is restricted to (e.g. `["minecraft:the_nether"]`). Omitted or empty matches any dimension. Composes with `min_tier` — both gates must pass for the entry to be eligible.
 - `entries[].item`: Item ID.
 - `entries[].count`: Stack count (default 1).
 - `entries[].components`: Optional data components (same format as vanilla `/give` and recipe definitions).
@@ -411,7 +414,7 @@ The special target `"prosperity:all_chests"` injects into every loot table match
 ### Implementation Notes
 
 - Injection data is loaded on `SERVER_STARTING` (and re-loaded on `END_DATA_PACK_RELOAD` for runtime `/reload`) by `LootInjectionManager`, which reads each file with a registry-aware codec so item components deserialize against the loaded enchantment/effect registries.
-- At loot generation time (section 1, step 4), after the distance tier is determined, `LootInjectionManager.augment` queries the injection registry for entries matching the container's loot table whose `min_tier` is at or below the resolved tier.
+- At loot generation time (section 1, step 4), after the distance tier is determined, `LootInjectionManager.augment` queries the injection registry for entries matching the container's loot table whose `min_tier` is at or below the resolved tier and whose `dimensions` filter (if any) contains the container's dimension. The dimension is threaded from the generation call site via `ServerLevel#dimension()`.
 - Injection is purely additive: the eligible entries form a single weighted pool and exactly one is drawn (deterministically, from the container's per-player seed) and placed in a spare slot. Vanilla loot is never displaced — injected rewards sit alongside the rolled items rather than competing with them in a vanilla pool.
 - The injection registry is a `Map<ResourceLocation, List<TieredInjection>>` keyed by target loot table, rebuilt wholesale and published atomically on each load. Lookup is O(1) per loot table.
 - Wildcard targets are expanded to concrete loot table IDs at load time by scanning the resource manager for loot tables whose path contains a `chests/` segment.

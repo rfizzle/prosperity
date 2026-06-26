@@ -47,6 +47,10 @@ class LootInjectionTest {
             ResourceLocation.withDefaultNamespace("chests/a");
     private static final ResourceLocation CHEST_B =
             ResourceLocation.withDefaultNamespace("chests/b");
+    private static final ResourceLocation OVERWORLD =
+            ResourceLocation.withDefaultNamespace("overworld");
+    private static final ResourceLocation NETHER =
+            ResourceLocation.withDefaultNamespace("the_nether");
 
     @BeforeAll
     static void bootstrap() {
@@ -151,18 +155,66 @@ class LootInjectionTest {
         Entry frontierItem = new Entry(new ItemStack(Items.IRON_INGOT), 1);
         Entry depthsItem = new Entry(new ItemStack(Items.NETHERITE_INGOT), 1);
         List<Tiered> list = List.of(
-                new Tiered("frontier", List.of(frontierItem)),
-                new Tiered("depths", List.of(depthsItem)));
+                new Tiered("frontier", List.of(), List.of(frontierItem)),
+                new Tiered("depths", List.of(), List.of(depthsItem)));
 
         DistanceTier wilderness = tier(cfg, "wilderness");
-        List<Entry> atWilderness = LootInjectionManager.eligibleEntries(list, wilderness, cfg);
+        List<Entry> atWilderness = LootInjectionManager.eligibleEntries(list, wilderness, OVERWORLD, cfg);
         assertEquals(List.of(frontierItem), atWilderness, "wilderness clears frontier but not depths");
 
-        List<Entry> atDepths = LootInjectionManager.eligibleEntries(list, tier(cfg, "depths"), cfg);
+        List<Entry> atDepths = LootInjectionManager.eligibleEntries(list, tier(cfg, "depths"), OVERWORLD, cfg);
         assertEquals(2, atDepths.size(), "depths clears every lower-tier injection");
 
-        List<Entry> atLocal = LootInjectionManager.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, cfg);
+        List<Entry> atLocal =
+                LootInjectionManager.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, OVERWORLD, cfg);
         assertTrue(atLocal.isEmpty(), "local is below every default injection tier");
+    }
+
+    @Test
+    void eligibleEntriesGateByDimension() {
+        ProsperityConfig cfg = new ProsperityConfig();
+        Entry anywhere = new Entry(new ItemStack(Items.IRON_INGOT), 1);
+        Entry netherOnly = new Entry(new ItemStack(Items.NETHERITE_INGOT), 1);
+        List<Tiered> list = List.of(
+                new Tiered("frontier", List.of(), List.of(anywhere)),
+                new Tiered("frontier", List.of(NETHER), List.of(netherOnly)));
+
+        DistanceTier wilderness = tier(cfg, "wilderness");
+        // Both clear the tier; the Nether-scoped group fires only in the Nether.
+        List<Entry> inOverworld = LootInjectionManager.eligibleEntries(list, wilderness, OVERWORLD, cfg);
+        assertEquals(List.of(anywhere), inOverworld,
+                "an empty dimension list matches any dimension; a Nether-scoped one does not match the Overworld");
+
+        List<Entry> inNether = LootInjectionManager.eligibleEntries(list, wilderness, NETHER, cfg);
+        assertEquals(2, inNether.size(), "in the Nether both the any-dimension and Nether-scoped groups apply");
+
+        // The dimension gate composes with the tier gate: below min_tier, neither group fires in the Nether.
+        List<Entry> belowTier =
+                LootInjectionManager.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, NETHER, cfg);
+        assertTrue(belowTier.isEmpty(), "the dimension match cannot override the tier gate");
+    }
+
+    @Test
+    void parsesDimensionsDefaultingToEmpty() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "entries": [ { "item": "minecraft:diamond" } ] },
+                    { "target": "minecraft:chests/b", "min_tier": "frontier",
+                      "dimensions": [ "minecraft:the_nether", "minecraft:the_end" ],
+                      "entries": [ { "item": "minecraft:emerald" } ] }
+                  ]
+                }
+                """);
+
+        RawInjection noDimensions = file.injections().get(0);
+        assertTrue(noDimensions.dimensions().isEmpty(),
+                "an omitted dimensions field defaults to empty (matches any dimension)");
+
+        RawInjection scoped = file.injections().get(1);
+        assertEquals(List.of(NETHER, ResourceLocation.withDefaultNamespace("the_end")), scoped.dimensions(),
+                "the dimensions list round-trips in order");
     }
 
     @Test

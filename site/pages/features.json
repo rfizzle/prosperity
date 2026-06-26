@@ -109,7 +109,7 @@
             {
               "id": "injection",
               "title": "Loot Table Injection",
-              "html": ["A datapack system adds custom items to vanilla loot tables gated by minimum distance tier. Prosperity ships built-in injections so distance scaling feels meaningful out of the box."]
+              "html": ["A datapack system adds custom items to vanilla loot tables gated by minimum distance tier, and optionally by dimension. Prosperity ships built-in injections so distance scaling feels meaningful out of the box."]
             }
           ]
         }

@@ -42,9 +42,11 @@ import org.jetbrains.annotations.Nullable;
  * then at generation time adds one weighted-random eligible item to a freshly rolled container.
  *
  * <p>Injection is purely additive and orthogonal to vanilla loot: it never replaces a rolled item,
- * only fills one empty slot with a tier-exclusive reward. Eligibility gates on the container's
- * resolved {@link DistanceTier} (the geographic/structure tier, not the post-modifier luck) being at
- * or above the entry's {@code min_tier}, compared by {@link DistanceTier#minDistance()}.
+ * only fills one empty slot with a tier-exclusive reward. Eligibility gates on two conditions that
+ * both must pass: the container's resolved {@link DistanceTier} (the geographic/structure tier, not
+ * the post-modifier luck) being at or above the entry's {@code min_tier}, compared by
+ * {@link DistanceTier#minDistance()}; and the container's dimension being in the entry's
+ * {@code dimensions} list (an empty list matches any dimension).
  *
  * <p>The wildcard target {@code prosperity:all_chests} expands at load time to every loot table whose
  * path contains a {@code chests/} segment, scanned from the live resource manager.
@@ -108,13 +110,15 @@ public final class LootInjectionManager {
     }
 
     /**
-     * Add one tier-eligible injected item to {@code items} for a generation of {@code table} at
-     * {@code tier}, placed in the first empty slot. No-op when injection is disabled, the table is
-     * absent, no entry is eligible, or the container is full. The draw is deterministic for a given
-     * {@code (seedBase, uuid)} so a refresh regenerates the same bonus item.
+     * Add one eligible injected item to {@code items} for a generation of {@code table} at {@code tier}
+     * in {@code dimension}, placed in the first empty slot. An entry applies when its {@code min_tier} is
+     * at or below {@code tier} and its {@code dimensions} are empty or contain {@code dimension}. No-op
+     * when injection is disabled, the table is absent, no entry is eligible, or the container is full.
+     * The draw is deterministic for a given {@code (seedBase, uuid)} so a refresh regenerates the same
+     * bonus item.
      */
     public static void augment(NonNullList<ItemStack> items, @Nullable ResourceKey<LootTable> table,
-            DistanceTier tier, long seedBase, UUID uuid) {
+            DistanceTier tier, ResourceLocation dimension, long seedBase, UUID uuid) {
         if (!Prosperity.getConfig().enableLootInjection || table == null) {
             return;
         }
@@ -122,7 +126,7 @@ public final class LootInjectionManager {
                 ^ uuid.getMostSignificantBits()
                 ^ Long.rotateLeft(uuid.getLeastSignificantBits(), 32);
         RandomSource random = RandomSource.create(mixed == 0L ? 1L : mixed);
-        ItemStack injected = pick(table.location(), tier, random);
+        ItemStack injected = pick(table.location(), tier, dimension, random);
         if (injected == null || injected.isEmpty()) {
             return;
         }
@@ -135,17 +139,18 @@ public final class LootInjectionManager {
     }
 
     /**
-     * One weighted-random eligible injected item for {@code table} at {@code tier}, or {@code null}
-     * when the table has no injections or none are eligible at the tier.
+     * One weighted-random eligible injected item for {@code table} at {@code tier} in {@code dimension},
+     * or {@code null} when the table has no injections or none are eligible.
      */
     @Nullable
-    public static ItemStack pick(ResourceLocation table, DistanceTier tier, RandomSource random) {
+    public static ItemStack pick(ResourceLocation table, DistanceTier tier, ResourceLocation dimension,
+            RandomSource random) {
         Map<ResourceLocation, List<Tiered>> registry = REGISTRY;
         List<Tiered> list = registry.get(table);
         if (list == null || list.isEmpty()) {
             return null;
         }
-        return draw(eligibleEntries(list, tier, Prosperity.getConfig()), random);
+        return draw(eligibleEntries(list, tier, dimension, Prosperity.getConfig()), random);
     }
 
     /** The target loot tables that currently carry any injection (immutable snapshot). */
@@ -176,12 +181,19 @@ public final class LootInjectionManager {
     public record InjectedView(ItemStack stack, String minTier) {
     }
 
-    /** The injection groups whose {@code min_tier} resolves and is at or below {@code containerTier}. */
-    static List<Entry> eligibleEntries(List<Tiered> list, DistanceTier containerTier, ProsperityConfig cfg) {
+    /**
+     * The injection groups eligible at {@code containerTier} in {@code dimension}: their {@code min_tier}
+     * resolves and is at or below the tier, and their {@code dimensions} are empty (any) or contain the
+     * dimension. The two gates compose — both must pass.
+     */
+    public static List<Entry> eligibleEntries(List<Tiered> list, DistanceTier containerTier,
+            ResourceLocation dimension, ProsperityConfig cfg) {
         List<Entry> out = new ArrayList<>();
         for (Tiered tiered : list) {
             DistanceTier min = LootScaling.tierByName(cfg, tiered.minTier());
-            if (min != null && containerTier.minDistance() >= min.minDistance()) {
+            boolean tierOk = min != null && containerTier.minDistance() >= min.minDistance();
+            boolean dimensionOk = tiered.dimensions().isEmpty() || tiered.dimensions().contains(dimension);
+            if (tierOk && dimensionOk) {
                 out.addAll(tiered.entries());
             }
         }
@@ -222,7 +234,8 @@ public final class LootInjectionManager {
             FileData data = loaded.data();
             Set<ResourceLocation> clearedThisFile = new HashSet<>();
             for (RawInjection injection : data.injections()) {
-                Tiered tiered = new Tiered(injection.minTier(), List.copyOf(injection.entries()));
+                Tiered tiered = new Tiered(injection.minTier(), List.copyOf(injection.dimensions()),
+                        List.copyOf(injection.entries()));
                 for (ResourceLocation target : expand(injection.target(), chestTables)) {
                     if (data.replace() && clearedThisFile.add(target)) {
                         acc.put(target, new ArrayList<>());
@@ -271,18 +284,27 @@ public final class LootInjectionManager {
                 ).apply(instance, FileData::new));
     }
 
-    /** One target loot table, the minimum tier to apply at, and the items to inject. */
-    public record RawInjection(ResourceLocation target, String minTier, List<Entry> entries) {
+    /**
+     * One target loot table, the minimum tier to apply at, the dimensions it is restricted to (empty
+     * means any), and the items to inject.
+     */
+    public record RawInjection(ResourceLocation target, String minTier, List<ResourceLocation> dimensions,
+            List<Entry> entries) {
         public static final Codec<RawInjection> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         ResourceLocation.CODEC.fieldOf("target").forGetter(RawInjection::target),
                         Codec.STRING.fieldOf("min_tier").forGetter(RawInjection::minTier),
+                        ResourceLocation.CODEC.listOf().optionalFieldOf("dimensions", List.of())
+                                .forGetter(RawInjection::dimensions),
                         Entry.CODEC.listOf().fieldOf("entries").forGetter(RawInjection::entries)
                 ).apply(instance, RawInjection::new));
     }
 
-    /** An injection group reduced to what the registry needs: the gating tier name and its entries. */
-    record Tiered(String minTier, List<Entry> entries) {
+    /**
+     * An injection group reduced to what the registry needs: the gating tier name, the dimensions it is
+     * restricted to (empty means any), and its entries.
+     */
+    public record Tiered(String minTier, List<ResourceLocation> dimensions, List<Entry> entries) {
     }
 
     /**

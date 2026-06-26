@@ -269,7 +269,8 @@ public final class InstancedLootInteraction {
             combined.set(DoubleChestLayout.PRIMARY_SLOTS + slot, secondaryLoot.get(slot));
         }
         // One injected reward for the whole double chest, drawn against the primary half's table (S-014).
-        LootInjectionManager.augment(combined, primaryRef.key(), tier, primaryRef.seed(), uuid);
+        LootInjectionManager.augment(combined, primaryRef.key(), tier, level.dimension().location(),
+                primaryRef.seed(), uuid);
 
         primaryAdapter.update(data -> {
             data.markGenerated(primaryRef.key(), primaryRef.seed());
@@ -342,8 +343,9 @@ public final class InstancedLootInteraction {
         NonNullList<ItemStack> generated = InstancedLootGenerator.generate(
                 adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size(),
                 mods.luck(), mods.stackMultiplier());
-        // Add one tier-eligible injected reward in an empty slot (S-014).
-        LootInjectionManager.augment(generated, ref.key(), tier, ref.seed(), uuid);
+        // Add one tier-and-dimension-eligible injected reward in an empty slot (S-014).
+        LootInjectionManager.augment(generated, ref.key(), tier, adapter.level().dimension().location(),
+                ref.seed(), uuid);
 
         adapter.update(data -> {
             data.markGenerated(ref.key(), ref.seed());
