@@ -2,6 +2,9 @@ package com.rfizzle.prosperity.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.rfizzle.prosperity.Prosperity;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -47,6 +50,12 @@ public class ProsperityConfig {
 
     // --- Server Config (SPEC §Configuration "Server Config") ---
 
+    /**
+     * Schema version for {@link ProsperityConfigMigrator}. Owned by the migrator (not
+     * {@link #clamp()}); raised whenever a migration is appended. A loaded file carrying an
+     * older version is migrated up and re-saved on {@link #load}.
+     */
+    public int configVersion = ProsperityConfigMigrator.CURRENT_VERSION;
     public boolean enableInstancedLoot = true;
     public boolean enableVisualIndicators = true;
     public int indicatorRenderDistance = 48;
@@ -216,11 +225,27 @@ public class ProsperityConfig {
         if (Files.exists(path)) {
             try {
                 String json = Files.readString(path);
-                ProsperityConfig config = GSON.fromJson(json, ProsperityConfig.class);
+                JsonElement element = json.isBlank() ? null : JsonParser.parseString(json);
+                if (element == null || element.isJsonNull() || !element.isJsonObject()) {
+                    // Empty or non-object file: rewrite defaults (the content carries no recoverable
+                    // state, unlike a syntactically-broken file which we preserve below).
+                    Prosperity.LOGGER.warn("Config at {} is empty or not a JSON object; using defaults", path);
+                    ProsperityConfig defaults = new ProsperityConfig();
+                    defaults.save(path);
+                    return defaults;
+                }
+
+                JsonObject raw = element.getAsJsonObject();
+                boolean migrated = ProsperityConfigMigrator.migrate(raw);
+
+                ProsperityConfig config = GSON.fromJson(raw, ProsperityConfig.class);
                 if (config == null) {
                     config = new ProsperityConfig();
                 }
                 config.clamp();
+                if (migrated) {
+                    config.save(path);
+                }
                 return config;
             } catch (Exception e) {
                 Prosperity.LOGGER.error("Failed to load config, using defaults (corrupted file preserved at {})", path, e);

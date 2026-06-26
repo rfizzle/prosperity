@@ -974,7 +974,7 @@ All commands use the `prosperity` root. Admin commands require **operator level 
 
 ## Configuration
 
-All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`).
+All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **1**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
 
 ### Server Config
 
