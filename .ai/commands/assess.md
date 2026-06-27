@@ -41,10 +41,13 @@ versions). Note which optional integrations exist (a `compat.*` package, `recomm
 entries — Mod Menu, Cloth Config, Jade/WTHIT, EMI/REI/JEI), and whether the mod has
 a HUD slot, config, commands, and custom assets.
 
-Suite standards live at `../concord/` in the workspace — `REPO-LAYOUT.md`,
-`API-STANDARD.md`, `HUD-STANDARD.md`, `design/DESIGN-SYSTEM.md`. Read the relevant
-one per dimension when present; if `../concord/` is absent (a bare clone), fall back
-to `AGENTS.md`'s conformance claims and note the gap.
+The API and HUD standards are operationalized in the vendored, self-contained
+`.ai/skills/mc-public-api/SKILL.md` and `.ai/skills/mc-hud/SKILL.md` — read those
+for `api`-package and HUD-slot conformance; they ship in this repo, so they are
+always available. The remaining suite standards live at `../concord/` in the
+workspace — `REPO-LAYOUT.md`, `design/DESIGN-SYSTEM.md`. Read the relevant one when
+present; if `../concord/` is absent (a bare clone), fall back to `AGENTS.md`'s
+conformance claims and note the gap.
 
 **Release mode also:** run `git tag --list` + `git log --oneline -15` (what's landed
 since the last tag) to ground the target version — the released version is the tag you
@@ -66,10 +69,11 @@ clean client/server split), package organization (no god packages/classes), buil
 files (dependency scoping, externalized versions), and REPO-LAYOUT conformance (root
 hygiene — no stray logs, compiled `net/` dirs, `replay_pid*`, committed
 `build/`/`run/`/`_site/`; correct `.gitignore`). Mojang mappings and the `<Mod>.id()`
-helper (no hand-built ResourceLocations with an inlined mod id). API-STANDARD
-conformance for the public `api` package, HUD-STANDARD if the mod owns a HUD slot,
-DESIGN-SYSTEM palette adherence, and that `AGENTS.md`'s declared conformance versions
-are truthful.
+helper (no hand-built ResourceLocations with an inlined mod id). Read
+`.ai/skills/mc-public-api/SKILL.md` and judge the public `api` package against it;
+if the mod owns a HUD slot, read `.ai/skills/mc-hud/SKILL.md` and judge the slot
+against it. DESIGN-SYSTEM palette adherence, and that `AGENTS.md`'s declared
+conformance versions are truthful.
 
 **Test coverage & quality.** Read `.ai/skills/mc-mod-testing/SKILL.md`. Map test
 files to source: which features/classes are exercised vs untested, and how critical
@@ -78,8 +82,10 @@ JUnit for math, fabric-loader-junit for registry-dependent logic, Fabric gametes
 for world-state), gametest realism (entity spawning, tick-based assertions), and
 whether the riskiest player-facing paths have a test.
 
-**Code quality & stability.** Read `.ai/skills/mc-mixin-craft/SKILL.md` and
-`.ai/skills/mc-shared-state/SKILL.md`. Fabric idiom (registries, events, codecs,
+**Code quality & stability.** Read `.ai/skills/mc-mixin-craft/SKILL.md`,
+`.ai/skills/mc-shared-state/SKILL.md`, `.ai/skills/mc-persistence/SKILL.md`,
+`.ai/skills/mc-config/SKILL.md`, and — for any in-world or particle rendering —
+`.ai/skills/mc-world-render/SKILL.md`. Fabric idiom (registries, events, codecs,
 ComponentType, PayloadTypeRegistry, StreamCodec); class design (single
 responsibility, sizes — flag >500 lines); mixin injection safety and hot-path
 exposure; client/server boundary and shared-mutable-state guarding; performance

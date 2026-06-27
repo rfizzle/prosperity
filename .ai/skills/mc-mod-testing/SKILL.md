@@ -36,6 +36,54 @@ Ask these in order and stop at the first "yes":
 | Enchantment behavior on a real entity | 3 |
 | Any test needing mod-registered items/blocks | 3 |
 
+## Architect for Tier 1: pure core, thin Minecraft shell
+
+The single biggest lever on a mod's testability is **where the logic lives**, not
+which framework runs it. Across the suite, every well-tested subsystem splits into
+a **pure core** — decision and math logic with no `net.minecraft.*` types — behind
+a **thin Minecraft shell** that wires the core to the game. The core tests at
+Tier 1 (fast, no bootstrap); the shell gets a handful of Tier 3 gametests for the
+wiring. This is *why* the mods carry ~25 unit-test classes each instead of pushing
+everything to slow gametests.
+
+The move is to **take the game objects as plain parameters and return a plain
+result**, so the same method a gametest would exercise through a real entity is
+callable from a unit test with primitives:
+
+```java
+// Shell (server-coupled): reads the world, raises the dirty flag, calls the core.
+public int incrementTick(UUID uuid, int amount, int levelUpTicks, int maxLevel) {
+    PlayerData pd = getPlayerData(uuid);
+    int old = pd.level;
+    int gained = applyTicks(pd, amount, levelUpTicks, maxLevel);   // ← pure core
+    if (pd.level != old) setDirty();
+    return gained;
+}
+
+// Core (pure): no MC types, unit-tested directly with primitives.
+static int applyTicks(PlayerData pd, int amount, int levelUpTicks, int maxLevel) { /* math only */ }
+```
+
+Recurring seams worth extracting:
+
+- **Scaling/economy math** — `ScalingEngine.computeTimeFactor(...)`, `LootScaling.scaledCount(...)`:
+  axis functions take doubles, return doubles.
+- **State transitions** — `applyTicks` / `applyReduce` on a raw data object, with
+  the `setDirty()`/event/sync left to the shell.
+- **Render math** — `HudMath` (anchor/color lerp), `IndicatorMath` (fade/bob/cone)
+  live in `src/main` precisely so `src/test` can cover them without the client.
+- **Formatters** — row/stat-line formatters extracted from screens
+  (`LibraryRowFormatter`, `StatLineFormatter`) test as string-in/string-out.
+- **Command bodies** — split the effect from the Brigadier wiring (e.g.
+  `runReload(Runnable, MessageSink)`) so the behavior tests without a command stack.
+- **Config validation** — `clamp()`/`validate()` are pure POJO methods (see the
+  `mc-config` skill); test the bounds at Tier 1.
+
+A method that takes a `ServerLevel` only to read one number, or a screen that bakes
+its formatting into `render()`, has hidden a Tier-1-testable core inside a Tier-3
+shell. Pull the core out. When you find yourself reaching for Tier 3 to test pure
+logic, that's the signal the logic is in the wrong place.
+
 ## Tier 1: Pure JUnit
 
 Location: `src/test/java/`
