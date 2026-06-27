@@ -16,7 +16,7 @@ distance-scaled loot quality. It works by attaching per-player loot to vanilla
 containers via persistent Fabric data attachments and intercepting interactions
 through events; it never registers custom blocks or replaces block entities.
 
-**Vanilla+ by design.** A drop-in replacement for Lootr with extra reach.
+**A focused overhaul.** A drop-in replacement for Lootr with extra reach.
 Zero external dependencies beyond Fabric API.
 
 ## At a glance
@@ -117,7 +117,7 @@ Config generates at `config/prosperity.json` on first launch.
 ## Companion mods
 
 Prosperity is part of [Concord](https://github.com/rfizzle/concord) — a
-Vanilla+ collection. Install any, combine all:
+modular collection of system overhauls. Install any, combine all:
 
 - [Meridian](https://meridian.rfizzle.com) — Chart your enchantments.
 - [Mercantile](https://mercantile.rfizzle.com) — Every villager remembers.
