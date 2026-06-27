@@ -82,7 +82,7 @@ public class ProsperityConfig {
     /**
      * Cached matcher derived from {@link #lootTableBlacklist}, rebuilt by {@link #clamp()} on every
      * load/reload. Transient so it is never serialized; pre-initialized to the empty matcher so it is
-     * non-null even on the corrupted-file fallback path, which skips {@code clamp()}.
+     * non-null before {@code clamp()} first runs.
      */
     private transient LootBlacklist blacklist = LootBlacklist.of(null);
 
@@ -221,6 +221,13 @@ public class ProsperityConfig {
         return load(configPath());
     }
 
+    /** A fresh default config, clamped so every range and derived field (e.g. the blacklist matcher) is valid. */
+    private static ProsperityConfig freshDefaults() {
+        ProsperityConfig config = new ProsperityConfig();
+        config.clamp();
+        return config;
+    }
+
     static ProsperityConfig load(Path path) {
         if (Files.exists(path)) {
             try {
@@ -230,7 +237,7 @@ public class ProsperityConfig {
                     // Empty or non-object file: rewrite defaults (the content carries no recoverable
                     // state, unlike a syntactically-broken file which we preserve below).
                     Prosperity.LOGGER.warn("Config at {} is empty or not a JSON object; using defaults", path);
-                    ProsperityConfig defaults = new ProsperityConfig();
+                    ProsperityConfig defaults = freshDefaults();
                     defaults.save(path);
                     return defaults;
                 }
@@ -249,10 +256,10 @@ public class ProsperityConfig {
                 return config;
             } catch (Exception e) {
                 Prosperity.LOGGER.error("Failed to load config, using defaults (corrupted file preserved at {})", path, e);
-                return new ProsperityConfig();
+                return freshDefaults();
             }
         }
-        ProsperityConfig defaults = new ProsperityConfig();
+        ProsperityConfig defaults = freshDefaults();
         defaults.save(path);
         return defaults;
     }
