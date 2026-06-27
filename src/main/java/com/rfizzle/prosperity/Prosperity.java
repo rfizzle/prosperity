@@ -46,10 +46,21 @@ public class Prosperity implements ModInitializer {
     }
 
     public static ProsperityConfig getConfig() {
-        return config;
+        ProsperityConfig local = config;
+        if (local == null) {
+            synchronized (Prosperity.class) {
+                local = config;
+                if (local == null) {
+                    local = config = ProsperityConfig.load();
+                }
+            }
+        }
+        return local;
     }
 
     public static void reloadConfig() {
-        config = ProsperityConfig.load();
+        synchronized (Prosperity.class) {
+            config = ProsperityConfig.load();
+        }
     }
 }
