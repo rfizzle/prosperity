@@ -56,7 +56,7 @@ Loom's `splitEnvironmentSourceSets()` is enabled — three source sets:
 |---|---|---|
 | `main` | `src/main/java` | Server + common logic. Entrypoint: `Prosperity.java` |
 | `client` | `src/client/java` | Client-only code. Entrypoint: `ProsperityClient.java` |
-| `gametest` | `src/gametest/java` | Fabric gametests (run with `runGametest`). Has `main` on its classpath but is NOT included in the jar. No gametests exist yet — add entrypoints under `com.rfizzle.prosperity.gametest` as features land. |
+| `gametest` | `src/gametest/java` | Fabric gametests (run with `runGametest`). Has `main` on its classpath but is NOT included in the jar. Entrypoints live under `com.rfizzle.prosperity.gametest` and are registered in `fabric.mod.json`. |
 
 JUnit tests go in the standard `src/test/java` directory. The test classpath
 includes `fabric-loader-junit` but excludes `fabric-api` — tests that need
