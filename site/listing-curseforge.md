@@ -1,4 +1,4 @@
-![Prosperity](https://raw.githubusercontent.com/rfizzle/prosperity/master/logo.png)
+![Prosperity](https://raw.githubusercontent.com/rfizzle/prosperity/master/art/logo.png)
 
 **Prosperity** gives every player their own instanced loot from naturally generated containers — no more racing to the good chests on a shared server — and rewards exploration with distance-scaled loot quality. It attaches per-player loot to vanilla containers via persistent Fabric data attachments and intercepts interactions through events; it never registers custom blocks or replaces block entities.
 
