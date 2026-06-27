@@ -28,6 +28,7 @@
             "com.rfizzle.prosperity.gametest.ContainerProtectionGameTest",
             "com.rfizzle.prosperity.gametest.ContainerTooltipGameTest",
             "com.rfizzle.prosperity.gametest.ContainerRemovalGameTest",
+            "com.rfizzle.prosperity.gametest.DistanceTierApiGameTest",
             "com.rfizzle.prosperity.gametest.DoubleChestGameTest",
             "com.rfizzle.prosperity.gametest.FakePlayerGuardGameTest",
             "com.rfizzle.prosperity.gametest.InstancedLootDataGameTest",
