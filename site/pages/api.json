@@ -34,7 +34,7 @@
       "id": "injection",
       "title": "Loot Table Injection",
       "blocks": [
-        { "type": "prose", "html": ["Datapacks can add custom items to existing vanilla loot tables, gated by a minimum distance tier and optionally by dimension. Files live at <code class='text-accent2'>data/prosperity/loot_injections/&lt;name&gt;.json</code> and use tier names <code class='text-accent2'>local</code>, <code class='text-accent2'>frontier</code>, <code class='text-accent2'>wilderness</code>, <code class='text-accent2'>outlands</code>, <code class='text-accent2'>depths</code>. Injection is purely additive — an eligible container receives <strong>one</strong> weighted-random injected reward in a spare slot, and vanilla loot is never replaced. Prosperity ships a built-in Frontier-through-Depths set, so distance scaling feels meaningful out of the box."] },
+        { "type": "prose", "html": ["Datapacks can add custom items to existing vanilla loot tables, gated by a minimum distance tier and optionally by dimension or mod presence. Files live at <code class='text-accent2'>data/prosperity/loot_injections/&lt;name&gt;.json</code> and use tier names <code class='text-accent2'>local</code>, <code class='text-accent2'>frontier</code>, <code class='text-accent2'>wilderness</code>, <code class='text-accent2'>outlands</code>, <code class='text-accent2'>depths</code>. Injection is purely additive — an eligible container receives <strong>one</strong> weighted-random injected reward in a spare slot, and vanilla loot is never replaced. Prosperity ships a built-in Frontier-through-Depths set, so distance scaling feels meaningful out of the box."] },
         {
           "type": "code",
           "tone": "bone",
@@ -47,10 +47,18 @@
             "<code class='text-accent2'>target</code> — the loot table id to inject into, or the special wildcard <code class='text-accent2'>prosperity:all_chests</code>, which fans out to every loot table whose path contains a <code class='text-accent2'>chests/</code> segment.",
             "<code class='text-accent2'>min_tier</code> — the entry is eligible only when the container's resolved distance tier is at or above this tier.",
             "<code class='text-accent2'>dimensions</code> (optional) — a list of dimension ids the entry is restricted to, e.g. <code class='text-accent2'>[\"minecraft:the_nether\"]</code>. Omitted or empty matches any dimension; when present it composes with <code class='text-accent2'>min_tier</code> so both gates must pass.",
+            "<code class='text-accent2'>requires_mods</code> (optional) — a list of mod ids that must <strong>all</strong> be loaded for the entry to apply, e.g. <code class='text-accent2'>[\"meridian\"]</code>. Omitted or empty is unconditional. Evaluated at load time — an entry naming an absent mod is silently dropped, so one file can mix unconditional injections with ones scoped to a sibling mod.",
             "<code class='text-accent2'>entries[].item</code> — the item id. <code class='text-accent2'>count</code> (default <code class='text-accent2'>1</code>) and <code class='text-accent2'>components</code> (full data-component syntax, as in <code class='text-accent2'>/give</code>) define the stack.",
             "<code class='text-accent2'>entries[].weight</code> (default <code class='text-accent2'>1</code>) — the relative chance of this entry among all eligible entries for the container's table and tier.",
             "<code class='text-accent2'>replace</code> (default <code class='text-accent2'>false</code>) — when <code class='text-accent2'>true</code>, clears any earlier Prosperity injections for the targets this file touches before adding its own. Vanilla entries are untouched."
           ]
+        },
+        { "type": "prose", "html": ["For richer cross-mod logic, a file may carry a <code class='text-accent2'>fabric:load_conditions</code> header — a standard <a href='https://docs.fabricmc.net/develop/data-generation/conditions' rel='noopener noreferrer' target='_blank' class='text-accent hover:text-accent2 underline'>Fabric resource-conditions</a> block giving <code class='text-accent2'>fabric:and</code> / <code class='text-accent2'>fabric:or</code> / <code class='text-accent2'>fabric:not</code> / <code class='text-accent2'>fabric:all_mods_loaded</code>. It is evaluated before the file is parsed, so an unmet condition skips the whole file silently. This lets a cross-mod injection ship in-jar and self-activate only when its sibling mod is present, instead of as a separate datapack."] },
+        {
+          "type": "code",
+          "tone": "bone",
+          "label": "data/prosperity/loot_injections/meridian.json",
+          "code": "{\n  \"fabric:load_conditions\": [\n    { \"condition\": \"fabric:all_mods_loaded\", \"values\": [ \"meridian\" ] }\n  ],\n  \"injections\": [\n    {\n      \"target\": \"minecraft:chests/stronghold_library\",\n      \"min_tier\": \"outlands\",\n      \"requires_mods\": [ \"meridian\" ],\n      \"entries\": [ { \"item\": \"meridian:guide_book\", \"weight\": 1 } ]\n    }\n  ]\n}"
         },
         { "type": "prose", "html": ["Injection files reload with <code class='text-accent2'>/reload</code>, and toggle off entirely via the <code class='text-accent2'>enableLootInjection</code> config option."] }
       ]
