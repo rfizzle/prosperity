@@ -284,11 +284,11 @@ processResources {
         expand "version": project.version
     }
 
-    exclude ".gitkeep"
+    exclude "**/.gitkeep"
 }
 
 processClientResources {
-    exclude ".gitkeep"
+    exclude "**/.gitkeep"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -306,10 +306,10 @@ jar {
     from("LICENSE") {
         rename { "${it}_${project.archives_base_name}" }
     }
-    exclude ".gitkeep"
+    exclude "**/.gitkeep"
 }
 
 tasks.named('sourcesJar') {
-    exclude ".gitkeep"
+    exclude "**/.gitkeep"
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
