@@ -52,12 +52,17 @@ final class LootModifierContextImpl implements LootModifierContext {
 
     @Override
     public void setLuck(float luck) {
-        this.luck = luck;
+        if (Float.isFinite(luck)) {
+            this.luck = luck;
+        }
     }
 
     @Override
     public void addLuck(float bonus) {
-        this.luck += bonus;
+        float next = this.luck + bonus;
+        if (Float.isFinite(next)) {
+            this.luck = next;
+        }
     }
 
     @Override
@@ -67,12 +72,17 @@ final class LootModifierContextImpl implements LootModifierContext {
 
     @Override
     public void setStackMultiplier(float multiplier) {
-        this.stackMultiplier = multiplier;
+        if (Float.isFinite(multiplier)) {
+            this.stackMultiplier = multiplier;
+        }
     }
 
     @Override
     public void multiplyStacks(float factor) {
-        this.stackMultiplier *= factor;
+        float next = this.stackMultiplier * factor;
+        if (Float.isFinite(next)) {
+            this.stackMultiplier = next;
+        }
     }
 
     @Override

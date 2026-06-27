@@ -14,6 +14,10 @@ import net.minecraft.server.level.ServerPlayer;
  * are mutable and accumulate across listeners. After all listeners run, the final {@link #luck()}
  * feeds the {@code LootParams} for table resolution and the final {@link #stackMultiplier()} scales
  * the rolled stack counts.
+ *
+ * <p>Both values are always finite: a mutation that would leave {@code luck} or {@code stackMultiplier}
+ * {@code NaN} or infinite &mdash; whether from a non-finite argument or from accumulation overflow &mdash;
+ * is ignored and the previous value is retained, so a misbehaving listener cannot poison loot generation.
  */
 @Stable
 public interface LootModifierContext {

@@ -60,6 +60,32 @@ class LootModifierContextTest {
     }
 
     @Test
+    void nonFiniteLuckMutationsAreIgnored() {
+        LootModifierContext ctx = context(2.0f, 1.0f);
+        ctx.setLuck(Float.NaN);
+        assertEquals(2.0f, ctx.luck(), "setLuck ignores NaN, keeping the previous value");
+        ctx.setLuck(Float.POSITIVE_INFINITY);
+        assertEquals(2.0f, ctx.luck(), "setLuck ignores +Inf");
+        ctx.addLuck(Float.NaN);
+        assertEquals(2.0f, ctx.luck(), "addLuck ignores a NaN delta");
+        ctx.addLuck(Float.NEGATIVE_INFINITY);
+        assertEquals(2.0f, ctx.luck(), "addLuck ignores a -Inf delta");
+    }
+
+    @Test
+    void nonFiniteStackMutationsAreIgnored() {
+        LootModifierContext ctx = context(0.0f, 2.0f);
+        ctx.setStackMultiplier(Float.NaN);
+        assertEquals(2.0f, ctx.stackMultiplier(), "setStackMultiplier ignores NaN");
+        ctx.multiplyStacks(Float.POSITIVE_INFINITY);
+        assertEquals(2.0f, ctx.stackMultiplier(), "multiplyStacks ignores a factor that would go infinite");
+        ctx.multiplyStacks(Float.MAX_VALUE);
+        ctx.multiplyStacks(Float.MAX_VALUE);
+        assertTrue(Float.isFinite(ctx.stackMultiplier()),
+                "multiplyStacks rejects the result when accumulation would overflow to infinity");
+    }
+
+    @Test
     void customDataIsIsolatedPerContext() {
         LootModifierContext first = context(0.0f, 1.0f);
         LootModifierContext second = context(0.0f, 1.0f);
