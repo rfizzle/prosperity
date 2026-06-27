@@ -1,12 +1,3 @@
-<!--
-Modrinth draft stub. Until this listing is publicly live, READMEs and the site
-link GitHub Releases as the canonical download source. Once public: link as
-modrinth.com/mod/prosperity-loot-overhaul and badge with
-img.shields.io/modrinth/dt/<projectId>.
-TODO before publishing: upload the 128x128 icon and a gallery (full logo +
-3-5 in-game screenshots).
--->
-
 # Prosperity — Loot Overhaul
 
 **_Every chest, yours to discover._**
