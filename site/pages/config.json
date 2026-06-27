@@ -23,8 +23,9 @@
     {
       "id": "distance-tiers",
       "title": "distanceTiers",
-      "intro": "Distance thresholds, quantity multipliers, and quality boosts for the five loot tiers. Stub — full key reference to follow.",
+      "intro": "Distance thresholds, quantity multipliers, and quality boosts for the five loot tiers. Each tier is one object in the distanceTiers list; the whole system is gated by enableDistanceScaling.",
       "blocks": [
+        { "type": "prose", "html": ["Set <code class='text-accent2'>enableDistanceScaling</code> (bool, default <code>true</code>) to <code>false</code> to disable container distance scaling entirely &mdash; every container then rolls at the base table with no tier multiplier or quality boost. The defaults below match the five built-in tiers:"] },
         {
           "type": "table",
           "bottomGap": true,
@@ -37,15 +38,51 @@
             ["<code class='text-accent2 whitespace-nowrap'>depths</code>", "10000", "3.5", "4"]
           ],
           "note": "Tier names match those used by loot injection (<code class='text-accent2'>min_tier</code>) and structure overrides."
-        }
+        },
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>name</code>", "string", "Lowercase tier id, referenced by structure overrides and loot injection <code class='text-accent2'>min_tier</code>."],
+            ["<code class='text-accent2 whitespace-nowrap'>minDistance</code>", "int", "Inclusive lower bound, in blocks from world origin. The highest tier whose bound you have passed applies."],
+            ["<code class='text-accent2 whitespace-nowrap'>stackMultiplier</code>", "double", "Multiplier on each stackable item's count after the table resolves (floored, capped at the item's max stack size)."],
+            ["<code class='text-accent2 whitespace-nowrap'>qualityModifier</code>", "int", "Added to your effective luck before loot resolves, biasing rolls toward better entries."]
+          ]
+        },
+        { "type": "prose", "html": ["Distance is measured from world origin (0, 0). The Nether uses raw coordinates and the End is always the maximum tier (<code class='text-accent2'>endAlwaysMaxTier</code>, default <code>true</code>), matching mob loot scaling. You can add, remove, or re-band tiers freely &mdash; resolution always picks the highest <code class='text-accent2'>minDistance</code> you have reached, falling back to a built-in <code>local</code> tier if the list is empty."] }
       ]
     },
     {
       "id": "structure-overrides",
       "title": "structureOverrides",
-      "intro": "Per-structure tier overrides with fixed, minimum, or maximum modes. Stub — see the structure override list in the spec.",
+      "intro": "Per-structure tier overrides, applied after the base distance tier is resolved for a container generated inside the named structure.",
       "blocks": [
-        { "type": "prose", "html": ["Example: ocean monuments fixed to Wilderness, strongholds at minimum Outlands, village chests at maximum Frontier."] }
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>structure</code>", "string", "Structure id the container generated in (e.g. <code class='text-accent2'>minecraft:monument</code>)."],
+            ["<code class='text-accent2 whitespace-nowrap'>mode</code>", "enum", "<code class='text-accent2'>fixed</code> replaces the distance tier, <code class='text-accent2'>minimum</code> raises it to at least <code class='text-accent2'>tier</code>, <code class='text-accent2'>maximum</code> caps it at <code class='text-accent2'>tier</code>."],
+            ["<code class='text-accent2 whitespace-nowrap'>tier</code>", "string", "The <code class='text-accent2'>distanceTiers</code> name this override refers to."]
+          ]
+        },
+        { "type": "prose", "html": ["The built-in defaults:"] },
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Structure", "Mode", "Tier"],
+          "rows": [
+            ["<code class='whitespace-nowrap'>minecraft:monument</code>", "fixed", "wilderness"],
+            ["<code class='whitespace-nowrap'>minecraft:stronghold</code>", "minimum", "outlands"],
+            ["<code class='whitespace-nowrap'>minecraft:ancient_city</code>", "minimum", "outlands"],
+            ["<code class='whitespace-nowrap'>minecraft:trail_ruins</code>", "minimum", "frontier"],
+            ["<code class='whitespace-nowrap'>minecraft:village_*</code>", "maximum", "frontier"]
+          ],
+          "note": "Each of the five vanilla village variants (plains, desert, savanna, snowy, taiga) ships its own maximum-frontier override."
+        },
+        { "type": "prose", "html": ["Structures without an override scale purely by distance. An override referencing an unknown structure or tier is ignored, so a stale entry never breaks loot generation."] }
       ]
     },
     {
@@ -82,10 +119,29 @@
     },
     {
       "id": "indicators",
-      "title": "indicators",
-      "intro": "Client toggle for the unlooted-container sparkle overlay and related feedback.",
+      "title": "Indicators &amp; Notifications",
+      "intro": "The unlooted-container sparkle overlay and the first-open loot-tier action-bar message.",
       "blocks": [
-        { "type": "prose", "html": ["Stub — keys for enabling the overlay, render distance, and the loot-tier action-bar message will be documented here."] }
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>enableVisualIndicators</code>", "bool", "true", "Server master switch for the unlooted sparkle overlay. Off here, no client shows indicators."],
+            ["<code class='text-accent2 whitespace-nowrap'>indicatorRenderDistance</code>", "int", "48", "How far, in blocks, the sparkle renders (clamped 0&ndash;512)."],
+            ["<code class='text-accent2 whitespace-nowrap'>indicatorXrayDistance</code>", "int", "8", "Within this range the overlay shows through walls; beyond it the sparkle is occluded by geometry (clamped 0&ndash;512)."],
+            ["<code class='text-accent2 whitespace-nowrap'>enableLootNotifications</code>", "bool", "true", "Flash a one-line action-bar message naming the loot tier and active modifiers when you first open a container."]
+          ]
+        },
+        { "type": "prose", "html": ["The sparkle marks containers you have not yet opened, rendered client-side via <code class='text-accent2'>WorldRenderEvents.LAST</code> so it composes with Sodium, Enhanced Block Entities, and shader packs without touching block models. Each player also has a client-side <code class='text-accent2'>showIndicators</code> toggle (see below) to hide the overlay locally even when the server enables it. The action-bar notification reads like <code class='text-accent2'>&#10022; Wilderness &mdash; 2.0x stacks, +2 quality</code>, with the structure appended when an override changed the tier."] },
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Client Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>showIndicators</code>", "bool", "true", "Per-client toggle to hide the sparkle overlay locally. Lives in the <code class='text-accent2'>client</code> block and is never synced."]
+          ]
+        }
       ]
     },
     {
