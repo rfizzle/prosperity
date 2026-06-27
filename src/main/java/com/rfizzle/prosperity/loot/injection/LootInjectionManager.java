@@ -1,6 +1,7 @@
 package com.rfizzle.prosperity.loot.injection;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
@@ -18,7 +19,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition;
+import net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditions;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentPatch;
@@ -94,6 +99,9 @@ public final class LootInjectionManager {
             ResourceLocation fileId = entry.getKey();
             try (BufferedReader reader = entry.getValue().openAsReader()) {
                 JsonElement json = JsonParser.parseReader(reader);
+                if (json instanceof JsonObject obj && !conditionsMet(obj, registries, fileId)) {
+                    continue;
+                }
                 FileData data = FileData.CODEC.parse(ops, json).getOrThrow();
                 files.add(new Loaded(fileId, data));
             } catch (Exception e) {
@@ -102,11 +110,34 @@ public final class LootInjectionManager {
         }
 
         Set<ResourceLocation> chestTables = scanChestTables(manager);
-        Map<ResourceLocation, List<Tiered>> next = build(files, chestTables);
+        Map<ResourceLocation, List<Tiered>> next =
+                build(files, chestTables, FabricLoader.getInstance()::isModLoaded);
         int targets = next.size();
         int entries = next.values().stream().flatMap(List::stream).mapToInt(t -> t.entries().size()).sum();
         REGISTRY = next;
         Prosperity.LOGGER.info("Loaded {} loot injection entries across {} target tables", entries, targets);
+    }
+
+    /**
+     * Evaluate a file's optional {@code fabric:load_conditions} header. A file without the header always
+     * loads; one carrying it loads only when its conditions pass — giving {@code not}/{@code and}/
+     * {@code or}/{@code fabric:all_mods_loaded} for free. An unmet gate is an expected, benign skip
+     * (logged at {@code DEBUG}), consistent with the loader's graceful-degradation posture, so a sibling
+     * mod being absent does not spam the log.
+     */
+    private static boolean conditionsMet(JsonObject obj, RegistryAccess registries, ResourceLocation fileId) {
+        if (!obj.has(ResourceConditions.CONDITIONS_KEY)) {
+            return true;
+        }
+        ResourceCondition condition = ResourceCondition.CONDITION_CODEC
+                .parse(JsonOps.INSTANCE, obj.get(ResourceConditions.CONDITIONS_KEY)).getOrThrow();
+        // Consumed once and never reused, so strip the header before the file hits FileData.CODEC.
+        obj.remove(ResourceConditions.CONDITIONS_KEY);
+        boolean met = condition.test(registries);
+        if (!met) {
+            Prosperity.LOGGER.debug("Skipping loot injection {}: load conditions not met", fileId);
+        }
+        return met;
     }
 
     /**
@@ -223,9 +254,13 @@ public final class LootInjectionManager {
     /**
      * Build the registry from parsed files (sorted by id for deterministic {@code replace} ordering)
      * against the set of concrete chest tables the wildcard expands to. A file with {@code replace:true}
-     * clears prior injections for each (expanded) target it touches before adding its own.
+     * clears prior injections for each (expanded) target it touches before adding its own. An injection
+     * whose {@code requires_mods} list names a mod for which {@code modLoaded} returns {@code false} is
+     * silently dropped before it can be added or clear anything &mdash; the same graceful-degradation
+     * posture as an unmet file-level condition.
      */
-    static Map<ResourceLocation, List<Tiered>> build(List<Loaded> files, Set<ResourceLocation> chestTables) {
+    static Map<ResourceLocation, List<Tiered>> build(List<Loaded> files, Set<ResourceLocation> chestTables,
+            Predicate<String> modLoaded) {
         List<Loaded> ordered = new ArrayList<>(files);
         ordered.sort(Comparator.comparing(loaded -> loaded.id().toString()));
 
@@ -234,6 +269,11 @@ public final class LootInjectionManager {
             FileData data = loaded.data();
             Set<ResourceLocation> clearedThisFile = new HashSet<>();
             for (RawInjection injection : data.injections()) {
+                if (!injection.requiresMods().stream().allMatch(modLoaded)) {
+                    Prosperity.LOGGER.debug("Skipping injection for {} in {}: required mod absent",
+                            injection.target(), loaded.id());
+                    continue;
+                }
                 Tiered tiered = new Tiered(injection.minTier(), List.copyOf(injection.dimensions()),
                         List.copyOf(injection.entries()));
                 for (ResourceLocation target : expand(injection.target(), chestTables)) {
@@ -286,16 +326,21 @@ public final class LootInjectionManager {
 
     /**
      * One target loot table, the minimum tier to apply at, the dimensions it is restricted to (empty
-     * means any), and the items to inject.
+     * means any), the mod ids that must all be loaded for it to apply (empty means unconditional), and
+     * the items to inject. The {@code requires_mods} gate is a finer-grained complement to the file-level
+     * {@code fabric:load_conditions} header: it lets a single file mix unconditional injections with ones
+     * scoped to a sibling mod, evaluated at load time only.
      */
     public record RawInjection(ResourceLocation target, String minTier, List<ResourceLocation> dimensions,
-            List<Entry> entries) {
+            List<String> requiresMods, List<Entry> entries) {
         public static final Codec<RawInjection> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         ResourceLocation.CODEC.fieldOf("target").forGetter(RawInjection::target),
                         Codec.STRING.fieldOf("min_tier").forGetter(RawInjection::minTier),
                         ResourceLocation.CODEC.listOf().optionalFieldOf("dimensions", List.of())
                                 .forGetter(RawInjection::dimensions),
+                        Codec.STRING.listOf().optionalFieldOf("requires_mods", List.of())
+                                .forGetter(RawInjection::requiresMods),
                         Entry.CODEC.listOf().fieldOf("entries").forGetter(RawInjection::entries)
                 ).apply(instance, RawInjection::new));
     }

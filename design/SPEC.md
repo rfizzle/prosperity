@@ -389,10 +389,36 @@ Files at `data/prosperity/loot_injections/<name>.json`:
 - `target`: `ResourceLocation` of the vanilla loot table to inject into.
 - `min_tier`: Minimum distance tier name (matches config tier names: `local`, `frontier`, `wilderness`, `outlands`, `depths`). Entry is only eligible if the container is at or above this tier.
 - `dimensions`: Optional list of dimension IDs the entry is restricted to (e.g. `["minecraft:the_nether"]`). Omitted or empty matches any dimension. Composes with `min_tier` — both gates must pass for the entry to be eligible.
+- `requires_mods`: Optional list of mod IDs that must **all** be loaded for the injection to apply (e.g. `["meridian"]`). Omitted or empty is unconditional. Evaluated at load time only — an injection naming an absent mod is silently dropped (no log spam), so a file can mix unconditional injections with ones scoped to a sibling mod.
 - `entries[].item`: Item ID.
 - `entries[].count`: Stack count (default 1).
 - `entries[].components`: Optional data components (same format as vanilla `/give` and recipe definitions).
 - `entries[].weight`: Relative weight within the loot pool (default 1). Higher weight = more likely to appear. Injected entries compete with existing pool entries.
+
+#### Mod-presence gating
+
+Two complementary gates let an in-jar datapack carry injections that activate only when a sibling mod is present, without shipping split datapacks:
+
+- **`requires_mods`** (above) — per-injection, conjunctive, the minimal form for "this entry needs mod X."
+- **`fabric:load_conditions`** — a file-level [Fabric resource conditions](https://docs.fabricmc.net/develop/data-generation/conditions) header, evaluated before the file is parsed. It provides `fabric:and` / `fabric:or` / `fabric:not` / `fabric:all_mods_loaded` for richer logic; an unmet header skips the whole file silently.
+
+```json
+{
+  "fabric:load_conditions": [
+    { "condition": "fabric:all_mods_loaded", "values": [ "meridian" ] }
+  ],
+  "injections": [
+    {
+      "target": "minecraft:chests/stronghold_library",
+      "min_tier": "outlands",
+      "requires_mods": [ "meridian" ],
+      "entries": [ { "item": "meridian:guide_book", "weight": 1 } ]
+    }
+  ]
+}
+```
+
+Both gates are re-evaluated on every load (`SERVER_STARTING` and `END_DATA_PACK_RELOAD`). Existing injections with neither field are unaffected.
 
 ### Built-In Injections
 
