@@ -75,7 +75,7 @@ See [`design/SPEC.md`](design/SPEC.md) §4 for the full API surface and integrat
 
 ## Part of Concord
 
-Part of [Concord](https://github.com/rfizzle/concord) — a Vanilla+ collection.
+Part of [Concord](https://github.com/rfizzle/concord) — a modular collection of system overhauls.
 Install any, combine all.
 
 - [Meridian](https://meridian.rfizzle.com) — Chart your enchantments.
