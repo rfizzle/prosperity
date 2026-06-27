@@ -19,6 +19,7 @@ import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
@@ -41,6 +42,9 @@ import org.junit.jupiter.api.Test;
 class LootInjectionTest {
 
     private static RegistryOps<JsonElement> ops;
+
+    /** Stand-in for {@code FabricLoader::isModLoaded} that treats every mod as present. */
+    private static final Predicate<String> ALL_LOADED = mod -> true;
 
     private static final ResourceLocation ALL_CHESTS = Prosperity.id("all_chests");
     private static final ResourceLocation CHEST_A =
@@ -111,7 +115,7 @@ class LootInjectionTest {
                 }
                 """);
         Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
-                List.of(new Loaded(Prosperity.id("wild"), file)), Set.of(CHEST_A, CHEST_B));
+                List.of(new Loaded(Prosperity.id("wild"), file)), Set.of(CHEST_A, CHEST_B), ALL_LOADED);
 
         assertEquals(Set.of(CHEST_A, CHEST_B), registry.keySet(),
                 "all_chests must fan out to every scanned chest table");
@@ -138,7 +142,7 @@ class LootInjectionTest {
                 new Loaded(Prosperity.id("a_first"), first),
                 new Loaded(Prosperity.id("c_replace"), second),
                 new Loaded(Prosperity.id("b_other"), untouched)),
-                Set.of(CHEST_A, CHEST_B));
+                Set.of(CHEST_A, CHEST_B), ALL_LOADED);
 
         List<Tiered> a = registry.get(CHEST_A);
         assertEquals(1, a.size(), "replace must drop the earlier injection for chests/a");
@@ -147,6 +151,104 @@ class LootInjectionTest {
 
         assertEquals(1, registry.get(CHEST_B).size(), "an untouched target is unaffected by replace");
         assertEquals(Items.GOLD_INGOT, registry.get(CHEST_B).get(0).entries().get(0).stack().getItem());
+    }
+
+    @Test
+    void requiresModsParsesDefaultingToEmpty() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "entries": [ { "item": "minecraft:diamond" } ] },
+                    { "target": "minecraft:chests/b", "min_tier": "frontier",
+                      "requires_mods": [ "meridian", "concord" ],
+                      "entries": [ { "item": "minecraft:emerald" } ] }
+                  ]
+                }
+                """);
+
+        assertTrue(file.injections().get(0).requiresMods().isEmpty(),
+                "an omitted requires_mods field defaults to empty (unconditional)");
+        assertEquals(List.of("meridian", "concord"), file.injections().get(1).requiresMods(),
+                "the requires_mods list round-trips in order");
+    }
+
+    @Test
+    void buildDropsInjectionWhenRequiredModAbsent() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "requires_mods": [ "meridian" ],
+                      "entries": [ { "item": "minecraft:diamond" } ] }
+                  ]
+                }
+                """);
+        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+                List.of(new Loaded(Prosperity.id("gated"), file)), Set.of(CHEST_A, CHEST_B),
+                mod -> false);
+
+        assertTrue(registry.isEmpty(), "an injection gated on an absent mod must be dropped at build");
+    }
+
+    @Test
+    void buildRetainsInjectionWhenRequiredModsPresent() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "requires_mods": [ "meridian" ],
+                      "entries": [ { "item": "minecraft:diamond" } ] }
+                  ]
+                }
+                """);
+        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+                List.of(new Loaded(Prosperity.id("gated"), file)), Set.of(CHEST_A, CHEST_B),
+                mod -> mod.equals("meridian"));
+
+        assertEquals(Set.of(CHEST_A), registry.keySet(),
+                "an injection whose required mods are all present is retained");
+        assertEquals(Items.DIAMOND, registry.get(CHEST_A).get(0).entries().get(0).stack().getItem());
+    }
+
+    @Test
+    void buildGatesPerInjectionWithinOneFile() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "entries": [ { "item": "minecraft:diamond" } ] },
+                    { "target": "minecraft:chests/b", "min_tier": "frontier",
+                      "requires_mods": [ "meridian" ],
+                      "entries": [ { "item": "minecraft:emerald" } ] }
+                  ]
+                }
+                """);
+        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+                List.of(new Loaded(Prosperity.id("mixed"), file)), Set.of(CHEST_A, CHEST_B),
+                mod -> false);
+
+        assertEquals(Set.of(CHEST_A), registry.keySet(),
+                "the unconditional injection survives while the mod-gated sibling in the same file is dropped");
+        assertEquals(Items.DIAMOND, registry.get(CHEST_A).get(0).entries().get(0).stack().getItem());
+    }
+
+    @Test
+    void buildDropsInjectionWhenAnyRequiredModAbsent() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "requires_mods": [ "meridian", "concord" ],
+                      "entries": [ { "item": "minecraft:diamond" } ] }
+                  ]
+                }
+                """);
+        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+                List.of(new Loaded(Prosperity.id("gated"), file)), Set.of(CHEST_A, CHEST_B),
+                mod -> mod.equals("meridian"));
+
+        assertTrue(registry.isEmpty(), "requires_mods is conjunctive: one absent mod drops the injection");
     }
 
     @Test

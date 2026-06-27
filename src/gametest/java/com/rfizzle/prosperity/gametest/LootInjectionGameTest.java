@@ -1,5 +1,8 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.mojang.serialization.JsonOps;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
@@ -9,7 +12,9 @@ import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
+import net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
@@ -100,6 +105,35 @@ public class LootInjectionGameTest implements FabricGameTest {
                 LootInjectionManager.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, NETHER, cfg).isEmpty(),
                 "the dimension match cannot override the tier gate");
         helper.succeed();
+    }
+
+    /**
+     * The file-level {@code fabric:load_conditions} gate the loader applies in {@code reload()} is
+     * honored by the Fabric runtime: a header naming a loaded mod ({@code prosperity}) passes so the file
+     * loads, while one naming an absent mod is rejected so the file is silently skipped. Exercises the
+     * same public {@link ResourceCondition} parse-and-test the manager runs in {@code conditionsMet},
+     * against the runtime-registered {@code fabric:all_mods_loaded} condition type — which only exists
+     * once Fabric is loaded, so this cannot be a unit test.
+     */
+    @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void fileLevelLoadConditionsAreHonored(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        helper.assertTrue(conditionMet(allModsLoaded("prosperity"), registries),
+                "a fabric:all_mods_loaded gate naming the loaded prosperity mod must pass");
+        helper.assertTrue(!conditionMet(allModsLoaded("prosperity_absent_sibling"), registries),
+                "a fabric:all_mods_loaded gate naming an absent mod must fail, skipping the file");
+        helper.succeed();
+    }
+
+    /** A {@code fabric:load_conditions} payload requiring {@code modId} to be loaded. */
+    private static JsonElement allModsLoaded(String modId) {
+        return JsonParser.parseString(
+                "[{\"condition\":\"fabric:all_mods_loaded\",\"values\":[\"" + modId + "\"]}]");
+    }
+
+    private static boolean conditionMet(JsonElement conditions, RegistryAccess registries) {
+        return ResourceCondition.CONDITION_CODEC.parse(JsonOps.INSTANCE, conditions).getOrThrow().test(registries);
     }
 
     private static int filledSlots(NonNullList<ItemStack> items) {
