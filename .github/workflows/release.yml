@@ -12,4 +12,7 @@ permissions:
 jobs:
   release:
     uses: rfizzle/concord/.github/workflows/mod-release.yml@master
+    with:
+      modrinth-id: "bD4rtHdZ"
+      curseforge-id: "1591262"
     secrets: inherit

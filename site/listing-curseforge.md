@@ -1,6 +1,17 @@
-![Prosperity](https://raw.githubusercontent.com/rfizzle/prosperity/master/art/logo.png)
+# Prosperity — Loot Overhaul
 
-**Prosperity** gives every player their own instanced loot from naturally generated containers — no more racing to the good chests on a shared server — and rewards exploration with distance-scaled loot quality. It attaches per-player loot to vanilla containers via persistent Fabric data attachments and intercepts interactions through events; it never registers custom blocks or replaces block entities.
+**_Every chest, yours to discover._**
+
+![Prosperity logo](https://raw.githubusercontent.com/rfizzle/prosperity/master/art/logo.png)
+
+**Also on [Modrinth](https://modrinth.com/mod/prosperity-loot-overhaul)
+and [GitHub Releases](https://github.com/rfizzle/prosperity/releases).**
+Visit the [website](https://prosperity.rfizzle.com) for the full feature
+list, config reference, and command guide.
+
+---
+
+Prosperity gives every player their own instanced loot from naturally generated containers — no more racing to the good chests on a shared server — and rewards exploration with distance-scaled loot quality. It attaches per-player loot to vanilla containers via persistent Fabric data attachments and intercepts interactions through events; it never registers custom blocks or replaces block entities.
 
 A drop-in replacement for Lootr with extra reach. Zero external dependencies beyond Fabric API. Just drop it in.
 

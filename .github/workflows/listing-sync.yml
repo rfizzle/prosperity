@@ -1,0 +1,25 @@
+# Thin stub — logic lives in rfizzle/concord (mod-listing-sync.yml).
+# Pushes site/listing-modrinth.md (and site/listing-summary.txt if present) to
+# the Modrinth project description on change. CurseForge has no description write
+# API, so listing-curseforge.md stays a manual copy-paste. Requires a
+# MODRINTH_TOKEN secret with the "Write projects" scope; absent -> the sync no-ops.
+name: Listing sync
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "site/listing-modrinth.md"
+      - "site/listing-summary.txt"
+      - ".github/workflows/listing-sync.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  listing:
+    uses: rfizzle/concord/.github/workflows/mod-listing-sync.yml@master
+    with:
+      modrinth-id: "bD4rtHdZ"
+    secrets: inherit

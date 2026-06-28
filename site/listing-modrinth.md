@@ -2,6 +2,8 @@
 
 **_Every chest, yours to discover._**
 
+![Prosperity logo](https://raw.githubusercontent.com/rfizzle/prosperity/master/art/logo.png)
+
 **Also on [CurseForge](https://www.curseforge.com/minecraft/mc-mods/prosperity-loot-overhaul)
 and [GitHub Releases](https://github.com/rfizzle/prosperity/releases).**
 Visit the [website](https://prosperity.rfizzle.com) for the full feature
