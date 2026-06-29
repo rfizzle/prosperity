@@ -132,6 +132,16 @@ public final class ContainerProtection {
     }
 
     /**
+     * Whether an explosion must spare the container at {@code pos}. This is part of the
+     * {@code protectionUnbreakable} hard lock only: when that flag is off, the slow-break mode stays a
+     * speed bump and explosions destroy containers as normal. When on, a break-protected container
+     * (one that still has unclaimed loot) is also blast-proof until its loot is claimed.
+     */
+    public static boolean isExplosionProof(ServerLevel level, BlockPos pos) {
+        return Prosperity.getConfig().protectionUnbreakable && isProtectedServer(level, pos, null);
+    }
+
+    /**
      * Whether the container at {@code pos} is currently break-protected, derived from the live online
      * player list. Protected iff: the feature is enabled, the breaker is not creative, the block is a
      * Prosperity-managed (non-blacklisted) loot container, and it still has unclaimed loot &mdash; a

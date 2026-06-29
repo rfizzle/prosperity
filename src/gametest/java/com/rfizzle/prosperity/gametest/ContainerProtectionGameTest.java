@@ -13,9 +13,11 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Runtime checks for container break protection (S-017). The predicate is asserted through the
@@ -117,7 +119,16 @@ public class ContainerProtectionGameTest implements FabricGameTest {
                     ContainerProtection.protectionMessage(true).getString()
                             .equals(ContainerProtection.protectionMessage(false).getString()),
                     "the unbreakable warning must differ from the slow-break warning");
+
+            // Explosion immunity rides the unbreakable hard lock: a protected loot source is blast-proof
+            // only with the flag on, and only when it is actually a managed loot container.
+            helper.assertTrue(ContainerProtection.isExplosionProof(level, lootAbs),
+                    "an unbreakable protected container must be explosion-proof");
+            helper.assertFalse(ContainerProtection.isExplosionProof(level, plainAbs),
+                    "a plain storage chest must never be explosion-proof");
             Prosperity.getConfig().protectionUnbreakable = false;
+            helper.assertFalse(ContainerProtection.isExplosionProof(level, lootAbs),
+                    "slow-break mode must leave protected containers vulnerable to explosions");
 
             Prosperity.getConfig().enableContainerProtection = false;
             helper.assertFalse(ContainerProtection.isProtectedServer(level, lootAbs, null, List.of()),
@@ -129,6 +140,46 @@ public class ContainerProtectionGameTest implements FabricGameTest {
             Prosperity.getConfig().protectionBreakMultiplier = savedMultiplier;
             Prosperity.getConfig().protectionUnbreakable = savedUnbreakable;
             creative.discard();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * End-to-end: under the unbreakable hard lock a real explosion spares a protected loot container
+     * while still destroying an unprotected chest beside it. Runs in its own batch so it cannot race
+     * the global flags it toggles. A sourceless blast exercises the base damage calculator; the
+     * identical injection on {@code EntityBasedExplosionDamageCalculator} (TNT/creepers) is the same
+     * multi-target mixin, load-validated by {@code defaultRequire}.
+     */
+    @GameTest(batch = "container_explosion", template = FabricGameTest.EMPTY_STRUCTURE)
+    public void unbreakableContainerSurvivesExplosion(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+
+        BlockPos protectedRel = new BlockPos(1, 1, 1);
+        helper.setBlock(protectedRel, Blocks.CHEST);
+        RandomizableContainerBlockEntity protectedChest =
+                (RandomizableContainerBlockEntity) level.getBlockEntity(helper.absolutePos(protectedRel));
+        protectedChest.setLootTable(BuiltInLootTables.SIMPLE_DUNGEON);
+        protectedChest.setLootTableSeed(0L);
+
+        // An identical chest with no loot table is unprotected — the control proving the blast is lethal.
+        BlockPos plainRel = new BlockPos(3, 1, 1);
+        helper.setBlock(plainRel, Blocks.CHEST);
+
+        boolean savedEnabled = Prosperity.getConfig().enableContainerProtection;
+        boolean savedUnbreakable = Prosperity.getConfig().protectionUnbreakable;
+        try {
+            Prosperity.getConfig().enableContainerProtection = true;
+            Prosperity.getConfig().protectionUnbreakable = true;
+
+            Vec3 center = Vec3.atCenterOf(helper.absolutePos(new BlockPos(2, 1, 1)));
+            level.explode(null, center.x, center.y, center.z, 4.0f, Level.ExplosionInteraction.TNT);
+
+            helper.assertBlockPresent(Blocks.CHEST, protectedRel);
+            helper.assertBlockNotPresent(Blocks.CHEST, plainRel);
+        } finally {
+            Prosperity.getConfig().enableContainerProtection = savedEnabled;
+            Prosperity.getConfig().protectionUnbreakable = savedUnbreakable;
         }
         helper.succeed();
     }

@@ -192,10 +192,10 @@
           "rows": [
             ["<code class='text-accent2 whitespace-nowrap'>enableContainerProtection</code>", "bool", "false", "Slow down breaking of loot containers that still hold unclaimed loot."],
             ["<code class='text-accent2 whitespace-nowrap'>protectionBreakMultiplier</code>", "float", "4.0", "How many times longer a protected container takes to break (clamped 1.0–100.0)."],
-            ["<code class='text-accent2 whitespace-nowrap'>protectionUnbreakable</code>", "bool", "false", "Make protected containers fully unbreakable in survival instead of merely slower."]
+            ["<code class='text-accent2 whitespace-nowrap'>protectionUnbreakable</code>", "bool", "false", "Make protected containers fully unbreakable in survival (and immune to explosions) instead of merely slower."]
           ]
         },
-        { "type": "prose", "html": ["A protected container takes <code class='text-accent2'>protectionBreakMultiplier</code>× longer to break and shows an action-bar warning with particles and a quiet cue when breaking starts, so its instanced loot cannot be quickly erased. Any managed loot container with unclaimed loot is protected, including a fresh, never-opened chest. With <code class='text-accent2'>protectionUnbreakable</code> the container is fully unbreakable in survival (like bedrock) until its loot is claimed, rather than just slow. Either way creative-mode players break instantly, protection lifts once every online player has opened the container, and player-placed chests are never affected."] }
+        { "type": "prose", "html": ["A protected container takes <code class='text-accent2'>protectionBreakMultiplier</code>× longer to break and shows an action-bar warning with particles and a quiet cue when breaking starts, so its instanced loot cannot be quickly erased. Any managed loot container with unclaimed loot is protected, including a fresh, never-opened chest. With <code class='text-accent2'>protectionUnbreakable</code> the container is fully unbreakable in survival (like bedrock) and immune to explosions (TNT, creepers) until its loot is claimed, rather than just slow. Either way creative-mode players break instantly, protection lifts once every online player has opened the container, and player-placed chests are never affected."] }
       ]
     }
   ]
