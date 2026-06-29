@@ -3,6 +3,7 @@ package com.rfizzle.prosperity.command;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.rfizzle.prosperity.Prosperity;
@@ -13,7 +14,10 @@ import com.rfizzle.prosperity.loot.LootScaling;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -24,7 +28,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -38,6 +45,12 @@ import org.jetbrains.annotations.Nullable;
 public final class ProsperityCommand {
 
     public static final String ROOT = "prosperity";
+
+    /** Radius (blocks) used by {@code reset/refresh around} when none is given. */
+    static final int DEFAULT_RADIUS = 128;
+
+    /** Hard cap on the {@code around} radius — bounds the chunk scan an operator can trigger. */
+    static final int MAX_RADIUS = 256;
 
     private ProsperityCommand() {
     }
@@ -54,13 +67,15 @@ public final class ProsperityCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> clearCommand(ctx, false, false))
                                 .then(Commands.argument("player", GameProfileArgument.gameProfile())
-                                        .executes(ctx -> clearCommand(ctx, false, true)))))
+                                        .executes(ctx -> clearCommand(ctx, false, true))))
+                        .then(radiusBranch(false)))
                 .then(Commands.literal("refresh")
                         .requires(src -> src.hasPermission(2))
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> clearCommand(ctx, true, false))
                                 .then(Commands.argument("player", GameProfileArgument.gameProfile())
-                                        .executes(ctx -> clearCommand(ctx, true, true)))))
+                                        .executes(ctx -> clearCommand(ctx, true, true))))
+                        .then(radiusBranch(true)))
                 .then(Commands.literal("reload")
                         .requires(src -> src.hasPermission(2))
                         .executes(ProsperityCommand::runReload)));
@@ -104,6 +119,23 @@ public final class ProsperityCommand {
 
     // ---- reset / refresh ----
 
+    /**
+     * The {@code around [radius] [player]} branch shared by {@code reset} and {@code refresh}: clears
+     * instanced loot for every container within the radius of the command source's position, defaulting
+     * to {@link #DEFAULT_RADIUS} when no radius is given and capped at {@link #MAX_RADIUS}.
+     */
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> radiusBranch(
+            boolean refresh) {
+        return Commands.literal("around")
+                .executes(ctx -> radiusCommand(ctx, refresh, DEFAULT_RADIUS, false))
+                .then(Commands.argument("radius", IntegerArgumentType.integer(1, MAX_RADIUS))
+                        .executes(ctx -> radiusCommand(ctx, refresh,
+                                IntegerArgumentType.getInteger(ctx, "radius"), false))
+                        .then(Commands.argument("player", GameProfileArgument.gameProfile())
+                                .executes(ctx -> radiusCommand(ctx, refresh,
+                                        IntegerArgumentType.getInteger(ctx, "radius"), true))));
+    }
+
     private static int clearCommand(CommandContext<CommandSourceStack> ctx, boolean refresh, boolean perPlayer)
             throws CommandSyntaxException {
         CommandSourceStack src = ctx.getSource();
@@ -133,16 +165,98 @@ public final class ProsperityCommand {
         return Command.SINGLE_SUCCESS;
     }
 
+    private static int radiusCommand(CommandContext<CommandSourceStack> ctx, boolean refresh, int radius,
+            boolean perPlayer) throws CommandSyntaxException {
+        CommandSourceStack src = ctx.getSource();
+        ServerLevel level = src.getLevel();
+        BlockPos center = BlockPos.containing(src.getPosition());
+
+        Collection<GameProfile> profiles = perPlayer ? GameProfileArgument.getGameProfiles(ctx, "player") : null;
+        Collection<UUID> uuids = profiles == null ? null : profileUuids(profiles);
+        final int removed = clearRadius(level, center, radius, uuids);
+        final int blocks = radius;
+
+        if (perPlayer) {
+            final String names = joinNames(profiles);
+            src.sendSuccess(() -> Component.translatable(
+                    refresh ? "command.prosperity.refresh.radius.player" : "command.prosperity.reset.radius.player",
+                    names, blocks, removed), true);
+        } else {
+            src.sendSuccess(() -> Component.translatable(
+                    refresh ? "command.prosperity.refresh.radius.all" : "command.prosperity.reset.radius.all",
+                    blocks, removed), true);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
     /**
      * Clears instanced loot at {@code pos}. A {@code null} {@code uuids} clears every player;
      * otherwise only the listed players are cleared. Returns the number of player instances
-     * removed (or {@code -1} when no instanced container is present), and notifies tracking
-     * clients to drop their indicator for the position. Exposed for gametests.
+     * removed (or {@code -1} when no instanced container is present), and resends the chunk's
+     * indicator set so the now-unlooted container re-lights on tracking clients. Exposed for gametests.
      */
     public static int clearContainer(ServerLevel level, BlockPos pos, @Nullable Collection<UUID> uuids) {
         if (!(level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity container)) {
             return -1;
         }
+        int removed = clearInstances(container, uuids);
+        if (removed > 0) {
+            ProsperityNetworking.resendUnlootedChunk(level, new ChunkPos(pos), uuids);
+        }
+        return removed;
+    }
+
+    /**
+     * Clears instanced loot for every proxy-managed container within {@code radius} blocks of
+     * {@code center} in loaded chunks (the scan never force-loads). A {@code null} {@code uuids} clears
+     * every player; otherwise only the listed players. Returns the total instance count removed, and
+     * resends the indicator set for each affected chunk so the now-unlooted containers re-light on
+     * tracking clients. Exposed for gametests.
+     */
+    public static int clearRadius(ServerLevel level, BlockPos center, int radius,
+            @Nullable Collection<UUID> uuids) {
+        double maxDistSq = (double) radius * radius;
+        int chunkRadius = (radius >> 4) + 1;
+        int centerChunkX = center.getX() >> 4;
+        int centerChunkZ = center.getZ() >> 4;
+        int totalRemoved = 0;
+        Set<ChunkPos> affected = new HashSet<>();
+        for (int cx = centerChunkX - chunkRadius; cx <= centerChunkX + chunkRadius; cx++) {
+            for (int cz = centerChunkZ - chunkRadius; cz <= centerChunkZ + chunkRadius; cz++) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(cx, cz);
+                if (chunk == null) {
+                    continue;
+                }
+                for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
+                    if (!(entry.getValue() instanceof RandomizableContainerBlockEntity container)) {
+                        continue;
+                    }
+                    BlockPos pos = entry.getKey();
+                    if (center.distSqr(pos) > maxDistSq) {
+                        continue;
+                    }
+                    int removed = clearInstances(container, uuids);
+                    if (removed > 0) {
+                        totalRemoved += removed;
+                        affected.add(new ChunkPos(pos));
+                    }
+                }
+            }
+        }
+        for (ChunkPos chunkPos : affected) {
+            ProsperityNetworking.resendUnlootedChunk(level, chunkPos, uuids);
+        }
+        return totalRemoved;
+    }
+
+    /**
+     * Clears the instanced loot held by {@code container} for the given players (or every player when
+     * {@code uuids} is {@code null}), dirtying the block entity. Returns the number of instances
+     * removed, or {@code -1} when the container is not proxy-managed (plain storage). Does not touch
+     * the client — callers resend the affected chunk(s) once.
+     */
+    private static int clearInstances(RandomizableContainerBlockEntity container,
+            @Nullable Collection<UUID> uuids) {
         InstancedLootData data = ProsperityAttachments.get(container);
         // A plain storage container (no loot table, no generated attachment) is not proxy-managed.
         if (container.getLootTable() == null && (data == null || !data.isGenerated())) {
@@ -166,9 +280,6 @@ public final class ProsperityCommand {
             }
         }
         container.setChanged();
-        if (removed > 0) {
-            notifyTracking(level, pos);
-        }
         return removed;
     }
 
@@ -189,10 +300,6 @@ public final class ProsperityCommand {
     }
 
     // ---- shared helpers ----
-
-    private static void notifyTracking(ServerLevel level, BlockPos pos) {
-        ProsperityNetworking.sendContainerRemoved(level, pos);
-    }
 
     private static Collection<UUID> profileUuids(Collection<GameProfile> profiles) {
         List<UUID> ids = new ArrayList<>(profiles.size());

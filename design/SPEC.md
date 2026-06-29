@@ -629,13 +629,13 @@ On long-running servers, all containers eventually get looted by all players, an
 - **Next visit:** When the player opens the container after their cooldown has expired, fresh loot is generated as if they'd never visited.
 - **Default cooldown:** 7 in-game days (168,000 ticks), configurable.
 - **Per-player:** Each player's cooldown is independent. Player A's loot may refresh while Player B's is still on cooldown.
-- **Visual indicator:** When a player's loot has refreshed (cooldown expired, inventory cleared), the gold sparkle reappears on the client (the container is "unlooted" again for this player).
+- **Visual indicator:** When a player's loot has refreshed (cooldown expired, inventory cleared), the gold sparkle reappears on the client (the container is "unlooted" again for this player). A chunk the client requests after expiry lights up from the scan on its own; a low-frequency server sweep covers the gap where a chunk was already loaded when the cooldown elapsed, resending that chunk's indicator set to the player who just crossed the threshold.
 
 ### Cooldown Tracking
 
 - Stored in the attachment: `Map<UUID, Long> lastGeneratedTick` — the game tick when each player's loot was last generated.
 - On any interaction, the handler checks `currentTick - lastGeneratedTick >= cooldownTicks`. If true, the player's entry in `playerInventories` is removed, and the container is treated as unvisited.
-- Cooldown check is lazy (only on interaction), not tick-based. No per-tick processing cost.
+- Cooldown expiry is computed on demand (at the open path and the indicator scan), not per-tick. The only periodic work is the indicator sweep, which runs on a coarse interval (every 600 ticks) and only when both `enableLootRefresh` and `enableVisualIndicators` are on; it sends a packet to a player solely when one of their instances in a loaded, tracked chunk transitions to expired, so a player standing still triggers one resend per container rather than one per tick.
 
 ### Configuration
 
@@ -986,8 +986,10 @@ All commands use the `prosperity` root. Admin commands require **operator level 
 | `/prosperity info <player>` | Op level 2 | Shows another player's loot scaling tier at their position |
 | `/prosperity reset <pos>` | Op level 2 | Clears all instanced loot data for the container at the given position. All players' instances are removed. |
 | `/prosperity reset <pos> <player>` | Op level 2 | Clears a specific player's instanced loot at the given position |
+| `/prosperity reset around [radius] [player]` | Op level 2 | Clears instanced loot for every container in loaded chunks within `radius` blocks of the command source (default 128, max 256), optionally scoped to one player |
 | `/prosperity refresh <pos>` | Op level 2 | Forces a loot refresh for the container at the given position (all players) |
 | `/prosperity refresh <pos> <player>` | Op level 2 | Forces a loot refresh for a specific player at the given position |
+| `/prosperity refresh around [radius] [player]` | Op level 2 | Forces a loot refresh for every container in loaded chunks within `radius` blocks of the command source (default 128, max 256), optionally scoped to one player |
 | `/prosperity reload` | Op level 2 | Reloads config from disk and syncs to all connected clients |
 
 ### Command Feedback
@@ -1000,7 +1002,7 @@ All commands use the `prosperity` root. Admin commands require **operator level 
 
 - Register via `CommandRegistrationCallback`.
 - `/prosperity info` calculates the player's current chunk position, determines the distance tier, and formats the tier data.
-- `/prosperity reset` reads the attachment at the target BlockPos, clears the specified entries, and sends `ContainerRemovedS2C` to relevant clients.
+- `/prosperity reset`/`refresh` read the attachment(s) at the target position — or every loaded container within the `around` radius — clear the specified entries, and resend the affected chunks' `UnlootedContainersS2C` set to tracking clients (full per-player replace), so a container that is unlooted again re-lights rather than being dropped. The `around` form scans only loaded chunks (never force-loads) and bounds the radius at 256 blocks.
 - `/prosperity reload` re-reads `config/prosperity.json` and pushes updated values to all connected clients via a config sync packet.
 
 ---

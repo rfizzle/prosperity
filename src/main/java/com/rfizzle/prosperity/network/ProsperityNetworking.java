@@ -15,11 +15,14 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
+import net.minecraft.world.level.ChunkPos;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Typed transport layer for Prosperity: registers every {@link net.minecraft.network.protocol.common.custom.CustomPacketPayload}
@@ -218,9 +221,45 @@ public final class ProsperityNetworking {
     }
 
     /**
+     * Send {@code player} the current unlooted-container set for {@code chunkPos} as a full-chunk
+     * replace ({@link UnlootedContainersS2CPayload}) — the same answer they would get from a fresh
+     * {@code RequestUnlootedC2S}. Used to re-light an indicator that should reappear without a chunk
+     * reload: a command reset/refresh (S-004) leaves the container unlooted again, and the refresh
+     * cooldown sweep (S-016) re-lights an instance that expired while its chunk stayed loaded. The
+     * scan never force-loads, so an unloaded chunk yields an empty (harmless) replace.
+     */
+    public static void sendUnlootedChunk(ServerPlayer player, ServerLevel level, ChunkPos chunkPos) {
+        if (player.connection == null || !ServerPlayNetworking.canSend(player, UnlootedContainersS2CPayload.TYPE)) {
+            return;
+        }
+        List<UnlootedContainersS2CPayload.Entry> entries =
+                UnlootedContainers.scanChunk(level, chunkPos, player.getUUID());
+        ServerPlayNetworking.send(player, new UnlootedContainersS2CPayload(chunkPos, entries));
+    }
+
+    /**
+     * Resend the unlooted-container set for {@code chunkPos} to the players tracking it after a command
+     * reset/refresh (S-004), so the indicator for a container that is unlooted again is re-added rather
+     * than dropped. When {@code only} is non-null the resend is limited to those players (a per-player
+     * reset); {@code null} sends to every tracking player. The scan is per-player, so each receives
+     * their own current set. No-op when indicators are disabled.
+     */
+    public static void resendUnlootedChunk(ServerLevel level, ChunkPos chunkPos, @Nullable Collection<UUID> only) {
+        if (!Prosperity.getConfig().enableVisualIndicators) {
+            return;
+        }
+        for (ServerPlayer player : PlayerLookup.tracking(level, chunkPos)) {
+            if (only != null && !only.contains(player.getUUID())) {
+                continue;
+            }
+            sendUnlootedChunk(player, level, chunkPos);
+        }
+    }
+
+    /**
      * Tell every client tracking {@code pos} that the loot container there is gone, so each drops
-     * its unlooted indicator. Used on container break (S-008) and on command reset/refresh (S-004).
-     * The {@code canSend} guard skips clients that have not registered the receiver.
+     * its unlooted indicator. Used on container break (S-008). The {@code canSend} guard skips
+     * clients that have not registered the receiver.
      */
     public static void sendContainerRemoved(ServerLevel level, BlockPos pos) {
         ContainerRemovedS2CPayload payload = new ContainerRemovedS2CPayload(pos);
