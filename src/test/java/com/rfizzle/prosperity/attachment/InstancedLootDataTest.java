@@ -188,6 +188,42 @@ class InstancedLootDataTest {
         assertTrue(restored.hasInventory(b));
     }
 
+    @Test
+    void clearForPlayer_advancesRefreshCountAndSurvivesRoundTrip() {
+        UUID player = new UUID(5L, 9L);
+        InstancedLootData source = new InstancedLootData();
+        source.getOrCreateInventory(player, 27).set(0, new ItemStack(Items.DIAMOND));
+        assertEquals(0L, source.getRefreshCount(player), "an untouched player starts at refresh count 0");
+
+        source.clearForPlayer(player);
+        assertEquals(1L, source.getRefreshCount(player), "clearing a live instance advances the count");
+
+        // The count outlives the cleared inventory and persists even with nothing else stored.
+        InstancedLootData restored = roundTrip(source);
+        assertFalse(restored.hasInventory(player));
+        assertEquals(1L, restored.getRefreshCount(player), "the refresh count survives serialization");
+
+        restored.clearForPlayer(player);
+        assertEquals(1L, restored.getRefreshCount(player),
+                "clearing a player with no live instance must not advance the count");
+    }
+
+    @Test
+    void clearAll_advancesRefreshCountForPresentPlayers() {
+        UUID a = new UUID(1L, 0L);
+        UUID b = new UUID(2L, 0L);
+        InstancedLootData source = new InstancedLootData();
+        source.getOrCreateInventory(a, 27).set(0, new ItemStack(Items.DIAMOND));
+        source.setLastGeneratedTick(b, 50L);
+
+        source.clearAll();
+
+        InstancedLootData restored = roundTrip(source);
+        assertEquals(1L, restored.getRefreshCount(a), "a player with an inventory advances on reset");
+        assertEquals(1L, restored.getRefreshCount(b), "a player with only a tick advances on reset");
+        assertFalse(restored.hasInventory(a));
+    }
+
     private static UUID parseUuid(String s) {
         return UUID.fromString(s);
     }

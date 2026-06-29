@@ -67,7 +67,7 @@ Double chests are two block entities sharing a visual container. When a player i
 After the first player triggers loot generation for a container, the vanilla `lootTable` and `lootTableSeed` fields on the `RandomizableContainerBlockEntity` are set to `null`. This is critical:
 - **Hopper exploit prevention:** Vanilla's `unpackLootTable()` is called whenever a hopper or comparator interacts with the container. Without nullification, a hopper adjacent to the container would generate and extract the global loot, bypassing the instancing system.
 - **The original loot table ResourceLocation is preserved** in the attachment (`originalLootTable` field) so it remains available for future player generations.
-- **Loot table seed** is also preserved in the attachment. Each player's generation uses this seed combined with their UUID to produce deterministic-but-unique results per player.
+- **Loot table seed** is also preserved in the attachment. Each player's generation uses this seed combined with their UUID and a refresh salt to produce deterministic-but-unique results per player. The salt is the player's refresh count for that container; it is `0` (and so a no-op) unless `randomizeLootOnRefresh` is enabled, in which case each refresh re-rolls fresh-but-reproducible loot rather than repeating the prior contents.
 
 ### Hopper Interaction
 
@@ -441,7 +441,7 @@ The special target `"prosperity:all_chests"` injects into every loot table match
 
 - Injection data is loaded on `SERVER_STARTING` (and re-loaded on `END_DATA_PACK_RELOAD` for runtime `/reload`) by `LootInjectionManager`, which reads each file with a registry-aware codec so item components deserialize against the loaded enchantment/effect registries.
 - At loot generation time (section 1, step 4), after the distance tier is determined, `LootInjectionManager.augment` queries the injection registry for entries matching the container's loot table whose `min_tier` is at or below the resolved tier and whose `dimensions` filter (if any) contains the container's dimension. The dimension is threaded from the generation call site via `ServerLevel#dimension()`.
-- Injection is purely additive: the eligible entries form a single weighted pool and exactly one is drawn (deterministically, from the container's per-player seed) and placed in a spare slot. Vanilla loot is never displaced — injected rewards sit alongside the rolled items rather than competing with them in a vanilla pool.
+- Injection is purely additive: the eligible entries form a single weighted pool and exactly one is drawn (deterministically, from the container's per-player seed and refresh salt — so it re-rolls in lockstep with the main loot when `randomizeLootOnRefresh` is on) and placed in a spare slot. Vanilla loot is never displaced — injected rewards sit alongside the rolled items rather than competing with them in a vanilla pool.
 - The injection registry is a `Map<ResourceLocation, List<TieredInjection>>` keyed by target loot table, rebuilt wholesale and published atomically on each load. Lookup is O(1) per loot table.
 - Wildcard targets are expanded to concrete loot table IDs at load time by scanning the resource manager for loot tables whose path contains a `chests/` segment.
 
@@ -627,6 +627,7 @@ On long-running servers, all containers eventually get looted by all players, an
 
 - **Cooldown:** After a player generates loot for a container, a timer starts. Once the cooldown expires, the player's instanced inventory for that container is **cleared** (not regenerated immediately).
 - **Next visit:** When the player opens the container after their cooldown has expired, fresh loot is generated as if they'd never visited.
+- **Determinism:** By default the re-roll is deterministic — the same player draws the same items the container held before (the roll seed depends only on the preserved seed and their UUID). Enabling `randomizeLootOnRefresh` folds the player's refresh count into the seed as a salt, so each refresh draws different items while staying reproducible across a reload for a given count. The salt advances on every clear (cooldown refresh and `/prosperity reset|refresh` alike).
 - **Default cooldown:** 7 in-game days (168,000 ticks), configurable.
 - **Per-player:** Each player's cooldown is independent. Player A's loot may refresh while Player B's is still on cooldown.
 - **Visual indicator:** When a player's loot has refreshed (cooldown expired, inventory cleared), the gold sparkle reappears on the client (the container is "unlooted" again for this player). A chunk the client requests after expiry lights up from the scan on its own; a low-frequency server sweep covers the gap where a chunk was already loaded when the cooldown elapsed, resending that chunk's indicator set to the player who just crossed the threshold.
@@ -643,12 +644,13 @@ On long-running servers, all containers eventually get looted by all players, an
 |---|---|---|---|
 | `enableLootRefresh` | bool | false | Toggle loot refresh (disabled by default) |
 | `lootRefreshDays` | int | 7 | In-game days before loot refreshes |
+| `randomizeLootOnRefresh` | bool | false | Re-roll fresh loot on each refresh instead of repeating the same items |
 
 ### Implementation Notes
 
 - Cooldown is stored as a game tick value (absolute, not relative). This survives server restarts because Fabric persists the world's game time.
 - When `enableLootRefresh` is false, `lastGeneratedTick` is still recorded (no cost) so enabling the feature later retroactively applies to already-looted containers.
-- Clearing a player's inventory entry resets the container to "unvisited" for that player.
+- Clearing a player's inventory entry resets the container to "unvisited" for that player. A per-player refresh count is tracked in the attachment and advanced on each clear (it outlives the cleared inventory). It is the salt for `randomizeLootOnRefresh`; it is always tracked, so toggling the option on applies to subsequent refreshes without migration.
 
 ---
 
@@ -1027,6 +1029,7 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `enableLootNotifications` | bool | true | Toggle action bar tier notifications |
 | `enableLootRefresh` | bool | false | Toggle loot refresh |
 | `lootRefreshDays` | int | 7 | In-game days before loot refreshes per player |
+| `randomizeLootOnRefresh` | bool | false | Re-roll fresh loot on each refresh instead of repeating the same items |
 | `enableContainerProtection` | bool | false | Toggle container break protection |
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
 | `protectionUnbreakable` | bool | false | Make protected containers fully unbreakable in survival instead of merely slower |

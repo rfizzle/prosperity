@@ -174,10 +174,11 @@
           "headers": ["Key", "Type", "Default", "Description"],
           "rows": [
             ["<code class='text-accent2 whitespace-nowrap'>enableLootRefresh</code>", "bool", "false", "Let a player's instanced loot regenerate after a cooldown."],
-            ["<code class='text-accent2 whitespace-nowrap'>lootRefreshDays</code>", "int", "7", "In-game days before a player's loot refreshes (minimum 1)."]
+            ["<code class='text-accent2 whitespace-nowrap'>lootRefreshDays</code>", "int", "7", "In-game days before a player's loot refreshes (minimum 1)."],
+            ["<code class='text-accent2 whitespace-nowrap'>randomizeLootOnRefresh</code>", "bool", "false", "Re-roll fresh loot on each refresh instead of repeating the same items."]
           ]
         },
-        { "type": "prose", "html": ["Each player's cooldown is independent and measured from when they last generated that container's loot. Once it elapses, the unlooted sparkle reappears for that player and their next open rolls fresh loot from the original table at the current distance tier. The cooldown is checked lazily on interaction and on the indicator scan, so there is no per-tick cost. The generation time is recorded even while refresh is disabled, so enabling it later applies retroactively to already-looted containers."] }
+        { "type": "prose", "html": ["Each player's cooldown is independent and measured from when they last generated that container's loot. Once it elapses, the unlooted sparkle reappears for that player and their next open rolls fresh loot from the original table at the current distance tier. The cooldown is checked lazily on interaction and on the indicator scan, so there is no per-tick cost. The generation time is recorded even while refresh is disabled, so enabling it later applies retroactively to already-looted containers.", "By default a refresh re-rolls the same items, since the roll seed depends only on the container's preserved seed and your UUID. Enable <code class='text-accent2 whitespace-nowrap'>randomizeLootOnRefresh</code> to fold each player's refresh count into the seed, so every refresh draws different loot while staying reproducible across a server restart."] }
       ]
     },
     {

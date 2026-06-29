@@ -63,6 +63,7 @@ public final class InstancedLootData {
 
     private final Map<UUID, NonNullList<ItemStack>> playerInventories = new HashMap<>();
     private final Map<UUID, Long> lastGeneratedTick = new HashMap<>();
+    private final Map<UUID, Long> refreshCount = new HashMap<>();
 
     private boolean generated;
     @Nullable
@@ -138,17 +139,41 @@ public final class InstancedLootData {
 
     /**
      * Clear the player's inventory and last-generated tick so their next interaction regenerates
-     * from scratch (loot refresh, S-016; {@code /prosperity refresh}, S-004).
+     * from scratch (loot refresh, S-016; {@code /prosperity refresh}, S-004). Advances the player's
+     * {@linkplain #getRefreshCount refresh count} when they had a live instance, so a re-roll under
+     * {@code randomizeLootOnRefresh} draws different items than the cleared generation. The count
+     * outlives the cleared inventory.
      */
     public void clearForPlayer(UUID player) {
+        if (playerInventories.containsKey(player) || lastGeneratedTick.containsKey(player)) {
+            refreshCount.merge(player, 1L, Long::sum);
+        }
         playerInventories.remove(player);
         lastGeneratedTick.remove(player);
     }
 
-    /** Clear every player's instanced data ({@code /prosperity reset}, S-004). */
+    /**
+     * Clear every player's instanced data ({@code /prosperity reset}, S-004). Advances the refresh
+     * count of every player who had a live instance, on the same basis as {@link #clearForPlayer}.
+     */
     public void clearAll() {
+        Set<UUID> present = new HashSet<>(playerInventories.keySet());
+        present.addAll(lastGeneratedTick.keySet());
+        for (UUID player : present) {
+            refreshCount.merge(player, 1L, Long::sum);
+        }
         playerInventories.clear();
         lastGeneratedTick.clear();
+    }
+
+    /**
+     * How many times this player's instance here has been cleared (loot refresh or
+     * {@code /prosperity reset|refresh}); {@code 0} before the first clear. Folded into the roll seed
+     * as a salt when {@code randomizeLootOnRefresh} is on, so each regeneration draws fresh items
+     * while staying reproducible across a reload for a given count.
+     */
+    public long getRefreshCount(UUID player) {
+        return refreshCount.getOrDefault(player, 0L);
     }
 
     /** Absolute game time at which the player last generated, or {@code -1} if never. */
@@ -194,16 +219,18 @@ public final class InstancedLootData {
         this.redirect = primary;
     }
 
-    /** The union of both per-player maps, sorted by UUID for deterministic NBT output. */
+    /** The union of the per-player maps, sorted by UUID for deterministic NBT output. */
     private List<PlayerEntry> toEntries() {
         Set<UUID> players = new TreeSet<>(playerInventories.keySet());
         players.addAll(lastGeneratedTick.keySet());
+        players.addAll(refreshCount.keySet());
         List<PlayerEntry> entries = new ArrayList<>(players.size());
         for (UUID player : players) {
             NonNullList<ItemStack> inv = playerInventories.get(player);
             entries.add(new PlayerEntry(player,
                     inv != null ? List.copyOf(inv) : List.of(),
-                    Optional.ofNullable(lastGeneratedTick.get(player))));
+                    Optional.ofNullable(lastGeneratedTick.get(player)),
+                    refreshCount.getOrDefault(player, 0L)));
         }
         return entries;
     }
@@ -228,23 +255,28 @@ public final class InstancedLootData {
                 data.playerInventories.put(entry.uuid(), inv);
             }
             entry.lastTick().ifPresent(tick -> data.lastGeneratedTick.put(entry.uuid(), tick));
+            if (entry.refreshCount() > 0L) {
+                data.refreshCount.put(entry.uuid(), entry.refreshCount());
+            }
         }
         return data;
     }
 
     /**
-     * One player's slice of a container: their inventory (an empty list when only a tick is stored)
-     * and their last-generated tick. {@code ItemStack.OPTIONAL_CODEC} preserves empty slots, so the
-     * list length carries the inventory size and data components survive intact.
+     * One player's slice of a container: their inventory (an empty list when none is stored), their
+     * last-generated tick, and their refresh count (omitted from NBT while {@code 0}).
+     * {@code ItemStack.OPTIONAL_CODEC} preserves empty slots, so the list length carries the inventory
+     * size and data components survive intact.
      */
-    private record PlayerEntry(UUID uuid, List<ItemStack> items, Optional<Long> lastTick) {
+    private record PlayerEntry(UUID uuid, List<ItemStack> items, Optional<Long> lastTick, long refreshCount) {
 
         private static final Codec<PlayerEntry> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         UUIDUtil.STRING_CODEC.fieldOf("uuid").forGetter(PlayerEntry::uuid),
                         ItemStack.OPTIONAL_CODEC.listOf().optionalFieldOf("items", List.of())
                                 .forGetter(PlayerEntry::items),
-                        Codec.LONG.optionalFieldOf("lastTick").forGetter(PlayerEntry::lastTick)
+                        Codec.LONG.optionalFieldOf("lastTick").forGetter(PlayerEntry::lastTick),
+                        Codec.LONG.optionalFieldOf("refreshCount", 0L).forGetter(PlayerEntry::refreshCount)
                 ).apply(instance, PlayerEntry::new));
     }
 }

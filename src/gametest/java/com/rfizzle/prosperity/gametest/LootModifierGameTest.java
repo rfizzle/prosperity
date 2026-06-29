@@ -119,7 +119,7 @@ public class LootModifierGameTest implements FabricGameTest {
 
         LootModifierContext baseCtx = LootModifiers.fire(player, pos, TABLE.location(), tier);
         NonNullList<ItemStack> baseLoot = InstancedLootGenerator.generate(
-                level, origin, TABLE, SEED, player, 27, baseCtx.luck(), baseCtx.stackMultiplier());
+                level, origin, TABLE, SEED, 0L, player, 27, baseCtx.luck(), baseCtx.stackMultiplier());
         helper.assertTrue(baseCtx.stackMultiplier() == 1.0f,
                 "the baseline multiplier must be the tier's 1.0");
 
@@ -130,7 +130,7 @@ public class LootModifierGameTest implements FabricGameTest {
             LootModifierContext scaledCtx = LootModifiers.fire(player, pos, TABLE.location(), tier);
             scaledMultiplier = scaledCtx.stackMultiplier();
             scaledLoot = InstancedLootGenerator.generate(
-                    level, origin, TABLE, SEED, player, 27, scaledCtx.luck(), scaledCtx.stackMultiplier());
+                    level, origin, TABLE, SEED, 0L, player, 27, scaledCtx.luck(), scaledCtx.stackMultiplier());
         } finally {
             stackListenerActive = false;
         }

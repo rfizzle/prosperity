@@ -145,17 +145,20 @@ public final class LootInjectionManager {
      * in {@code dimension}, placed in the first empty slot. An entry applies when its {@code min_tier} is
      * at or below {@code tier} and its {@code dimensions} are empty or contain {@code dimension}. No-op
      * when injection is disabled, the table is absent, no entry is eligible, or the container is full.
-     * The draw is deterministic for a given {@code (seedBase, uuid)} so a refresh regenerates the same
-     * bonus item.
+     * The draw is deterministic for a given {@code (seedBase, salt, uuid)} triple, so a regeneration
+     * with the same salt regenerates the same bonus item; {@code salt} is the player's refresh count
+     * under {@code randomizeLootOnRefresh} (and {@code 0} otherwise), letting the bonus re-roll on a
+     * refresh in lockstep with the main loot.
      */
     public static void augment(NonNullList<ItemStack> items, @Nullable ResourceKey<LootTable> table,
-            DistanceTier tier, ResourceLocation dimension, long seedBase, UUID uuid) {
+            DistanceTier tier, ResourceLocation dimension, long seedBase, long salt, UUID uuid) {
         if (!Prosperity.getConfig().enableLootInjection || table == null) {
             return;
         }
         long mixed = seedBase * INJECTION_SALT
                 ^ uuid.getMostSignificantBits()
-                ^ Long.rotateLeft(uuid.getLeastSignificantBits(), 32);
+                ^ Long.rotateLeft(uuid.getLeastSignificantBits(), 32)
+                ^ Long.rotateLeft(salt * INJECTION_SALT, 29);
         RandomSource random = RandomSource.create(mixed == 0L ? 1L : mixed);
         ItemStack injected = pick(table.location(), tier, dimension, random);
         if (injected == null || injected.isEmpty()) {

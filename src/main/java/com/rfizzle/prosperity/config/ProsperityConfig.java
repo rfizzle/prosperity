@@ -76,6 +76,7 @@ public class ProsperityConfig {
     public boolean enableLootNotifications = true;
     public boolean enableLootRefresh = false;
     public int lootRefreshDays = 7;
+    public boolean randomizeLootOnRefresh = false;
     public boolean enableContainerProtection = false;
     public float protectionBreakMultiplier = 4.0f;
     public boolean protectionUnbreakable = false;
