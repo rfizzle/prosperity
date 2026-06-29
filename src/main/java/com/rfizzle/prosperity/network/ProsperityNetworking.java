@@ -113,7 +113,7 @@ public final class ProsperityNetworking {
             return;
         }
         if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
-            ServerPlayNetworking.send(player, new ConfigSyncS2CPayload(Prosperity.getConfig().toJson()));
+            ServerPlayNetworking.send(player, new ConfigSyncS2CPayload(Prosperity.getConfig().toSyncJson()));
         }
         // Then the loot index (S-047), so a remote client's recipe viewers can browse instanced loot
         // they have no datapack for. The client receiver ignores it on an integrated server, where the
@@ -131,7 +131,7 @@ public final class ProsperityNetworking {
      * {@code canSend} guard skips clients (e.g. vanilla) that have not registered the receiver.
      */
     public static int syncConfigToAll(MinecraftServer server) {
-        ConfigSyncS2CPayload payload = new ConfigSyncS2CPayload(Prosperity.getConfig().toJson());
+        ConfigSyncS2CPayload payload = new ConfigSyncS2CPayload(Prosperity.getConfig().toSyncJson());
         int sent = 0;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
