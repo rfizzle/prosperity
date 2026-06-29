@@ -70,6 +70,7 @@
     "prosperity.notification.loot_generated": "✦ %s",
     "prosperity.notification.modifiers": " — %sx stacks, +%s quality",
     "prosperity.notification.structure": " (%s)",
+    "prosperity.notification.protected": "⚠ Protected loot container — open it instead of breaking it",
     "prosperity.structure.monument": "Ocean Monument",
     "prosperity.structure.stronghold": "Stronghold",
     "prosperity.structure.ancient_city": "Ancient City",

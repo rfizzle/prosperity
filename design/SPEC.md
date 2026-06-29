@@ -799,16 +799,17 @@ With instanced loot, a single player breaking a world-gen chest destroys every p
 
 ### Behavior
 
-When enabled, world-gen loot containers (those with an `InstancedLootData`) receive increased break resistance:
+When enabled, world-gen loot containers that still hold unclaimed loot receive increased break resistance:
 - **Mining speed reduction:** Breaking takes **4x longer** than normal (configurable multiplier). A chest that normally breaks instantly takes ~2 seconds. This signals "this is deliberate" and prevents accidental breaks.
-- **Visual feedback:** Particles and a subtle sound cue (anvil land sound, quiet) play when a player starts breaking a protected container, reinforcing that something is different.
+- **Feedback:** An action-bar warning ("⚠ Protected loot container — open it instead of breaking it"), a small particle burst, and a subtle anvil-land sound cue play when a player starts breaking a protected container, reinforcing that something is different.
 - **Still breakable:** The container can always be broken — protection is a speed bump, not a wall. Players in creative mode break instantly as normal.
 
 ### Scope
 
-- Only applies to containers that have an `InstancedLootData` (world-gen loot containers that Prosperity manages). Player-placed chests are never affected.
+- Only applies to Prosperity-managed loot containers — a container with a non-blacklisted loot table, or one that has generated an instance from one. Player-placed storage chests and blacklisted loot tables are never affected.
+- A managed container is protected while it still has unclaimed loot, whether or not anyone has opened it yet: a freshly generated, never-opened loot chest is protected (including in singleplayer).
 - If `enableContainerProtection` is false (default), containers break at normal speed.
-- If the container has been opened by **all online players** (everyone has generated their instance), protection is lifted — breaking is normal speed since no one has pending loot.
+- Once the container has been opened by **all online players** (everyone has generated their instance) it holds no pending loot, so protection is lifted — breaking is normal speed.
 
 ### Configuration
 
@@ -820,9 +821,9 @@ When enabled, world-gen loot containers (those with an `InstancedLootData`) rece
 ### Implementation Notes
 
 - A common mixin on `BlockBehaviour#getDestroyProgress(BlockState, Player, BlockGetter, BlockPos)` divides the returned per-tick mining progress by the protection multiplier. `ContainerProtection.breakMultiplier` supplies the divisor.
-- Protected check (`ContainerProtection.isProtectedServer`): `enableContainerProtection` on, breaker not creative, the block is a `RandomizableContainerBlockEntity` with a `generated` `InstancedLootData`, and at least one online player has no stored inventory. A blacklisted container is never instanced, so it is never `generated` and never protected. Once every online player has generated, no one is pending and protection lifts.
+- Protected check (`ContainerProtection.isProtectedServer`): `enableContainerProtection` on, breaker not creative, the block is a `RandomizableContainerBlockEntity` that is a managed loot container (its live loot table — or, once generated, the original key preserved on the `InstancedLootData` — is non-null and not blacklisted), and loot is still pending. Loot is pending when no instance has generated yet (no one has looted), or, once generated, while at least one online player has no stored inventory. An emptied container (every online player has generated) is not protected.
 - The `InstancedLootData` attachment is server-only, so the mixin evaluates protection authoritatively only where `level` is a `ServerLevel`; the server independently gates the actual break (`getDestroyProgress x (ticks+1) >= 0.7`), so the slowdown is enforced even against an unmodified client. To slow the client's cracking animation to match, the client queries the server at break-start (`QueryProtectionC2S` → `ProtectionResultS2C` carrying the multiplier) and the mixin's client branch divides by that answer.
-- The break-start cue (a quiet `ANVIL_LAND` sound plus a small particle burst) fires once from a server-side `AttackBlockCallback`, not per tick.
+- The break-start cue (an action-bar warning plus a quiet `ANVIL_LAND` sound and a small particle burst) fires from a server-side `AttackBlockCallback`, throttled per player so mashing attack does not spam it.
 - Chest/hopper minecarts are entities with no `getDestroyProgress`, so this block-only protection does not cover them.
 
 ---
