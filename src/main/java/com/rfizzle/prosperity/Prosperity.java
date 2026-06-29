@@ -6,6 +6,7 @@ import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.ContainerProtection;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.LootModifiers;
+import com.rfizzle.prosperity.loot.LootRefreshSweep;
 import com.rfizzle.prosperity.loot.MinecartLootInteraction;
 import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
@@ -29,6 +30,7 @@ public class Prosperity implements ModInitializer {
         ProsperityNetworking.register();
         InstancedLootInteraction.register();
         MinecartLootInteraction.register();
+        LootRefreshSweep.register();
         ContainerProtection.register();
         LootModifiers.registerDefaults();
         LootInjectionManager.init();

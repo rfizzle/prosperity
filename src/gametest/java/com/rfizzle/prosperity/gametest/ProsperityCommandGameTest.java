@@ -77,6 +77,36 @@ public class ProsperityCommandGameTest implements FabricGameTest {
     }
 
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
+    public void clearRadiusClearsWithinAndSparesOutside(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos nearRel = new BlockPos(1, 1, 1);
+        BlockPos farRel = new BlockPos(6, 1, 1);
+        helper.setBlock(nearRel, Blocks.CHEST);
+        helper.setBlock(farRel, Blocks.CHEST);
+        BlockEntity near = helper.getBlockEntity(nearRel);
+        BlockEntity far = helper.getBlockEntity(farRel);
+
+        ProsperityAttachments.update(near, data -> {
+            data.markGenerated(null, 0L);
+            data.getOrCreateInventory(PLAYER_A, 27);
+        });
+        ProsperityAttachments.update(far, data -> {
+            data.markGenerated(null, 0L);
+            data.getOrCreateInventory(PLAYER_A, 27);
+        });
+
+        // A radius of 3 around the near container reaches it (distance 0) but not the far one (distance 5).
+        int removed = ProsperityCommand.clearRadius(level, helper.absolutePos(nearRel), 3, null);
+
+        helper.assertTrue(removed == 1, "only the in-radius container's instance must be removed");
+        helper.assertFalse(ProsperityAttachments.get(near).hasInventory(PLAYER_A),
+                "the in-radius container must be cleared");
+        helper.assertTrue(ProsperityAttachments.get(far).hasInventory(PLAYER_A),
+                "the out-of-radius container must be spared");
+        helper.succeed();
+    }
+
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
     public void clearContainerReportsMissingContainer(GameTestHelper helper) {
         BlockPos abs = helper.absolutePos(new BlockPos(1, 1, 1));
         int result = ProsperityCommand.clearContainer(helper.getLevel(), abs, null);
