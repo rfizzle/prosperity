@@ -51,10 +51,20 @@ public class ContainerProtectionGameTest implements FabricGameTest {
             data.setInventory(GENERATED, NonNullList.create());
         });
 
-        // A plain, never-generated chest is never protected.
+        // A plain storage chest (no loot table, never generated) is not a managed loot container.
         BlockPos plainRel = new BlockPos(3, 1, 1);
         helper.setBlock(plainRel, Blocks.CHEST);
         BlockPos plainAbs = helper.absolutePos(plainRel);
+
+        // A never-opened loot chest: a loot table set, no instance generated yet. Its loot is pending
+        // for everyone, so it must be protected even with no players online (the singleplayer case).
+        BlockPos lootRel = new BlockPos(5, 1, 1);
+        helper.setBlock(lootRel, Blocks.CHEST);
+        BlockPos lootAbs = helper.absolutePos(lootRel);
+        RandomizableContainerBlockEntity lootContainer =
+                (RandomizableContainerBlockEntity) level.getBlockEntity(lootAbs);
+        lootContainer.setLootTable(BuiltInLootTables.SIMPLE_DUNGEON);
+        lootContainer.setLootTableSeed(0L);
 
         boolean savedEnabled = Prosperity.getConfig().enableContainerProtection;
         float savedMultiplier = Prosperity.getConfig().protectionBreakMultiplier;
@@ -82,9 +92,18 @@ public class ContainerProtectionGameTest implements FabricGameTest {
 
             helper.assertFalse(
                     ContainerProtection.isProtectedServer(level, plainAbs, null, List.of(PENDING)),
-                    "a plain, never-generated chest must never be protected");
+                    "a plain storage chest (no loot table) must never be protected");
+
+            helper.assertTrue(
+                    ContainerProtection.isProtectedServer(level, lootAbs, null, List.of(GENERATED)),
+                    "a never-opened loot chest must be protected regardless of who has looted elsewhere");
+            helper.assertFalse(
+                    ContainerProtection.isProtectedServer(level, lootAbs, creative, List.of()),
+                    "a creative breaker must bypass protection on an unopened loot chest too");
 
             Prosperity.getConfig().enableContainerProtection = false;
+            helper.assertFalse(ContainerProtection.isProtectedServer(level, lootAbs, null, List.of()),
+                    "disabled protection must leave even an unopened loot chest unprotected");
             helper.assertFalse(ContainerProtection.isProtectedServer(level, abs, null, List.of(PENDING)),
                     "disabled protection must leave even a pending container unprotected");
         } finally {

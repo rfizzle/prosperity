@@ -10,9 +10,10 @@ import net.minecraft.core.NonNullList;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pure-JUnit coverage of the protection predicate's core rule (S-017): a container stays protected
- * while at least one online player has not generated their instance. The world-dependent gates
- * (config, creative, block type, generated flag) are exercised in {@code ContainerProtectionGameTest}.
+ * Pure-JUnit coverage of the protection predicate's core rule (S-017): a container has pending loot
+ * (so it stays protected) while it has never generated an instance, or while at least one online
+ * player has not generated theirs. The world-dependent gates (config, creative, block type, managed
+ * loot container) are exercised in {@code ContainerProtectionGameTest}.
  */
 class ContainerProtectionTest {
 
@@ -46,5 +47,24 @@ class ContainerProtectionTest {
     void noOnlinePlayersIsNotProtected() {
         InstancedLootData data = new InstancedLootData();
         assertFalse(ContainerProtection.anyOnlinePlayerPending(data, List.of()));
+    }
+
+    @Test
+    void neverGeneratedContainerHasPendingLoot() {
+        // No instance yet (null attachment or ungenerated): no one has claimed loot, so it is pending
+        // for everyone — this is what makes a fresh, unopened chest protected, including in singleplayer.
+        assertTrue(ContainerProtection.anyLootPending(null, List.of(ALICE)));
+        assertTrue(ContainerProtection.anyLootPending(new InstancedLootData(), List.of(ALICE)));
+    }
+
+    @Test
+    void generatedContainerFollowsOnlinePendingRule() {
+        InstancedLootData data = new InstancedLootData();
+        data.markGenerated(null, 0L);
+        generatedFor(data, ALICE);
+        // Alice opened it and is the only player online → emptied for everyone → not pending.
+        assertFalse(ContainerProtection.anyLootPending(data, List.of(ALICE)));
+        // Bob is online but has not opened it → still pending.
+        assertTrue(ContainerProtection.anyLootPending(data, List.of(ALICE, BOB)));
     }
 }
