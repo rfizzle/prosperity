@@ -78,6 +78,7 @@ public class ProsperityConfig {
     public int lootRefreshDays = 7;
     public boolean enableContainerProtection = false;
     public float protectionBreakMultiplier = 4.0f;
+    public boolean protectionUnbreakable = false;
     public boolean enableMobLootScaling = true;
     public boolean endAlwaysMaxTier = true;
     /** Loot index (S-025, SPEC §11): loot-table id &rarr; structure id overrides for unmapped tables. */

@@ -164,6 +164,12 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setSaveConsumer(v -> working.protectionBreakMultiplier = v)
                     .build());
             extended.addEntry(entry.startBooleanToggle(
+                            label("protection_unbreakable"), working.protectionUnbreakable)
+                    .setDefaultValue(false)
+                    .setTooltip(tooltip("protection_unbreakable"))
+                    .setSaveConsumer(v -> working.protectionUnbreakable = v)
+                    .build());
+            extended.addEntry(entry.startBooleanToggle(
                             label("enable_mob_loot_scaling"), working.enableMobLootScaling)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_mob_loot_scaling"))
