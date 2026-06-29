@@ -46,6 +46,17 @@ class PayloadCodecTest {
     }
 
     @Test
+    void configSyncS2CCarriesDefaultConfig() {
+        // The default config's compact wire form must fit under the cap and round-trip — a fresh
+        // client join sends exactly this, and a pretty-printed default once overflowed the cap.
+        String defaultJson = new com.rfizzle.prosperity.config.ProsperityConfig().toSyncJson();
+        assertTrue(defaultJson.length() <= ConfigSyncS2CPayload.MAX_CONFIG_JSON_CHARS,
+                "default config sync JSON must fit the codec cap, was " + defaultJson.length());
+        var original = new ConfigSyncS2CPayload(defaultJson);
+        assertEquals(original, roundTrip(ConfigSyncS2CPayload.CODEC, original));
+    }
+
+    @Test
     void configSyncS2CRejectsOversizedString() {
         String oversized = "a".repeat(ConfigSyncS2CPayload.MAX_CONFIG_JSON_CHARS + 1);
         var payload = new ConfigSyncS2CPayload(oversized);

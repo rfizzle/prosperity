@@ -32,6 +32,14 @@ public class ProsperityConfig {
 
     static final Gson GSON = new GsonBuilder().setPrettyPrinting().setLenient().create();
 
+    /**
+     * Compact (non-pretty) serializer for the wire form. {@link #toJson()} pretty-prints for the
+     * human-editable on-disk file; the config-sync payload has no reader, so it ships the same data
+     * without the indentation whitespace — roughly a third smaller, which keeps the synced JSON
+     * comfortably inside {@link com.rfizzle.prosperity.network.ConfigSyncS2CPayload#MAX_CONFIG_JSON_CHARS}.
+     */
+    private static final Gson COMPACT_GSON = new GsonBuilder().setLenient().create();
+
     /** Returned by {@link #tierFor(double)} when no tier matches (empty list / below tier 0). */
     public static final DistanceTier LOCAL_SENTINEL = new DistanceTier("local", 0, 1.0, 0);
 
@@ -175,6 +183,11 @@ public class ProsperityConfig {
 
     public String toJson() {
         return GSON.toJson(this);
+    }
+
+    /** Compact serialization for the config-sync wire form (S-010); {@link #fromJson(String)} reads it back. */
+    public String toSyncJson() {
+        return COMPACT_GSON.toJson(this);
     }
 
     public static ProsperityConfig fromJson(String json) {
