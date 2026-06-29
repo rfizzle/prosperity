@@ -68,11 +68,13 @@ public class ContainerProtectionGameTest implements FabricGameTest {
 
         boolean savedEnabled = Prosperity.getConfig().enableContainerProtection;
         float savedMultiplier = Prosperity.getConfig().protectionBreakMultiplier;
+        boolean savedUnbreakable = Prosperity.getConfig().protectionUnbreakable;
         ServerPlayer creative = helper.makeMockServerPlayerInLevel();
         creative.setGameMode(GameType.CREATIVE);
         try {
             Prosperity.getConfig().enableContainerProtection = true;
             Prosperity.getConfig().protectionBreakMultiplier = 4.0f;
+            Prosperity.getConfig().protectionUnbreakable = false;
 
             helper.assertTrue(ContainerProtection.isProtectedServer(level, abs, null, List.of(PENDING)),
                     "a generated container with a pending online player must be protected");
@@ -101,6 +103,22 @@ public class ContainerProtectionGameTest implements FabricGameTest {
                     ContainerProtection.isProtectedServer(level, lootAbs, creative, List.of()),
                     "a creative breaker must bypass protection on an unopened loot chest too");
 
+            // protectionUnbreakable: a protected container reports an infinite multiplier (the mixin
+            // zeroes getDestroyProgress), while an unprotected one is untouched at vanilla speed.
+            Prosperity.getConfig().protectionUnbreakable = true;
+            helper.assertTrue(
+                    Float.isInfinite(
+                            ContainerProtection.protectionMultiplierFor(level, abs, null, List.of(PENDING))),
+                    "an unbreakable protected container must report an infinite break multiplier");
+            helper.assertTrue(
+                    ContainerProtection.protectionMultiplierFor(level, abs, null, List.of(GENERATED)) == 1.0f,
+                    "an unprotected container must stay at 1.0 even with the unbreakable flag on");
+            helper.assertFalse(
+                    ContainerProtection.protectionMessage(true).getString()
+                            .equals(ContainerProtection.protectionMessage(false).getString()),
+                    "the unbreakable warning must differ from the slow-break warning");
+            Prosperity.getConfig().protectionUnbreakable = false;
+
             Prosperity.getConfig().enableContainerProtection = false;
             helper.assertFalse(ContainerProtection.isProtectedServer(level, lootAbs, null, List.of()),
                     "disabled protection must leave even an unopened loot chest unprotected");
@@ -109,6 +127,7 @@ public class ContainerProtectionGameTest implements FabricGameTest {
         } finally {
             Prosperity.getConfig().enableContainerProtection = savedEnabled;
             Prosperity.getConfig().protectionBreakMultiplier = savedMultiplier;
+            Prosperity.getConfig().protectionUnbreakable = savedUnbreakable;
             creative.discard();
         }
         helper.succeed();

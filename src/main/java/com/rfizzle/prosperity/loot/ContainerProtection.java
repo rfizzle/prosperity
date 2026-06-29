@@ -110,7 +110,12 @@ public final class ContainerProtection {
         return view != null ? view.multiplierFor(pos) : 1.0f;
     }
 
-    /** The server's break multiplier for {@code pos}: the configured value when protected, else {@code 1.0}. */
+    /**
+     * The server's break multiplier for {@code pos}: {@code 1.0} when unprotected, the configured
+     * {@code protectionBreakMultiplier} when protected, or {@link Float#POSITIVE_INFINITY} when
+     * {@code protectionUnbreakable} is on — the mixin turns an infinite multiplier into a
+     * {@code getDestroyProgress} of {@code 0}, making the container unbreakable like bedrock.
+     */
     public static float protectionMultiplierFor(ServerLevel level, BlockPos pos, @Nullable Player player) {
         return protectionMultiplierFor(level, pos, player, onlineUuids(level));
     }
@@ -118,9 +123,12 @@ public final class ContainerProtection {
     /** Testable seam for {@link #protectionMultiplierFor(ServerLevel, BlockPos, Player)} with an explicit online set. */
     public static float protectionMultiplierFor(ServerLevel level, BlockPos pos, @Nullable Player player,
             Collection<UUID> onlinePlayers) {
-        return isProtectedServer(level, pos, player, onlinePlayers)
-                ? Prosperity.getConfig().protectionBreakMultiplier
-                : 1.0f;
+        if (!isProtectedServer(level, pos, player, onlinePlayers)) {
+            return 1.0f;
+        }
+        return Prosperity.getConfig().protectionUnbreakable
+                ? Float.POSITIVE_INFINITY
+                : Prosperity.getConfig().protectionBreakMultiplier;
     }
 
     /**
@@ -205,16 +213,22 @@ public final class ContainerProtection {
             return;
         }
         lastCueTick.put(player.getUUID(), now);
-        player.displayClientMessage(protectionMessage(), true);
+        player.displayClientMessage(protectionMessage(Prosperity.getConfig().protectionUnbreakable), true);
         Vec3 center = Vec3.atCenterOf(pos);
         level.playSound(null, pos, SoundEvents.ANVIL_LAND, SoundSource.BLOCKS, 0.3f, 1.5f);
         level.sendParticles(ParticleTypes.CRIT, center.x, center.y + 0.5, center.z, 8, 0.25, 0.25, 0.25, 0.0);
     }
 
-    /** The action-bar warning shown when a player starts breaking a protected loot container. */
-    public static Component protectionMessage() {
-        return Component.translatableWithFallback("prosperity.notification.protected",
-                "⚠ Protected loot container — open it instead of breaking it");
+    /**
+     * The action-bar warning shown when a player starts breaking a protected loot container: a
+     * "can't be broken" form when {@code unbreakable}, otherwise the "breaks slower" form.
+     */
+    public static Component protectionMessage(boolean unbreakable) {
+        return unbreakable
+                ? Component.translatableWithFallback("prosperity.notification.protected_unbreakable",
+                        "⚠ This loot container can't be broken — open it to claim its loot")
+                : Component.translatableWithFallback("prosperity.notification.protected",
+                        "⚠ Protected loot container — open it instead of breaking it");
     }
 
     private static Collection<UUID> onlineUuids(ServerLevel level) {

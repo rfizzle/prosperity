@@ -801,8 +801,9 @@ With instanced loot, a single player breaking a world-gen chest destroys every p
 
 When enabled, world-gen loot containers that still hold unclaimed loot receive increased break resistance:
 - **Mining speed reduction:** Breaking takes **4x longer** than normal (configurable multiplier). A chest that normally breaks instantly takes ~2 seconds. This signals "this is deliberate" and prevents accidental breaks.
-- **Feedback:** An action-bar warning ("⚠ Protected loot container — open it instead of breaking it"), a small particle burst, and a subtle anvil-land sound cue play when a player starts breaking a protected container, reinforcing that something is different.
-- **Still breakable:** The container can always be broken — protection is a speed bump, not a wall. Players in creative mode break instantly as normal.
+- **Hard lock (optional):** With `protectionUnbreakable`, a protected container is fully unbreakable in survival (like bedrock) instead of merely slow — it cannot be broken until its loot is claimed.
+- **Feedback:** An action-bar warning (the "open it instead of breaking it" form, or a "can't be broken" form under `protectionUnbreakable`), a small particle burst, and a subtle anvil-land sound cue play when a player starts breaking a protected container, reinforcing that something is different.
+- **Still creative-bypassable:** Players in creative mode break instantly as normal, in both modes.
 
 ### Scope
 
@@ -817,10 +818,11 @@ When enabled, world-gen loot containers that still hold unclaimed loot receive i
 |---|---|---|---|
 | `enableContainerProtection` | bool | false | Toggle container break protection |
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
+| `protectionUnbreakable` | bool | false | Make protected containers fully unbreakable in survival instead of merely slower |
 
 ### Implementation Notes
 
-- A common mixin on `BlockBehaviour#getDestroyProgress(BlockState, Player, BlockGetter, BlockPos)` divides the returned per-tick mining progress by the protection multiplier. `ContainerProtection.breakMultiplier` supplies the divisor.
+- A common mixin on `BlockBehaviour#getDestroyProgress(BlockState, Player, BlockGetter, BlockPos)` divides the returned per-tick mining progress by the protection multiplier. `ContainerProtection.breakMultiplier` supplies the divisor. When `protectionUnbreakable` is on, a protected container reports `Float.POSITIVE_INFINITY` and the mixin zeroes the progress instead, so the break gate never trips — the container is unbreakable in survival, exactly as a block with a `-1` destroy speed (bedrock) is.
 - Protected check (`ContainerProtection.isProtectedServer`): `enableContainerProtection` on, breaker not creative, the block is a `RandomizableContainerBlockEntity` that is a managed loot container (its live loot table — or, once generated, the original key preserved on the `InstancedLootData` — is non-null and not blacklisted), and loot is still pending. Loot is pending when no instance has generated yet (no one has looted), or, once generated, while at least one online player has no stored inventory. An emptied container (every online player has generated) is not protected.
 - The `InstancedLootData` attachment is server-only, so the mixin evaluates protection authoritatively only where `level` is a `ServerLevel`; the server independently gates the actual break (`getDestroyProgress x (ticks+1) >= 0.7`), so the slowdown is enforced even against an unmodified client. To slow the client's cracking animation to match, the client queries the server at break-start (`QueryProtectionC2S` → `ProtectionResultS2C` carrying the multiplier) and the mixin's client branch divides by that answer.
 - The break-start cue (an action-bar warning plus a quiet `ANVIL_LAND` sound and a small particle burst) fires from a server-side `AttackBlockCallback`, throttled per player so mashing attack does not spam it.
@@ -1024,6 +1026,7 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `lootRefreshDays` | int | 7 | In-game days before loot refreshes per player |
 | `enableContainerProtection` | bool | false | Toggle container break protection |
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
+| `protectionUnbreakable` | bool | false | Make protected containers fully unbreakable in survival instead of merely slower |
 | `enableMobLootScaling` | bool | true | Toggle distance scaling for mob drops |
 | `endAlwaysMaxTier` | bool | true | Treat all End containers as max distance tier |
 | `lootTableStructures` | map | {} | Loot index (§11): loot-table id → structure id overrides for tables the hardcoded vanilla map does not cover |

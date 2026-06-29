@@ -34,6 +34,7 @@ class ProsperityConfigTest {
         assertEquals(7, c.lootRefreshDays);
         assertFalse(c.enableContainerProtection);
         assertEquals(4.0f, c.protectionBreakMultiplier);
+        assertFalse(c.protectionUnbreakable);
         assertTrue(c.enableMobLootScaling);
         assertTrue(c.endAlwaysMaxTier);
 
