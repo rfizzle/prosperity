@@ -153,7 +153,7 @@
             {
               "id": "anti-grief",
               "title": "Anti-Grief Break Resistance",
-              "html": ["Optional protection (off by default) makes any loot container that still holds unclaimed loot — including a fresh, never-opened dungeon chest — break several times slower, with an action-bar warning, particles, and a quiet cue when breaking begins, so no one can quickly destroy a dungeon's chests and erase its instanced loot. An optional unbreakable mode locks protected containers entirely (like bedrock) until their loot is claimed. Creative players always break instantly, and protection lifts once every online player has opened the container. Player-placed chests are never affected."]
+              "html": ["Optional protection (off by default) makes any loot container that still holds unclaimed loot — including a fresh, never-opened dungeon chest — break several times slower, with an action-bar warning, particles, and a quiet cue when breaking begins, so no one can quickly destroy a dungeon's chests and erase its instanced loot. An optional unbreakable mode locks protected containers entirely — immune to mining and explosions alike (TNT, creepers) — until their loot is claimed. Creative players always break instantly, and protection lifts once every online player has opened the container. Player-placed chests are never affected."]
             }
           ]
         }
