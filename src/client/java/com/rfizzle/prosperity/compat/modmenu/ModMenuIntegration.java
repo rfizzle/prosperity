@@ -146,6 +146,12 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setTooltip(tooltip("loot_refresh_days"))
                     .setSaveConsumer(v -> working.lootRefreshDays = v)
                     .build());
+            feedback.addEntry(entry.startBooleanToggle(
+                            label("randomize_loot_on_refresh"), working.randomizeLootOnRefresh)
+                    .setDefaultValue(false)
+                    .setTooltip(tooltip("randomize_loot_on_refresh"))
+                    .setSaveConsumer(v -> working.randomizeLootOnRefresh = v)
+                    .build());
 
             // --- Extended ---
             ConfigCategory extended = builder.getOrCreateCategory(

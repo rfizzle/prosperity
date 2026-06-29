@@ -57,7 +57,7 @@ public class LootInjectionGameTest implements FabricGameTest {
     public void injectsOneRewardAtFrontier(GameTestHelper helper) {
         ResourceLocation dimension = helper.getLevel().dimension().location();
         NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
-        LootInjectionManager.augment(items, SIMPLE_DUNGEON, tier("frontier"), dimension, SEED, PLAYER);
+        LootInjectionManager.augment(items, SIMPLE_DUNGEON, tier("frontier"), dimension, SEED, 0L, PLAYER);
 
         helper.assertTrue(filledSlots(items) == 1,
                 "a Frontier container must receive exactly one injected item: got " + filledSlots(items));
@@ -70,7 +70,7 @@ public class LootInjectionGameTest implements FabricGameTest {
     public void injectsNothingAtLocal(GameTestHelper helper) {
         ResourceLocation dimension = helper.getLevel().dimension().location();
         NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
-        LootInjectionManager.augment(items, SIMPLE_DUNGEON, ProsperityConfig.LOCAL_SENTINEL, dimension, SEED, PLAYER);
+        LootInjectionManager.augment(items, SIMPLE_DUNGEON, ProsperityConfig.LOCAL_SENTINEL, dimension, SEED, 0L, PLAYER);
 
         helper.assertTrue(filledSlots(items) == 0,
                 "a Local container is below every default injection tier: got " + filledSlots(items));

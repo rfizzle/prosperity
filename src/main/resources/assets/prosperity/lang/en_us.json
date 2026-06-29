@@ -33,6 +33,8 @@
     "prosperity.config.enable_loot_refresh.tooltip": "Let instanced containers regenerate their loot after a cooldown.",
     "prosperity.config.loot_refresh_days": "Loot Refresh Days",
     "prosperity.config.loot_refresh_days.tooltip": "In-game days before a looted container can refresh, when refresh is enabled.",
+    "prosperity.config.randomize_loot_on_refresh": "Randomize Loot On Refresh",
+    "prosperity.config.randomize_loot_on_refresh.tooltip": "When a container refreshes, roll fresh loot instead of repeating the same items it held before.",
     "prosperity.config.enable_container_protection": "Enable Container Protection",
     "prosperity.config.enable_container_protection.tooltip": "Slow down breaking of unlooted instanced containers.",
     "prosperity.config.protection_break_multiplier": "Protection Break Multiplier",

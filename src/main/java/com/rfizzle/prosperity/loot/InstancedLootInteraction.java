@@ -249,6 +249,9 @@ public final class InstancedLootInteraction {
         ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
         LootRef primaryRef = resolveTable(primaryAdapter);
         LootRef secondaryRef = resolveTable(secondaryAdapter);
+        // The combined instance and its refresh count both live on the primary half, so the salt for
+        // both halves is read there (after any cooldown clear above has advanced it).
+        long salt = refreshSalt(primaryAdapter.data(), uuid);
         // The two halves are adjacent, so one tier (and structure) resolved at the primary applies to
         // both, and the loot-modifier event fires once for the whole double chest.
         Vec3 origin = primaryAdapter.origin();
@@ -257,10 +260,10 @@ public final class InstancedLootInteraction {
         ResourceKey<LootTable> ctxTable = primaryRef.key() != null ? primaryRef.key() : secondaryRef.key();
         ModifierResult mods = fireModifiers(player, origin, ctxTable, tier);
         NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
-                level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), player,
+                level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), salt, player,
                 DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
         NonNullList<ItemStack> secondaryLoot = InstancedLootGenerator.generate(
-                level, secondaryAdapter.origin(), secondaryRef.key(), secondaryRef.seed(), player,
+                level, secondaryAdapter.origin(), secondaryRef.key(), secondaryRef.seed(), salt, player,
                 DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
 
         NonNullList<ItemStack> combined =
@@ -271,7 +274,7 @@ public final class InstancedLootInteraction {
         }
         // One injected reward for the whole double chest, drawn against the primary half's table (S-014).
         LootInjectionManager.augment(combined, primaryRef.key(), tier, level.dimension().location(),
-                primaryRef.seed(), uuid);
+                primaryRef.seed(), salt, uuid);
 
         primaryAdapter.update(data -> {
             data.markGenerated(primaryRef.key(), primaryRef.seed());
@@ -337,16 +340,18 @@ public final class InstancedLootInteraction {
         }
 
         LootRef ref = resolveTable(adapter);
+        // Read after any cooldown clear above has advanced the refresh count, so a refresh re-rolls.
+        long salt = refreshSalt(adapter.data(), uuid);
         Vec3 origin = adapter.origin();
         LootScaling.ScaledTier scaled = LootScaling.resolveForGeneration(adapter.level(), origin);
         DistanceTier tier = scaled.tier();
         ModifierResult mods = fireModifiers(player, origin, ref.key(), tier);
         NonNullList<ItemStack> generated = InstancedLootGenerator.generate(
-                adapter.level(), adapter.origin(), ref.key(), ref.seed(), player, adapter.size(),
+                adapter.level(), adapter.origin(), ref.key(), ref.seed(), salt, player, adapter.size(),
                 mods.luck(), mods.stackMultiplier());
         // Add one tier-and-dimension-eligible injected reward in an empty slot (S-014).
         LootInjectionManager.augment(generated, ref.key(), tier, adapter.level().dimension().location(),
-                ref.seed(), uuid);
+                ref.seed(), salt, uuid);
 
         adapter.update(data -> {
             data.markGenerated(ref.key(), ref.seed());
@@ -377,6 +382,19 @@ public final class InstancedLootInteraction {
     }
 
     private record LootRef(@Nullable ResourceKey<LootTable> key, long seed) {
+    }
+
+    /**
+     * The roll salt for this (re)generation: the player's refresh count when
+     * {@code randomizeLootOnRefresh} is enabled, otherwise {@code 0} for a deterministic roll. Read
+     * after any cooldown clear has advanced the count, so successive refreshes draw distinct loot while
+     * staying reproducible across a reload. A {@code null} attachment (first-ever visit) yields {@code 0}.
+     */
+    private static long refreshSalt(@Nullable InstancedLootData data, UUID uuid) {
+        if (data == null || !Prosperity.getConfig().randomizeLootOnRefresh) {
+            return 0L;
+        }
+        return data.getRefreshCount(uuid);
     }
 
     /**

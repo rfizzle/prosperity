@@ -84,9 +84,9 @@ public class LootScalingGameTest implements FabricGameTest {
         double multiplier = 3.5;
 
         NonNullList<ItemStack> baseLoot =
-                InstancedLootGenerator.generate(level, origin, TABLE, SEED, player, 27, 0.0f, 1.0);
+                InstancedLootGenerator.generate(level, origin, TABLE, SEED, 0L, player, 27, 0.0f, 1.0);
         NonNullList<ItemStack> scaledLoot =
-                InstancedLootGenerator.generate(level, origin, TABLE, SEED, player, 27, 0.0f, multiplier);
+                InstancedLootGenerator.generate(level, origin, TABLE, SEED, 0L, player, 27, 0.0f, multiplier);
 
         boolean sawStackableScaledUp = false;
         for (int slot = 0; slot < 27; slot++) {

@@ -136,7 +136,7 @@
             {
               "id": "loot-refresh",
               "title": "Loot Refresh",
-              "html": ["Optional restocking (off by default) lets a container's loot regenerate per player after a configurable cooldown, so explored structures stay worth revisiting on long-running worlds. Each player's cooldown is independent; once it elapses the unlooted sparkle reappears and the next open rolls fresh loot."]
+              "html": ["Optional restocking (off by default) lets a container's loot regenerate per player after a configurable cooldown, so explored structures stay worth revisiting on long-running worlds. Each player's cooldown is independent; once it elapses the unlooted sparkle reappears and the next open rolls fresh loot. By default the refresh repeats the same items; flip on <code class='text-accent2 whitespace-nowrap'>randomizeLootOnRefresh</code> to draw genuinely different loot each time."]
             }
           ]
         }
