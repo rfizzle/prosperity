@@ -27,6 +27,15 @@ public final class ClientProsperityData {
         config = synced;
     }
 
+    /**
+     * Drop the previous server's config on disconnect, falling back to the local config until the
+     * next server sync lands. Prevents a stale server view from bleeding into the next session (e.g.
+     * a fresh singleplayer world before its own sync arrives).
+     */
+    public static void reset() {
+        config = Prosperity.getConfig();
+    }
+
     /** The current server-authoritative config view (the local config until the first sync). Never null. */
     public static ProsperityConfig config() {
         return config;
