@@ -1,21 +1,26 @@
 ---
 name: mc-hud
-description: Build a conforming persistent HUD element the suite way (the Concord HUD Standard) — a 20px icon+bar badge registered via HudRenderCallback, anchored with pure testable offset math, hidden by the four standard visibility rules, and stacked under higher-priority sibling mods through reflection-backed coordination accessors rather than hardcoded heights. TRIGGER when creating or editing a *HudOverlay.java, HudMath, a HudRenderCallback registration, the isHudVisible()/getHudHeight() coordination accessors, or when the user mentions a HUD slot, HUD element, on-screen badge, or stacking a HUD against another mod.
+description: Build a conforming HUD surface the suite way (the Concord HUD Standard) — the persistent 20px icon+bar slot badge (registered via HudRenderCallback, anchored with pure testable offset math, hidden by the four standard visibility rules, and stacked under higher-priority sibling mods through reflection-backed coordination accessors rather than hardcoded heights) and the optional hold-to-peek detail panel that expands it on a keybind. TRIGGER when creating or editing a *HudOverlay.java, a *DetailPanelRenderer.java, HudMath, a HudRenderCallback registration, the isHudVisible()/getHudHeight() coordination accessors, or when the user mentions a HUD slot, HUD element, on-screen badge, a hold-to-peek/detail panel, or stacking a HUD against another mod.
 ---
 
-The user is rendering a persistent on-screen HUD element. The Concord HUD Standard
-is summarized in full below — this skill is the normative reference for member
-repos, which don't carry a separate standards doc. The hard part is **cross-mod
+The user is rendering an on-screen HUD surface — the persistent slot badge, the
+optional hold-to-peek detail panel, or both. The Concord HUD Standard is summarized
+in full below — this skill is the normative reference for member repos, which don't
+carry a separate standards doc. The hard part for the badge is **cross-mod
 stacking**: each mod renders its own element and must offset past higher-priority
-siblings *without* depending on them or hardcoding their size.
+siblings *without* depending on them or hardcoding their size. The detail panel is
+simpler — transient and unstacked — but has its own rules (see below).
 
 ## Whether a mod gets a slot at all
 
 A mod takes a HUD slot **only if it has persistent ambient state the player needs
 while walking around** (a level, a standing, a tier that changes as you play).
-Everything else belongs in screens, tooltips (Jade/WTHIT — see `mc-tooltips`), or
-recipe viewers (`mc-compat`). **Opting out is conformant; future members default
-to no slot.** Record a no-slot decision in the mod's `design/DESIGN.md`.
+On-demand detail that is too much for the badge — exact figures, a full ladder,
+what's physically nearby — goes in the **hold-to-peek detail panel** (below), not a
+new slot. Everything else belongs in screens, tooltips (Jade/WTHIT — see
+`mc-tooltips`), or recipe viewers (`mc-compat`). **Opting out is conformant; future
+members default to no slot.** Record a no-slot decision in the mod's
+`design/DESIGN.md`.
 
 ## Slot registry
 
@@ -175,6 +180,46 @@ sibling's HUD. The legacy fixed offset above is only a transitional fallback for
 sibling release that predates the accessors. The ~80 lines of offset logic are
 deliberately duplicated per mod (convention over dependency).
 
+## Hold-to-peek detail panel
+
+The optional on-demand companion to the badge — the badge says *roughly*, the panel
+says *everything*. It is a `HudRenderCallback`, **not** a `Screen`: it never captures
+the mouse, pauses the game, or blocks movement (it behaves like vanilla's hold-Tab
+player list). Reference: Tribulation's `TierDetailPanelRenderer`, Mercantile's
+`ReputationDetailPanelRenderer`. Class convention: `*DetailPanelRenderer`.
+
+- **Keybind.** Register a `KeyMapping` under Controls → `<Mod>`, **unbound by
+  default**, labelled "Peek `<Domain>` Detail". Draw the panel only while it's held
+  *and* the badge's visibility predicate passes.
+
+  ```java
+  // client init
+  KeyMapping key = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+      "key.<mod>.peek_<domain>_detail", InputConstants.UNKNOWN.getValue(), "key.categories.<mod>"));
+  HudRenderCallback.EVENT.register(new <Mod>DetailPanelRenderer(key));
+  // in onHudRender:
+  if (!key.isDown() || !<Mod>HudOverlay.isHudVisible()) return;   // reuse the badge predicate
+  ```
+
+- **No slot, no accessors.** Transient, so it takes no slot-registry row and exposes
+  no `isHudVisible()`/`getHudHeight()` — it is never stacked against siblings. Anchor
+  it next to the mod's badge with the same `HudMath` helpers.
+- **Content.** Framed 9-slice panel in the mod theme, vanilla font only: a header
+  expanding the badge's headline stat, the relevant progress, and the mod's domain
+  detail. Every figure derives from the same config/registry the server acts on, so
+  the panel can't disagree with the badge or the mod's `/`-commands.
+- **Proximity element.** A "what's around me now" listing reads a **cached, throttled
+  scan** (refreshed every N ticks, not per frame) so the render path is a lookup, not
+  an entity sweep.
+- **Overflow pages, never scrolls.** A non-focused HUD layer can't scroll without
+  capturing input — page the overflow on a frame-timer with an alpha cross-fade and
+  page dots (keep `pageIndex`/`lastPageChangeMs` as render-thread statics; the fade is
+  the same `lerp` used for the badge tint).
+- **Don't duplicate the catalog.** Possible-loot / possible-reward listings belong in
+  the recipe viewers (`mc-compat`) and tooltips (`mc-tooltips`); the panel is the live,
+  contextual view — current state and what's physically nearby — not a static "what
+  could appear" index.
+
 ## Conformance checklist
 
 - [ ] Slot registered in the registry table above (or a no-slot decision recorded
@@ -187,6 +232,10 @@ deliberately duplicated per mod (convention over dependency).
 - [ ] `isHudVisible()` / `getHudHeight()` exposed in the `api` package,
       reflection-safe from common code.
 - [ ] Offset computed from sibling accessors — no hardcoded sibling heights.
+- [ ] A hold-to-peek detail panel (if any): unbound keybind under the mod's category,
+      non-capturing (not a `Screen`), the badge's four visibility rules reused, no
+      slot/accessors, paged (not scrolled) overflow, figures from the server's own
+      source, and no recipe-viewer/tooltip duplication.
 - [ ] `AGENTS.md` declares "conforms to Concord HUD Standard v1".
 
 ## Guardrails
@@ -198,6 +247,11 @@ deliberately duplicated per mod (convention over dependency).
 - **Never** use a custom font or a downscaled vanilla item render for the glyph.
 - **Never** introduce a shared HUD manager/library — each mod renders and offsets
   independently (convention over dependency).
+- **Never** open a `Screen` for a peek panel or let it capture the mouse / pause the
+  game — it's a non-capturing `HudRenderCallback` layer like hold-Tab, gets no slot or
+  coordination accessors, and pages its overflow rather than scrolling.
+- **Never** have a peek panel restate what a recipe viewer or tooltip already catalogs —
+  it shows live, contextual state, not a static "what could appear" index.
 - **Always** reserve sibling height only at the default anchor; moving to another
   corner opts out of stacking.
 - **Always** resolve sibling accessors once and cache the handles; degrade to 0

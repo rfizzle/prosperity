@@ -73,6 +73,33 @@ JEI's `@JeiPlugin` annotation is load-bearing on Forge/NeoForge only; keep it on
 the Fabric plugin for cross-loader parity, but the `jei_mod_plugin` entrypoint is
 what Fabric actually reads.
 
+### Category titles: EMI reads a lang key, REI/JEI take a Component
+
+The three viewers name a category differently, and EMI's way is the one that
+silently breaks. REI and JEI take the title as an explicit `Component` you pass
+at construction — a missing translation surfaces loudly at that call site:
+
+```java
+// REI / JEI — you hand it the title directly.
+new ReiEnchantmentBrowserCategory(id, Component.translatable("gui.mymod.browser.title"));
+```
+
+EMI takes **no title argument**. An `EmiRecipeCategory` derives its display name
+from the lang key `emi.category.<namespace>.<path>`, resolved from the category
+`ResourceLocation`. Miss that key and EMI shows the raw key on screen
+(`emi.category.mymod.enchant…`) with nothing at the call site to catch it:
+
+```java
+// id → emi.category.mymod.enchantments must exist in en_us.json, or the raw key shows.
+new EmiRecipeCategory(MyMod.id("enchantments"), ICON);
+```
+
+So: **every `EmiRecipeCategory` you register needs a matching
+`emi.category.<namespace>.<path>` entry in the lang file.** When the same logical
+category exists across viewers, point all three at the same wording (reuse the
+REI/JEI title's string, or duplicate its value) so the label doesn't drift
+between viewers.
+
 ## The reactive-refresh problem
 
 Viewers build their lists when they load — at client startup or join. If your
@@ -210,6 +237,7 @@ does not apply — use the snapshot + per-viewer refresh approach above.
 |---|---|
 | Shared data source | One viewer-agnostic `snapshot()` + shared label/marker helpers. |
 | Thin adapters | Each plugin maps `snapshot()` to its display type; no cross-viewer imports. |
+| EMI category names | Every `EmiRecipeCategory` needs an `emi.category.<namespace>.<path>` lang entry; REI/JEI take an explicit `Component` title. Keep wording consistent across viewers. |
 | Dependencies | `modCompileOnly` API + `modLocalRuntime` full jar; `suggests`, never `depends`. |
 | Refresh gating | Only refresh on a dedicated server. Skip when an integrated server is present — don't overwrite the full in-JVM snapshot with a capped synced copy. |
 | JEI refresh | `addRecipes` after capturing the runtime; idempotent via `hideRecipes(previous)` then add. |
@@ -232,6 +260,9 @@ does not apply — use the snapshot + per-viewer refresh approach above.
 
 - **Never** let one viewer plugin class-load another viewer's types. Keep all
   shared logic in the viewer-agnostic data source.
+- **Always** add an `emi.category.<namespace>.<path>` lang entry for every EMI
+  category you register — EMI resolves the display name from that key (there's no
+  title argument), so a missing entry shows the raw key in-game.
 - **Never** declare a viewer under `depends`. Use `suggests` and `modCompileOnly`
   + `modLocalRuntime` so a missing viewer can't gate the mod.
 - **Never** force a refresh on an integrated/singleplayer client. The in-JVM
