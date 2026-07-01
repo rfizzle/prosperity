@@ -11,25 +11,40 @@ list, config reference, and command guide.
 
 ---
 
-Prosperity gives every player their own instanced loot from naturally generated containers — no more racing to the good chests on a shared server — and rewards exploration with distance-scaled loot quality. It attaches per-player loot to vanilla containers via persistent Fabric data attachments and intercepts interactions through events; it never registers custom blocks or replaces block entities.
+Prosperity is an instanced loot overhaul for **Minecraft 1.21.1 (Fabric)**. It
+gives every player their own loot from naturally generated containers — no more
+racing to the good chests on a shared server — and rewards exploration with
+distance-scaled loot quality. It works by attaching per-player loot to vanilla
+containers via persistent Fabric data attachments and intercepting interactions
+through events; it never registers custom blocks or replaces block entities.
 
-A drop-in replacement for Lootr with extra reach. Zero external dependencies beyond Fabric API. Just drop it in.
+**A focused overhaul.** A drop-in replacement for Lootr with extra reach.
+Zero external dependencies beyond Fabric API.
 
----
+## At a glance
 
-## Instanced Loot
+- Minecraft **1.21.1**, **Fabric** loader (0.16.10+), **Fabric API** required.
+- Install on the **server** and every **client**.
+- Tunable through `config/prosperity.json` — hot-reload with `/prosperity reload`.
+- MIT licensed.
 
-Every player gets their own independent loot from each naturally generated container, rolled the first time they open it and stored per UUID. Hoppers and comparators see an empty vanilla container — instanced loot lives outside the vanilla inventory, which prevents extraction and duplication exploits.
+## Features
 
----
+### Instanced Loot
 
-## Unlooted Indicators
+Every player gets their own independent loot from each naturally generated
+container, rolled the first time they open it and stored per UUID. Hoppers and
+comparators see an empty vanilla container — instanced loot lives outside the
+vanilla inventory, preventing extraction and duplication exploits.
 
-A gold sparkle hovers above containers you haven't opened yet and disappears once you've looted them. In large structures — strongholds, mansions, mineshafts — this tells you at a glance what's left to explore. It's a world-space overlay, not a HUD element.
+### Unlooted Indicators
 
----
+A gold sparkle hovers above containers you haven't opened yet, and disappears
+once you've looted them. No more backtracking through strongholds, mansions, and
+mineshafts to find what you missed. The indicator is a world-space overlay, not
+a HUD element.
 
-## Distance Scaling
+### Distance Scaling
 
 Loot quality scales with absolute distance from world origin across five tiers:
 
@@ -41,63 +56,77 @@ Loot quality scales with absolute distance from world origin across five tiers:
 | **Outlands** | 6,000 – 9,999 | 2.75x | +3 |
 | **Depths** | 10,000+ | 3.5x | +4 |
 
-Stack quantities scale by the multiplier (capped at 64); quality adds luck to loot generation. The End is always treated as Depths tier. Structure overrides can fix, raise, or cap the tier a given structure uses.
+Stack quantities scale by the multiplier (capped at 64); quality adds luck to
+loot generation. The End is always treated as Depths tier. Structure overrides
+can fix, raise, or cap the tier a given structure uses.
 
----
+### Loot Modifier API & Injection
 
-## Loot Modifier API & Injection
-
-A stable, Fabric-style `LootModifierCallback` event lets other mods adjust loot generation after distance scaling but before the loot table resolves. A datapack-driven injection system adds custom items to vanilla loot tables gated by minimum distance tier — and Prosperity ships built-in injections so distance scaling feels meaningful out of the box.
-
----
+A stable, Fabric-style `LootModifierCallback` event lets other mods adjust loot
+generation after distance scaling. A datapack-driven injection system adds custom
+items to vanilla loot tables gated by minimum distance tier — and Prosperity
+ships built-in injections so distance scaling feels meaningful out of the box.
 
 ## Commands
 
-| Command | Permission | What It Does |
-|---------|-----------|-------------|
-| `/prosperity info` | Anyone | Show your loot scaling tier for your current position |
-| `/prosperity info <player>` | Op | Show another player's loot scaling tier |
-| `/prosperity reset <pos>` | Op | Clear all instanced loot data for a container |
-| `/prosperity reset <pos> <player>` | Op | Clear a specific player's instanced loot |
-| `/prosperity reload` | Op | Hot-reload config and sync to clients |
+Player commands: `/prosperity info`. Operator commands cover per-player and
+per-container `reset`, viewing other players' tiers, and `reload`. Full
+reference:
+[prosperity.rfizzle.com/commands.html](https://prosperity.rfizzle.com/commands.html)
 
----
+## Optional integrations
 
-## Configuration
+Prosperity detects and integrates with these mods when present. **None are
+bundled** — install whichever you already use.
 
-Everything is tunable in `config/prosperity.json`. Key sections:
+- [Jade](https://modrinth.com/mod/jade) / [WTHIT](https://modrinth.com/mod/wthit)
+  — container loot-status, distance-tier, structure-override, and refresh-timer tooltips
+- [EMI](https://modrinth.com/mod/emi) / [REI](https://modrinth.com/mod/rei) /
+  [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) — loot injection recipes
 
-- **Distance tiers** — thresholds, quantity multipliers, and quality boosts
-- **Structure overrides** — fixed / minimum / maximum tier per structure
-- **Container blacklist** — exempt specific containers from all behavior
-- **Indicators** — toggle the unlooted overlay and loot-tier feedback
+For mod developers: a stable Loot Modifier API
+(`com.rfizzle.prosperity.api`) — see the
+[developer docs](https://prosperity.rfizzle.com/api.html).
 
-Changes apply immediately with `/prosperity reload`. No restart required.
+## Requirements
 
-Full config reference: [prosperity.rfizzle.com/config.html](https://prosperity.rfizzle.com/config.html)
-
----
-
-## Compatibility
-
-- **Minecraft** 1.21.1 (Fabric)
-- **Fabric Loader** 0.16.10+
-- **Fabric API** required
-- **Java** 21+
+- Minecraft **1.21.1**
+- Fabric Loader **0.16.10+**
+- Fabric API
+- Java **21+**
 - Works on **dedicated servers and singleplayer**
-- Remove **Lootr** before installing — Prosperity replaces its functionality
-- Optional integrations: **Jade/WTHIT** (loot status, tier &amp; refresh-timer tooltips), **EMI/REI/JEI** (loot injection recipes)
-
----
 
 ## Installation
 
-Drop the jar into your `mods/` folder on both server and client. Config generates automatically on first launch. That's it.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for 1.21.1.
+2. Drop [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api)
+   into your `mods/` folder.
+3. Download Prosperity and place it into `mods/` as well — on both server
+   and client.
+4. Remove Lootr first if you have it installed.
 
----
+Config generates at `config/prosperity.json` on first launch.
 
 ## Links
 
-- [Documentation](https://prosperity.rfizzle.com)
-- [Source Code](https://github.com/rfizzle/prosperity)
-- [Issue Tracker](https://github.com/rfizzle/prosperity/issues)
+- **Website:** <https://prosperity.rfizzle.com>
+- **GitHub Releases (canonical downloads):** <https://github.com/rfizzle/prosperity/releases>
+- **Modrinth:** <https://modrinth.com/mod/prosperity-loot-overhaul>
+- **GitHub:** <https://github.com/rfizzle/prosperity>
+- **Report an issue:** <https://github.com/rfizzle/prosperity/issues>
+- **Changelog:** <https://prosperity.rfizzle.com/changelog.html>
+
+## Companion mods
+
+Prosperity is part of [Concord](https://github.com/rfizzle/concord) — a
+modular collection of system overhauls. Install any, combine all:
+
+- [Meridian](https://meridian.rfizzle.com) — Chart your enchantments.
+- [Mercantile](https://mercantile.rfizzle.com) — Every villager remembers.
+- [Tribulation](https://tribulation.rfizzle.com) — Survive what comes next.
+
+## License & credits
+
+Licensed under the [MIT License](https://github.com/rfizzle/prosperity/blob/master/LICENSE).
+© 2026 rfizzle. Prosperity is not affiliated with Mojang Studios or
+Microsoft.
