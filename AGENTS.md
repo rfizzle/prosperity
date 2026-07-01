@@ -223,4 +223,12 @@ The pushed `v*` tag is the single source of version truth. Releasing is just
 as the build version. `mod_version=0.0.0` in `gradle.properties` is only the
 local/dev base; local builds surface as `0.0.0+g<sha>`. Never hand-edit a real
 version into `gradle.properties` or open a "set version" PR.
+
+## Release notes
+
+Release notes are AI-written from the merged PRs by default. To publish curated
+notes for a version instead — e.g. a `1.0.0` milestone — commit a
+`changelogs/<version>.md` (no `v` prefix, e.g. `changelogs/1.0.0.md`) before
+tagging. When that file exists it is published verbatim to GitHub, Modrinth, and
+CurseForge and the model is not run; absent, notes are generated as usual.
 <!-- concord:managed:end -->
