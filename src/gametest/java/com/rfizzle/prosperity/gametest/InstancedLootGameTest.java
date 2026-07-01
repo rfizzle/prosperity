@@ -143,6 +143,49 @@ public class InstancedLootGameTest implements FabricGameTest {
         helper.succeed();
     }
 
+    /**
+     * Looting a container clean evicts the player's stored inventory to bound chunk NBT, yet a return
+     * visit still serves an empty container rather than re-rolling fresh loot (issue #33).
+     */
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
+    public void lootedCleanInstanceIsEvictedAndServesEmptyOnReopen(GameTestHelper helper) {
+        BlockPos rel = new BlockPos(1, 1, 1);
+        RandomizableContainerBlockEntity be = placeLootContainer(helper, rel, Blocks.CHEST);
+
+        ServerPlayer player = spawnPlayerAt(helper, rel);
+        helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
+                "opening a loot chest must be intercepted");
+        InstancedLootData data = ProsperityAttachments.get(be);
+        helper.assertTrue(data != null && data.hasInventory(player.getUUID()),
+                "opening must store the generated inventory");
+
+        // Empty every slot and close, as a player looting the chest clean would.
+        ChestMenu menu = (ChestMenu) player.containerMenu;
+        for (int slot = 0; slot < menu.getContainer().getContainerSize(); slot++) {
+            menu.getContainer().setItem(slot, ItemStack.EMPTY);
+        }
+        player.closeContainer();
+
+        helper.assertTrue(data.getInventory(player.getUUID()) == null,
+                "a looted-clean inventory must be evicted from the heavy map");
+        helper.assertTrue(data.hasGenerated(player.getUUID()),
+                "the player must stay visited so no fresh loot is rolled on return");
+
+        // Reopen: still intercepted, served empty, and nothing regenerated into the map.
+        helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
+                "reopening an evicted instance must still be intercepted");
+        helper.assertTrue(data.getInventory(player.getUUID()) == null,
+                "a return visit must not regenerate loot for an evicted instance");
+        ChestMenu reopened = (ChestMenu) player.containerMenu;
+        for (int slot = 0; slot < reopened.getContainer().getContainerSize(); slot++) {
+            helper.assertTrue(reopened.getContainer().getItem(slot).isEmpty(),
+                    "an evicted instance must reopen empty, not with fresh loot");
+        }
+
+        player.discard();
+        helper.succeed();
+    }
+
     /** A player-placed container (no loot table) is left to vanilla and never instanced. */
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
     public void playerPlacedChestOpensVanilla(GameTestHelper helper) {

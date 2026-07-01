@@ -49,10 +49,11 @@ public final class UnlootedMinecarts {
             if (InstancedLootInteraction.isBlacklisted(cart.getLootTable())) {
                 continue;
             }
-            // Looted for this player once they have a stored inventory, unless the refresh cooldown
-            // has elapsed (S-016) — then the cart's sparkle reappears until they regenerate.
+            // Looted for this player once they have generated here, unless the refresh cooldown has
+            // elapsed (S-016) — then the cart's sparkle reappears until they regenerate. Keyed on
+            // generation, not stored items, so a cart looted clean stays dark instead of re-lighting.
             InstancedLootData data = ProsperityAttachments.get(cart);
-            if (data != null && data.hasInventory(player)
+            if (data != null && data.hasGenerated(player)
                     && !LootRefresh.isExpired(data, player, level.getGameTime())) {
                 continue;
             }

@@ -224,6 +224,60 @@ class InstancedLootDataTest {
         assertFalse(restored.hasInventory(a));
     }
 
+    @Test
+    void storeOrEvict_dropsEmptyInventoryButKeepsPlayerVisited() {
+        UUID player = new UUID(4L, 8L);
+        InstancedLootData source = new InstancedLootData();
+        source.markGenerated(DUNGEON, 0x1234L);
+        source.setLastGeneratedTick(player, 200L);
+        NonNullList<ItemStack> loot = NonNullList.withSize(27, ItemStack.EMPTY);
+        loot.set(0, new ItemStack(Items.DIAMOND, 3));
+        source.setInventory(player, loot);
+        assertTrue(source.hasInventory(player), "starts with a stored inventory");
+
+        // The player loots every slot and closes the container: an all-empty inventory is written back.
+        source.storeOrEvict(player, NonNullList.withSize(27, ItemStack.EMPTY));
+
+        assertFalse(source.hasInventory(player), "an emptied inventory is evicted to bound the map");
+        assertNull(source.getInventory(player));
+        assertTrue(source.hasGenerated(player), "the player stays visited via lastGeneratedTick");
+        assertTrue(source.playerIds().contains(player), "a looted-clean player still counts as an instance");
+        assertEquals(200L, source.getLastGeneratedTick(player), "the generation tick is retained");
+
+        // The evicted state survives serialization: still visited, still no stored items.
+        InstancedLootData restored = roundTrip(source);
+        assertFalse(restored.hasInventory(player));
+        assertNull(restored.getInventory(player));
+        assertTrue(restored.hasGenerated(player));
+        assertEquals(200L, restored.getLastGeneratedTick(player));
+    }
+
+    @Test
+    void storeOrEvict_keepsInventoryWithAnyItem() {
+        UUID player = new UUID(6L, 6L);
+        InstancedLootData source = new InstancedLootData();
+        NonNullList<ItemStack> partial = NonNullList.withSize(27, ItemStack.EMPTY);
+        partial.set(13, new ItemStack(Items.GOLD_INGOT, 4));
+
+        source.storeOrEvict(player, partial);
+
+        assertTrue(source.hasInventory(player), "a partially-looted inventory is retained");
+        assertInventoriesMatch(partial, source.getInventory(player));
+    }
+
+    @Test
+    void hasGenerated_countsTickOnlyPlayerAsVisited() {
+        UUID player = new UUID(8L, 0L);
+        InstancedLootData source = new InstancedLootData();
+        assertFalse(source.hasGenerated(player), "an unseen player has not generated");
+
+        source.setLastGeneratedTick(player, 5L);
+
+        assertTrue(source.hasGenerated(player), "a generation tick alone marks the player visited");
+        assertFalse(source.hasInventory(player), "a tick alone stores no inventory");
+        assertTrue(source.playerIds().contains(player), "playerIds includes a looted-clean, tick-only player");
+    }
+
     private static UUID parseUuid(String s) {
         return UUID.fromString(s);
     }

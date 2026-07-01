@@ -106,9 +106,10 @@ public final class LootRefreshSweep {
 
     /**
      * Whether any container in {@code chunk} holds loot for {@code player} whose cooldown elapsed in
-     * {@code (previous, now]}. A player's {@code lastGeneratedTick} only exists once they have generated
-     * here (it is set and cleared in lockstep with their inventory), so this is precise enough to gate
-     * the resend; the resend itself runs the full per-player scan that filters blacklist/redirect cases.
+     * {@code (previous, now]}. A player's {@code lastGeneratedTick} exists once they have generated here
+     * and survives until a refresh clears it (it outlives an inventory evicted by looting), so this is
+     * precise enough to gate the resend; the resend itself runs the full per-player scan that filters
+     * blacklist/redirect cases.
      */
     private static boolean chunkCrossedExpiry(LevelChunk chunk, UUID player, long cooldown,
             long previous, long now) {

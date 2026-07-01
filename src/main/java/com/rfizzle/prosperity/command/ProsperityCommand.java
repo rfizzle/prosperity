@@ -273,7 +273,7 @@ public final class ProsperityCommand {
         } else {
             removed = 0;
             for (UUID id : uuids) {
-                if (data.hasInventory(id)) {
+                if (data.hasGenerated(id)) {
                     removed++;
                 }
                 data.clearForPlayer(id);
