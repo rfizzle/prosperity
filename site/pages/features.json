@@ -134,6 +134,11 @@
               "html": ["A compact badge in the shared rfizzle HUD strip (slot 3) shows your current distance loot tier — a treasure-chest glyph and the tier name, drawn in the tier's color, updating live as you travel. Crossing a tier boundary briefly flashes the label gold. It stacks below Tribulation and Mercantile when installed, honors a configurable corner and offset, and is independently togglable."]
             },
             {
+              "id": "peek-panel",
+              "title": "Peek Loot Detail",
+              "html": ["Bind <strong class='text-bone'>Peek Loot Detail</strong> under Controls → Prosperity (unbound by default) and hold it for a full-screen detail panel — like vanilla's hold-Tab player list, it never captures the mouse or pauses the game, and it hides under the same rules as the badge. Three pillars: your exact distance and current tier with a progress bar toward the next boundary, the complete tier ladder with each tier's stack multiplier and quality bonus (current tier highlighted), and the unlooted containers physically around you grouped by type and tier. It reads only from data already on the client, so it never disagrees with <code class='text-accent2'>/prosperity info</code>. For the catalog of what <em>can</em> drop where, see the <a href='/features.html#loot-index' class='text-accent hover:text-accent2 underline'>loot index</a> — the panel is its live, in-world companion, not a duplicate."]
+            },
+            {
               "id": "loot-refresh",
               "title": "Loot Refresh",
               "html": ["Optional restocking (off by default) lets a container's loot regenerate per player after a configurable cooldown, so explored structures stay worth revisiting on long-running worlds. Each player's cooldown is independent; once it elapses the unlooted sparkle reappears and the next open rolls fresh loot. By default the refresh repeats the same items; flip on <code class='text-accent2 whitespace-nowrap'>randomizeLootOnRefresh</code> to draw genuinely different loot each time."]
