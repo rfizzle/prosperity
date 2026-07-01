@@ -58,9 +58,11 @@ release:
 	@$(if $(NO_PUSH),echo "Tagged v$(VERSION) — push it with: git push origin v$(VERSION)",git push origin "v$(VERSION)")
 
 site:
+	node ../concord/template/scripts/gen-changelog.cjs $(PWD)/site
 	SITE_DIR=$(PWD)/site npx -y @11ty/eleventy@3.0.0 --config=../concord/template/eleventy.config.cjs --input=../concord/template/src --output=_site
 
 site-serve:
+	node ../concord/template/scripts/gen-changelog.cjs $(PWD)/site
 	SITE_DIR=$(PWD)/site npx -y @11ty/eleventy@3.0.0 --config=../concord/template/eleventy.config.cjs --input=../concord/template/src --output=_site --serve
 
 sync:
