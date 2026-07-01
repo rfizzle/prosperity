@@ -1,0 +1,1 @@
+A standalone Minecraft 1.21.1 Fabric mod overhauling loot and containers. Every chest is yours to discover — per-player instanced loot and distance-based scaling mean exploration always pays off. Server-friendly. Part of the Concord collection.
