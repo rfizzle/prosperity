@@ -31,6 +31,14 @@ import org.jetbrains.annotations.Nullable;
  * first visit and retrieved thereafter. The original loot table and seed are preserved here so the
  * vanilla fields on the block entity can be nulled (S-006), defeating hopper/comparator exploits.
  *
+ * <p><b>Bounding:</b> the heavy {@code playerInventories} map holds an entry only while a player has
+ * <em>uncollected</em> items. Once they loot a container clean, {@link #storeOrEvict} drops their
+ * inventory so a high-traffic container does not accrue a stored inventory per visitor forever. Their
+ * lightweight {@code lastGeneratedTick} (and {@code refreshCount}) remain as the "has visited" marker
+ * — see {@link #hasGenerated} — so no loot is re-rolled and the looted indicator is unaffected. Those
+ * long-valued maps still grow one small entry per distinct player; only a refresh clear or
+ * {@code /prosperity reset|refresh} removes them.
+ *
  * <p><b>Dirtying:</b> this is a plain mutable value with no reference to its owner. Mutating it in
  * place does <em>not</em> mark the owning block entity dirty — only {@code setAttached(...)} does.
  * Every write must go through {@link ProsperityAttachments#update}, which calls
@@ -107,18 +115,37 @@ public final class InstancedLootData {
         return originalSeed;
     }
 
-    /** Whether the given player already has a generated inventory in this container. */
+    /**
+     * Whether the given player currently holds <em>uncollected</em> items here. Returns {@code false}
+     * once they have looted every slot (their inventory is evicted by {@link #storeOrEvict} to bound
+     * NBT), even though they remain {@linkplain #hasGenerated visited}. Use {@link #hasGenerated} for
+     * the "has this player opened this container" question; this is only for reading back live items.
+     */
     public boolean hasInventory(UUID player) {
         return playerInventories.containsKey(player);
     }
 
     /**
-     * The UUIDs of every player with a stored inventory here, as a defensive copy. The size is the
-     * instance count reported by {@code /prosperity reset} (S-004); also serves the indicator scan
-     * (S-009) and protection check (S-017).
+     * Whether the given player has generated an instance here, whether or not they still hold items.
+     * A fully-looted player keeps their {@code lastGeneratedTick} after {@link #storeOrEvict} drops
+     * their emptied inventory, so this stays {@code true} — driving the "looted" indicator (S-009),
+     * Jade status, protection check (S-017), and the re-open path that serves them an empty container
+     * rather than fresh loot. Goes {@code false} only once a refresh clear removes their entry.
+     */
+    public boolean hasGenerated(UUID player) {
+        return playerInventories.containsKey(player) || lastGeneratedTick.containsKey(player);
+    }
+
+    /**
+     * The UUIDs of every player who has generated an instance here (holding items or fully looted),
+     * as a defensive copy. The size is the instance count reported by {@code /prosperity reset}
+     * (S-004). Mirrors {@link #hasGenerated}: a player whose emptied inventory has been evicted still
+     * appears here via their retained {@code lastGeneratedTick}.
      */
     public Set<UUID> playerIds() {
-        return new HashSet<>(playerInventories.keySet());
+        Set<UUID> ids = new HashSet<>(playerInventories.keySet());
+        ids.addAll(lastGeneratedTick.keySet());
+        return ids;
     }
 
     /** The player's inventory, creating an empty one sized to {@code size} if absent. */
@@ -135,6 +162,25 @@ public final class InstancedLootData {
     /** Store the player's inventory. */
     public void setInventory(UUID player, NonNullList<ItemStack> inventory) {
         playerInventories.put(player, inventory);
+    }
+
+    /**
+     * Write the player's inventory back after they close the container, evicting it when fully looted.
+     * An all-empty inventory is dropped from the heavy {@code playerInventories} map so a container
+     * looted by every visitor does not accumulate one stored inventory per player forever (the
+     * mc-persistence "bound every persisted collection" bar). The player's {@code lastGeneratedTick}
+     * and {@code refreshCount} stay put, so the container still reads as {@linkplain #hasGenerated
+     * visited}: no fresh loot on re-open, the indicator stays looted, and a refresh still clears and
+     * re-rolls on schedule. A non-empty inventory is stored verbatim, preserving partial loot.
+     */
+    public void storeOrEvict(UUID player, NonNullList<ItemStack> inventory) {
+        for (ItemStack stack : inventory) {
+            if (!stack.isEmpty()) {
+                playerInventories.put(player, inventory);
+                return;
+            }
+        }
+        playerInventories.remove(player);
     }
 
     /**

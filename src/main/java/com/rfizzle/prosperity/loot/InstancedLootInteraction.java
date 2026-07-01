@@ -233,16 +233,17 @@ public final class InstancedLootInteraction {
             ServerPlayer player) {
         UUID uuid = player.getUUID();
         InstancedLootData primaryData = ProsperityAttachments.get(primary);
-        if (primaryData != null) {
-            NonNullList<ItemStack> stored = primaryData.getInventory(uuid);
-            if (stored != null) {
-                if (!LootRefresh.isExpired(primaryData, uuid, level.getGameTime())) {
-                    return stored;
-                }
-                // Cooldown elapsed: clear the player's combined instance from the primary half, where
-                // the inventory and tick both live, so it re-rolls below (S-016).
-                ProsperityAttachments.update(primary, data -> data.clearForPlayer(uuid));
+        if (primaryData != null && primaryData.hasGenerated(uuid)) {
+            if (!LootRefresh.isExpired(primaryData, uuid, level.getGameTime())) {
+                // Return visit: serve the stored combined inventory, or an empty 54-slot one when it
+                // was evicted after being looted clean — never re-roll fresh loot (S-016).
+                NonNullList<ItemStack> stored = primaryData.getInventory(uuid);
+                return stored != null ? stored
+                        : NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
             }
+            // Cooldown elapsed: clear the player's combined instance from the primary half, where
+            // the inventory and tick both live, so it re-rolls below (S-016).
+            ProsperityAttachments.update(primary, data -> data.clearForPlayer(uuid));
         }
 
         ContainerAdapter primaryAdapter = new BlockEntityContainerAdapter(level, primaryPos, primary);
@@ -327,16 +328,16 @@ public final class InstancedLootInteraction {
     public static NonNullList<ItemStack> generateAndStore(ContainerAdapter adapter, ServerPlayer player) {
         UUID uuid = player.getUUID();
         InstancedLootData existing = adapter.data();
-        if (existing != null) {
-            NonNullList<ItemStack> stored = existing.getInventory(uuid);
-            if (stored != null) {
-                if (!LootRefresh.isExpired(existing, uuid, adapter.level().getGameTime())) {
-                    return stored;
-                }
-                // Cooldown elapsed: drop the player's instance so a fresh one is rolled below (S-016).
-                // The preserved original loot table stays, so generation re-rolls from it.
-                adapter.update(data -> data.clearForPlayer(uuid));
+        if (existing != null && existing.hasGenerated(uuid)) {
+            if (!LootRefresh.isExpired(existing, uuid, adapter.level().getGameTime())) {
+                // A return visit before the cooldown: serve their stored inventory, or an empty one
+                // when it was evicted after they looted it clean — never re-roll fresh loot (S-016).
+                NonNullList<ItemStack> stored = existing.getInventory(uuid);
+                return stored != null ? stored : NonNullList.withSize(adapter.size(), ItemStack.EMPTY);
             }
+            // Cooldown elapsed: drop the player's instance so a fresh one is rolled below (S-016).
+            // The preserved original loot table stays, so generation re-rolls from it.
+            adapter.update(data -> data.clearForPlayer(uuid));
         }
 
         LootRef ref = resolveTable(adapter);
@@ -416,14 +417,18 @@ public final class InstancedLootInteraction {
     private record ModifierResult(float luck, double stackMultiplier) {
     }
 
-    /** Write a screen inventory back to the player's attachment entry on a block-entity container. */
+    /**
+     * Write a screen inventory back to the player's attachment entry on a block-entity container.
+     * Routes through {@link InstancedLootData#storeOrEvict} so a container the player has looted clean
+     * drops its stored inventory rather than persisting an empty one per visitor forever.
+     */
     public static void persist(RandomizableContainerBlockEntity be, UUID uuid, Container container) {
         int size = container.getContainerSize();
         NonNullList<ItemStack> out = NonNullList.withSize(size, ItemStack.EMPTY);
         for (int slot = 0; slot < size; slot++) {
             out.set(slot, container.getItem(slot));
         }
-        ProsperityAttachments.update(be, data -> data.setInventory(uuid, out));
+        ProsperityAttachments.update(be, data -> data.storeOrEvict(uuid, out));
     }
 
     /** Persist the combined inventory back to the primary half and close-animate both halves. */

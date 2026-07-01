@@ -115,7 +115,7 @@ public final class LootTooltip {
         UUID uuid = player.getUUID();
         ResourceKey<LootTable> liveTable = container.getLootTable();
         boolean blacklisted = InstancedLootInteraction.isBlacklisted(liveTable);
-        boolean generated = data != null && data.hasInventory(uuid);
+        boolean generated = data != null && data.hasGenerated(uuid);
         boolean expired = generated && LootRefresh.isExpired(data, uuid, level.getGameTime());
         Status status = statusOf(blacklisted, generated, expired);
 

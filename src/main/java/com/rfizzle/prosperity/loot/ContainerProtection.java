@@ -204,7 +204,10 @@ public final class ContainerProtection {
     /** Whether any online player has not generated their instance here (so protection still holds). */
     static boolean anyOnlinePlayerPending(InstancedLootData data, Collection<UUID> onlinePlayers) {
         for (UUID id : onlinePlayers) {
-            if (!data.hasInventory(id)) {
+            // Keyed on generation, not stored items: a player who looted this container clean has
+            // claimed their loot and no longer holds it pending, even after their empty inventory
+            // was evicted.
+            if (!data.hasGenerated(id)) {
                 return true;
             }
         }

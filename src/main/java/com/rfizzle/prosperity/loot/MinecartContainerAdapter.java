@@ -93,7 +93,7 @@ public final class MinecartContainerAdapter implements ContainerAdapter {
         for (int slot = 0; slot < size; slot++) {
             out.set(slot, screenInventory.getItem(slot));
         }
-        ProsperityAttachments.update(cart, data -> data.setInventory(player, out));
+        ProsperityAttachments.update(cart, data -> data.storeOrEvict(player, out));
     }
 
     @Override

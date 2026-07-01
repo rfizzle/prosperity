@@ -82,9 +82,10 @@ public final class UnlootedContainers {
                 slots = DoubleChestLayout.TOTAL_SLOTS;
             }
 
-            // Looted for this player once they have a stored inventory here, unless the refresh
-            // cooldown has elapsed (S-016) — then the sparkle reappears until they regenerate.
-            if (data != null && data.hasInventory(player)
+            // Looted for this player once they have generated here, unless the refresh cooldown has
+            // elapsed (S-016) — then the sparkle reappears until they regenerate. Keyed on generation,
+            // not stored items, so a container looted clean stays dark instead of re-lighting.
+            if (data != null && data.hasGenerated(player)
                     && !LootRefresh.isExpired(data, player, level.getGameTime())) {
                 continue;
             }
