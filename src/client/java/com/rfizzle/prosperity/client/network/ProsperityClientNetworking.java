@@ -133,6 +133,9 @@ public final class ProsperityClientNetworking {
             UnlootedIndicatorCache.clear();
             UnlootedMinecartIndicatorCache.clear();
             ClientProtectionState.get().clear();
+            // Reset the synced server config to the local one so the previous server's view doesn't
+            // linger into the next session before its sync lands.
+            ClientProsperityData.reset();
             // Drop any synced loot index so a previous server's rows don't linger into the next world
             // (harmless on an integrated host, where SERVER_STOPPED already resets the snapshot).
             LootIndexDataSource.acceptSynced(List.of());

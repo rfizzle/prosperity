@@ -137,6 +137,77 @@ class ProsperityConfigTest {
     }
 
     @Test
+    void xrayDistanceClampedToRenderDistance() {
+        // Xray can only reveal containers inside the render radius, so it is capped to it.
+        ProsperityConfig c = ProsperityConfig.fromJson(
+                "{\"indicatorRenderDistance\": 16, \"indicatorXrayDistance\": 64}");
+        assertEquals(16, c.indicatorRenderDistance);
+        assertEquals(16, c.indicatorXrayDistance);
+    }
+
+    @Test
+    void xrayDistanceWithinRenderDistanceIsUntouched() {
+        ProsperityConfig c = ProsperityConfig.fromJson(
+                "{\"indicatorRenderDistance\": 48, \"indicatorXrayDistance\": 8}");
+        assertEquals(8, c.indicatorXrayDistance);
+    }
+
+    @Test
+    void negativeTierMinDistanceIsClampedToZero() {
+        ProsperityConfig c = ProsperityConfig.fromJson(
+                "{\"distanceTiers\": [{\"name\": \"local\", \"minDistance\": -100, "
+                        + "\"stackMultiplier\": 1.0, \"qualityModifier\": 0}]}");
+        assertEquals(List.of(new DistanceTier("local", 0, 1.0, 0)), c.distanceTiers);
+    }
+
+    @Test
+    void nullAndBlankNamedTiersAreDropped() {
+        ProsperityConfig c = ProsperityConfig.fromJson(
+                "{\"distanceTiers\": ["
+                        + "{\"name\": \"\", \"minDistance\": 0, \"stackMultiplier\": 1.0, \"qualityModifier\": 0},"
+                        + "{\"minDistance\": 500, \"stackMultiplier\": 1.5, \"qualityModifier\": 1},"
+                        + "{\"name\": \"wilderness\", \"minDistance\": 3000, \"stackMultiplier\": 2.0, \"qualityModifier\": 2}"
+                        + "]}");
+        assertEquals(List.of(new DistanceTier("wilderness", 3000, 2.0, 2)), c.distanceTiers);
+    }
+
+    @Test
+    void duplicateTierNamesKeepFirstOccurrence() {
+        ProsperityConfig c = ProsperityConfig.fromJson(
+                "{\"distanceTiers\": ["
+                        + "{\"name\": \"frontier\", \"minDistance\": 1000, \"stackMultiplier\": 1.5, \"qualityModifier\": 1},"
+                        + "{\"name\": \"frontier\", \"minDistance\": 2000, \"stackMultiplier\": 9.0, \"qualityModifier\": 9}"
+                        + "]}");
+        assertEquals(List.of(new DistanceTier("frontier", 1000, 1.5, 1)), c.distanceTiers);
+    }
+
+    @Test
+    void invalidStructureOverridesAreDropped() {
+        ProsperityConfig c = ProsperityConfig.fromJson(
+                "{\"structureOverrides\": ["
+                        + "{\"structure\": \"minecraft:monument\", \"mode\": \"fixed\", \"tier\": \"wilderness\"},"
+                        + "{\"structure\": \"\", \"mode\": \"minimum\", \"tier\": \"outlands\"},"
+                        + "{\"structure\": \"minecraft:village\", \"mode\": \"nonsense\", \"tier\": \"frontier\"},"
+                        + "{\"structure\": \"minecraft:ruins\", \"mode\": \"maximum\", \"tier\": \"\"}"
+                        + "]}");
+        assertEquals(List.of(new StructureOverride("minecraft:monument", "fixed", "wilderness")),
+                c.structureOverrides);
+    }
+
+    @Test
+    void syncJsonOmitsClientBlock() {
+        ProsperityConfig c = new ProsperityConfig();
+        String sync = c.toSyncJson();
+        assertFalse(sync.contains("\"client\""), "synced config must not ship the client block");
+        assertFalse(sync.contains("hudAnchor"), "synced config must not ship client fields");
+        // Server fields still ride the wire, and it round-trips back through fromJson.
+        assertTrue(sync.contains("enableInstancedLoot"));
+        ProsperityConfig reread = ProsperityConfig.fromJson(sync);
+        assertEquals(c.distanceTiers, reread.distanceTiers);
+        assertNotNull(reread.client, "reader re-defaults the absent client block");
+    }
+
+    @Test
     void tierForBoundaryValues() {
         ProsperityConfig c = new ProsperityConfig();
         assertEquals("local", c.tierFor(0).name());
