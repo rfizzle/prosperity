@@ -20,6 +20,8 @@
 
 # Generated website (concord template)
 /_site/
+# Changelog page is generated at build from changelogs/* + GitHub Releases
+/site/pages/changelog.json
 
 # Local AI / planning state
 /.plan/
