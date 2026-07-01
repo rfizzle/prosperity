@@ -42,6 +42,32 @@ public final class LootRefresh {
     }
 
     /**
+     * Pure edge-trigger predicate for the expiry sweep (S-016): whether loot generated at
+     * {@code lastGeneratedTick} crosses its {@code cooldown} inside the half-open window
+     * {@code (previous, now]} &mdash; i.e. it was still live at {@code previous} but has expired by
+     * {@code now}. Returns {@code false} for the never-generated sentinel ({@code lastGeneratedTick < 0})
+     * and whenever time did not advance ({@code previous >= now}), so a first sweep or a stalled clock
+     * fires no resend; an instance already expired at chunk-load time was lit by the client's own request.
+     */
+    public static boolean crossedExpiry(long lastGeneratedTick, long cooldown, long previous, long now) {
+        if (lastGeneratedTick < 0) {
+            return false;
+        }
+        long expiry = lastGeneratedTick + cooldown;
+        return expiry > previous && expiry <= now;
+    }
+
+    /**
+     * The roll salt for a (re)generation: the player's {@code refreshCount} when
+     * {@code randomizeLootOnRefresh} is on, otherwise {@code 0} for a deterministic roll that
+     * regenerates identically. Read after any cooldown clear has advanced the count, so successive
+     * refreshes draw distinct loot while staying reproducible across a reload for a given count.
+     */
+    public static long refreshSalt(boolean randomizeOnRefresh, long refreshCount) {
+        return randomizeOnRefresh ? refreshCount : 0L;
+    }
+
+    /**
      * Ticks remaining until loot generated at {@code lastGeneratedTick} expires, clamped at {@code 0}
      * (never negative). Does not consult the enabled toggle &mdash; callers gate on it separately; this
      * is pure countdown math for the tooltip refresh timer (§10).

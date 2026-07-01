@@ -391,10 +391,11 @@ public final class InstancedLootInteraction {
      * staying reproducible across a reload. A {@code null} attachment (first-ever visit) yields {@code 0}.
      */
     private static long refreshSalt(@Nullable InstancedLootData data, UUID uuid) {
-        if (data == null || !Prosperity.getConfig().randomizeLootOnRefresh) {
+        if (data == null) {
             return 0L;
         }
-        return data.getRefreshCount(uuid);
+        return LootRefresh.refreshSalt(Prosperity.getConfig().randomizeLootOnRefresh,
+                data.getRefreshCount(uuid));
     }
 
     /**

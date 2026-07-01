@@ -120,12 +120,7 @@ public final class LootRefreshSweep {
             if (data == null) {
                 continue;
             }
-            long lastGen = data.getLastGeneratedTick(player);
-            if (lastGen < 0) {
-                continue;
-            }
-            long expiry = lastGen + cooldown;
-            if (expiry > previous && expiry <= now) {
+            if (LootRefresh.crossedExpiry(data.getLastGeneratedTick(player), cooldown, previous, now)) {
                 return true;
             }
         }
