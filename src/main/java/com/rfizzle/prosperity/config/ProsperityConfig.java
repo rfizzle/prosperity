@@ -1,5 +1,7 @@
 package com.rfizzle.prosperity.config;
 
+import com.google.gson.ExclusionStrategy;
+import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -14,9 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Server + client config surface from SPEC §Configuration. Serialized to
@@ -33,12 +37,26 @@ public class ProsperityConfig {
     static final Gson GSON = new GsonBuilder().setPrettyPrinting().setLenient().create();
 
     /**
-     * Compact (non-pretty) serializer for the wire form. {@link #toJson()} pretty-prints for the
-     * human-editable on-disk file; the config-sync payload has no reader, so it ships the same data
-     * without the indentation whitespace — roughly a third smaller, which keeps the synced JSON
-     * comfortably inside {@link com.rfizzle.prosperity.network.ConfigSyncS2CPayload#MAX_CONFIG_JSON_CHARS}.
+     * Serializer for the config-sync wire form. Non-pretty (no indentation whitespace — roughly a
+     * third smaller than {@link #toJson()}) and drops the {@link #client} block, which the client
+     * reads only from its own local config and never from the synced view. Together this keeps the
+     * synced JSON comfortably inside
+     * {@link com.rfizzle.prosperity.network.ConfigSyncS2CPayload#MAX_CONFIG_JSON_CHARS}.
      */
-    private static final Gson COMPACT_GSON = new GsonBuilder().setLenient().create();
+    private static final Gson SYNC_GSON = new GsonBuilder()
+            .setLenient()
+            .addSerializationExclusionStrategy(new ExclusionStrategy() {
+                @Override
+                public boolean shouldSkipField(FieldAttributes f) {
+                    return ProsperityConfig.class.equals(f.getDeclaringClass()) && "client".equals(f.getName());
+                }
+
+                @Override
+                public boolean shouldSkipClass(Class<?> clazz) {
+                    return false;
+                }
+            })
+            .create();
 
     /** Returned by {@link #tierFor(double)} when no tier matches (empty list / below tier 0). */
     public static final DistanceTier LOCAL_SENTINEL = new DistanceTier("local", 0, 1.0, 0);
@@ -156,14 +174,21 @@ public class ProsperityConfig {
     public void clamp() {
         indicatorRenderDistance = Math.clamp(indicatorRenderDistance, 0, 512);
         indicatorXrayDistance = Math.clamp(indicatorXrayDistance, 0, 512);
+        // Xray reveals containers through walls only inside the render radius, so it can never exceed
+        // it — a hand-edited xray > render distance is silently capped to the render distance.
+        indicatorXrayDistance = Math.min(indicatorXrayDistance, indicatorRenderDistance);
         lootRefreshDays = Math.clamp(lootRefreshDays, 1, Integer.MAX_VALUE);
         protectionBreakMultiplier = Math.clamp(protectionBreakMultiplier, 1.0f, 100.0f);
 
         if (distanceTiers == null) {
             distanceTiers = defaultDistanceTiers();
+        } else {
+            distanceTiers = sanitizeDistanceTiers(distanceTiers);
         }
         if (structureOverrides == null) {
             structureOverrides = defaultStructureOverrides();
+        } else {
+            structureOverrides = sanitizeStructureOverrides(structureOverrides);
         }
         if (lootTableBlacklist == null) {
             lootTableBlacklist = new ArrayList<>();
@@ -183,13 +208,62 @@ public class ProsperityConfig {
         client.hudOffsetY = Math.clamp(client.hudOffsetY, 0, 10_000);
     }
 
+    /**
+     * Heals hand-edited {@link #distanceTiers}: drops null entries and entries with a null/blank
+     * name, drops duplicate names (first wins) so {@link StructureOverride#tier()} resolves
+     * unambiguously, and clamps a negative {@link DistanceTier#minDistance()} up to {@code 0} so the
+     * highest-to-lowest walk in {@link #tierFor(double)} stays ordered. An all-invalid list collapses
+     * to empty (a valid "no scaling" config), not to the defaults.
+     */
+    private static List<DistanceTier> sanitizeDistanceTiers(List<DistanceTier> tiers) {
+        List<DistanceTier> cleaned = new ArrayList<>(tiers.size());
+        Set<String> seenNames = new HashSet<>();
+        for (DistanceTier tier : tiers) {
+            if (tier == null || tier.name() == null || tier.name().isBlank()) {
+                continue;
+            }
+            if (!seenNames.add(tier.name())) {
+                continue;
+            }
+            int minDistance = Math.max(0, tier.minDistance());
+            cleaned.add(minDistance == tier.minDistance()
+                    ? tier
+                    : new DistanceTier(tier.name(), minDistance, tier.stackMultiplier(), tier.qualityModifier()));
+        }
+        return cleaned;
+    }
+
+    /**
+     * Heals hand-edited {@link #structureOverrides}: drops null entries and any whose structure id,
+     * mode, or tier reference is null/blank, or whose mode is not one of {@code fixed}/{@code minimum}/
+     * {@code maximum} — an unrecognized override does nothing downstream, so pruning it keeps the
+     * in-memory list to only entries that can actually apply.
+     */
+    private static List<StructureOverride> sanitizeStructureOverrides(List<StructureOverride> overrides) {
+        List<StructureOverride> cleaned = new ArrayList<>(overrides.size());
+        for (StructureOverride override : overrides) {
+            if (override == null
+                    || override.structure() == null || override.structure().isBlank()
+                    || override.tier() == null || override.tier().isBlank()
+                    || !isRecognizedMode(override.mode())) {
+                continue;
+            }
+            cleaned.add(override);
+        }
+        return cleaned;
+    }
+
+    private static boolean isRecognizedMode(String mode) {
+        return "fixed".equals(mode) || "minimum".equals(mode) || "maximum".equals(mode);
+    }
+
     public String toJson() {
         return GSON.toJson(this);
     }
 
-    /** Compact serialization for the config-sync wire form (S-010); {@link #fromJson(String)} reads it back. */
+    /** Serialization for the config-sync wire form (S-010); {@link #fromJson(String)} reads it back. */
     public String toSyncJson() {
-        return COMPACT_GSON.toJson(this);
+        return SYNC_GSON.toJson(this);
     }
 
     public static ProsperityConfig fromJson(String json) {
