@@ -13,9 +13,9 @@ public final class IndicatorMath {
     public static final double BOB_PERIOD_TICKS = 40.0;
     /** Render-distance band, in blocks, over which the indicator fades to transparent. */
     public static final double FADE_BAND = 8.0;
-    /** Frames in the {@code unlooted.png} animation strip. */
+    /** Frames in the sparkle animation, one standalone {@code unlooted_<n>.png} texture each. */
     public static final int FRAME_COUNT = 4;
-    /** Ticks per animation frame — must match {@code unlooted.png.mcmeta} {@code frametime}. */
+    /** Ticks each animation frame is shown before advancing to the next. */
     public static final long FRAME_TIME_TICKS = 5;
 
     private IndicatorMath() {
