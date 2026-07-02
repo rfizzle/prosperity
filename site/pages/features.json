@@ -84,6 +84,10 @@
         {
           "type": "prose",
           "html": ["With <a href='https://tribulation.rfizzle.com' class='text-accent hover:text-accent2 underline'>Tribulation</a> installed, the local difficulty adds bonus luck on top of the distance tier, everywhere distance scaling applies — a dangerous area yields richer chests and better drops from its scaled mobs. The bonus follows Tribulation's own tier thresholds, stays small through the early tiers, is capped at +2 luck, and gives stack counts a slight nudge only at the two highest tiers."]
+        },
+        {
+          "type": "prose",
+          "html": ["Tribulation's scaled mobs also drop their equipped tier gear with a chance tied to how far from spawn they roam: the mob's Tribulation tier crossed with the distance tier where it was equipped sets the odds, capped at 35% for a max-tier mob in the Depths. Near spawn the same mob keeps its kit — enchanted gear stays a reward for ranging far, not an early-game firehose."]
         }
       ]
     },
