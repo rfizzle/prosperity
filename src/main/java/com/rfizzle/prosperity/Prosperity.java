@@ -2,6 +2,7 @@ package com.rfizzle.prosperity;
 
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
+import com.rfizzle.prosperity.compat.tribulation.TribulationCompat;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.ContainerProtection;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
@@ -12,6 +13,7 @@ import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
@@ -33,6 +35,11 @@ public class Prosperity implements ModInitializer {
         LootRefreshSweep.register();
         ContainerProtection.register();
         LootModifiers.registerDefaults();
+        // After registerDefaults() so the vanilla-luck listener precedes the Tribulation bias in
+        // registration order. TribulationCompat is only class-loaded behind this guard.
+        if (FabricLoader.getInstance().isModLoaded("tribulation")) {
+            TribulationCompat.register();
+        }
         LootInjectionManager.init();
         LootIndexDataSource.init();
         // After LootIndexDataSource.init() so the /reload broadcast listener fires after the index's
