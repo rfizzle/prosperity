@@ -106,6 +106,22 @@ repositories {
             includeGroup 'maven.modrinth'
         }
     }
+    // GitHub Releases — resolves sibling Concord mods straight from their release jars while
+    // their Modrinth projects are not publicly resolvable. Artifact-only (no metadata), scoped
+    // to the rfizzle org so it never shadows a real Maven group.
+    ivy {
+        name = 'GitHubReleases'
+        url = 'https://github.com'
+        patternLayout {
+            artifact '/[organisation]/[module]/releases/download/v[revision]/[module]-[revision].jar'
+        }
+        metadataSources {
+            artifact()
+        }
+        content {
+            includeGroup 'rfizzle'
+        }
+    }
     maven {
         name = 'Bai'
         url = 'https://maven2.bai.lol'
@@ -216,6 +232,12 @@ dependencies {
     modLocalRuntime("mezz.jei:jei-1.21.1-fabric:${project.jei_version}") {
         transitive = false
     }
+
+    // Tribulation — sibling Concord mod; soft dependency for the difficulty-tier loot bias.
+    // Compile-only against its api package behind isModLoaded guards, never bundled. Resolved
+    // from the GitHub release jar (GitHubReleases ivy repo) because the Modrinth project is not
+    // publicly resolvable; swap to maven.modrinth once it is.
+    modCompileOnly "rfizzle:tribulation:${project.tribulation_version}"
 
     // Tests
     testImplementation platform("org.junit:junit-bom:${project.junit_version}")

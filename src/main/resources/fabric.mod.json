@@ -55,7 +55,8 @@
         "wthit": "*",
         "emi": "*",
         "roughlyenoughitems": "*",
-        "jei": "*"
+        "jei": "*",
+        "tribulation": "*"
     },
     "mixins": [
         "prosperity.mixins.json"

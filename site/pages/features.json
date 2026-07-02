@@ -80,6 +80,10 @@
         {
           "type": "prose",
           "html": ["The same tiers apply to hostile-mob drops when you land the killing blow, so combat keeps pace with exploration — a mob far from origin drops scaled stacks and rarer loot, while passive mobs and environmental or non-player kills are untouched. Mob scaling is independently togglable."]
+        },
+        {
+          "type": "prose",
+          "html": ["With <a href='https://tribulation.rfizzle.com' class='text-accent hover:text-accent2 underline'>Tribulation</a> installed, the local difficulty adds bonus luck on top of the distance tier, everywhere distance scaling applies — a dangerous area yields richer chests and better drops from its scaled mobs. The bonus follows Tribulation's own tier thresholds, stays small through the early tiers, is capped at +2 luck, and gives stack counts a slight nudge only at the two highest tiers."]
         }
       ]
     },
