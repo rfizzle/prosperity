@@ -38,8 +38,8 @@ public final class LootTableRecipeCategory extends AbstractRecipeCategory<LootIn
     public static final RecipeType<LootIndexEntry> RECIPE_TYPE =
             RecipeType.create(Prosperity.MOD_ID, "loot_tables", LootIndexEntry.class);
 
-    /** The unlooted-indicator sprite (16×16 frame on a 16×64 strip); frame 0 marks injected rows. */
-    private static final ResourceLocation SPARKLE = Prosperity.id("textures/overlay/unlooted.png");
+    /** The unlooted-indicator sparkle (first animation frame); marks injected rows. */
+    private static final ResourceLocation SPARKLE = Prosperity.id("textures/overlay/unlooted_0.png");
 
     private static final int WIDTH = 160;
     private static final int HEIGHT = 28;
@@ -76,8 +76,8 @@ public final class LootTableRecipeCategory extends AbstractRecipeCategory<LootIn
         guiGraphics.drawString(font, LootIndexLabels.tierBadge(entry), TEXT_X, 15, TEXT_COLOR, false);
 
         if (entry.origin() == LootIndexEntry.Origin.INJECTED) {
-            // Gold-sparkle marker (frame 0 of the 16×64 strip) in the output slot's top-right corner.
-            guiGraphics.blit(SPARKLE, 39, SLOT_Y - 2, 8, 8, 0F, 0F, 16, 16, 16, 64);
+            // Gold-sparkle marker in the output slot's top-right corner.
+            guiGraphics.blit(SPARKLE, 39, SLOT_Y - 2, 8, 8, 0F, 0F, 16, 16, 16, 16);
         }
     }
 
