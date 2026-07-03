@@ -8,19 +8,29 @@ import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Entry;
+import com.rfizzle.prosperity.loot.injection.LootInjectionManager.LevelPolicy;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition;
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.EnchantmentTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.minecraft.world.level.storage.loot.LootTable;
 
@@ -121,6 +131,65 @@ public class LootInjectionGameTest implements FabricGameTest {
                 "a fabric:all_mods_loaded gate naming the loaded prosperity mod must pass");
         helper.assertTrue(!conditionMet(allModsLoaded("prosperity_absent_sibling"), registries),
                 "a fabric:all_mods_loaded gate naming an absent mod must fail, skipping the file");
+        helper.succeed();
+    }
+
+    /**
+     * A generative entry against a real enchantment registry: the draw yields an enchanted book with
+     * exactly one enchantment from the named vanilla tag, at the {@code mid} policy level of that
+     * enchantment's own range, and the same seed reproduces the identical book (S-014 determinism,
+     * issue #59).
+     */
+    @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void generativeEntryDrawsOneTaggedEnchantment(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Entry generative = new Entry(new ItemStack(Items.ENCHANTED_BOOK),
+                Optional.of(TagKey.create(Registries.ENCHANTMENT,
+                        ResourceLocation.withDefaultNamespace("treasure"))),
+                LevelPolicy.MID, 1);
+
+        ItemStack drawn = LootInjectionManager.draw(List.of(generative), RandomSource.create(SEED), registries);
+        helper.assertTrue(drawn != null && drawn.is(Items.ENCHANTED_BOOK),
+                "a generative entry must realize to an enchanted book");
+        ItemEnchantments stored = drawn.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY);
+        helper.assertTrue(stored.size() == 1,
+                "exactly one enchantment is drawn from the tag: got " + stored.size());
+        Holder<Enchantment> enchantment = stored.keySet().iterator().next();
+        helper.assertTrue(enchantment.is(EnchantmentTags.TREASURE),
+                "the drawn enchantment must come from the named tag: got " + enchantment);
+        int expected = LootInjectionManager.policyLevel(LevelPolicy.MID,
+                enchantment.value().getMinLevel(), enchantment.value().getMaxLevel(), RandomSource.create(0L));
+        helper.assertTrue(stored.getLevel(enchantment) == expected,
+                "the mid policy stores ceil(max/2): expected " + expected + ", got " + stored.getLevel(enchantment));
+
+        ItemStack replay = LootInjectionManager.draw(List.of(generative), RandomSource.create(SEED), registries);
+        helper.assertTrue(ItemStack.matches(drawn, replay), "the same seed must reproduce the identical book");
+        helper.succeed();
+    }
+
+    /**
+     * A generative entry whose tag resolves empty (an unregistered tag — the mod-absent case) drops
+     * from the pool before weighting: a literal sibling wins the slot rather than the draw being
+     * wasted, and a pool of only unresolvable entries injects nothing.
+     */
+    @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void emptyTagDoesNotConsumeTheDraw(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Entry unresolvable = new Entry(new ItemStack(Items.ENCHANTED_BOOK),
+                Optional.of(TagKey.create(Registries.ENCHANTMENT,
+                        Prosperity.id("gametest/does_not_exist"))),
+                LevelPolicy.MID, 1000);
+        Entry literal = new Entry(new ItemStack(Items.BREAD), 1);
+
+        ItemStack drawn = LootInjectionManager.draw(List.of(unresolvable, literal),
+                RandomSource.create(SEED), registries);
+        helper.assertTrue(drawn != null && drawn.is(Items.BREAD),
+                "the literal sibling must win the slot when the tag resolves empty");
+        helper.assertTrue(
+                LootInjectionManager.draw(List.of(unresolvable), RandomSource.create(SEED), registries) == null,
+                "a pool of only unresolvable generative entries injects nothing");
         helper.succeed();
     }
 

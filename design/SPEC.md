@@ -393,6 +393,18 @@ Files at `data/prosperity/loot_injections/<name>.json`:
 - `entries[].item`: Item ID.
 - `entries[].count`: Stack count (default 1).
 - `entries[].components`: Optional data components (same format as vanilla `/give` and recipe definitions).
+- `entries[].enchant_randomly`: Optional enchantment tag ID (with or without a `#` prefix, e.g.
+  `"#meridian:rarity/rare"`) making the entry **generative**: at draw time one enchantment is picked
+  uniformly from the tag's members and stored on the item at the `level` policy, so a whole catalog is
+  covered without enumerating it per enchant. Mutually exclusive with `components` (a file mixing both
+  in one entry fails to parse). The pick uses the injection draw's deterministic per-player
+  `RandomSource`, so instanced loot stays reproducible. A tag that resolves empty or absent (mod not
+  installed, empty tag) drops the entry from the pool *before* weighting — the draw slot falls to the
+  remaining eligible entries rather than being wasted.
+- `entries[].level`: Level policy for a generative entry, relative to the drawn enchantment's own
+  `[min, max]` range: `mid` (the rounded-up midpoint, ⌈max/2⌉, floored at min), `max` (the top level),
+  or `uniform` (the default — a uniform draw over the whole range, vanilla `enchant_randomly`
+  semantics; the only policy that consumes randomness).
 - `entries[].weight`: Relative weight within the loot pool (default 1). Higher weight = more likely to appear. Injected entries compete with existing pool entries.
 
 #### Mod-presence gating

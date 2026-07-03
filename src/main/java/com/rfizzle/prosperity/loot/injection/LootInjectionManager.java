@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.rfizzle.prosperity.Prosperity;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,6 +27,9 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditions;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentPatch;
@@ -36,10 +41,15 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.ExtraCodecs;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.storage.loot.LootTable;
 import org.jetbrains.annotations.Nullable;
 
@@ -191,7 +201,8 @@ public final class LootInjectionManager {
                 ^ Long.rotateLeft(uuid.getLeastSignificantBits(), 32)
                 ^ Long.rotateLeft(salt * INJECTION_SALT, 29);
         RandomSource random = RandomSource.create(mixed == 0L ? 1L : mixed);
-        ItemStack injected = pick(table.location(), tier, level.dimension().location(), random);
+        ItemStack injected = pick(table.location(), tier, level.dimension().location(), random,
+                level.registryAccess());
         if (injected == null || injected.isEmpty()) {
             return;
         }
@@ -225,17 +236,18 @@ public final class LootInjectionManager {
 
     /**
      * One weighted-random eligible injected item for {@code table} at {@code tier} in {@code dimension},
-     * or {@code null} when the table has no injections or none are eligible.
+     * or {@code null} when the table has no injections or none are eligible. Generative entries resolve
+     * their enchantment tag against {@code registries} at draw time.
      */
     @Nullable
     public static ItemStack pick(ResourceLocation table, DistanceTier tier, ResourceLocation dimension,
-            RandomSource random) {
+            RandomSource random, HolderLookup.Provider registries) {
         Map<ResourceLocation, List<Tiered>> registry = REGISTRY;
         List<Tiered> list = registry.get(table);
         if (list == null || list.isEmpty()) {
             return null;
         }
-        return draw(eligibleEntries(list, tier, dimension, Prosperity.getConfig()), random);
+        return draw(eligibleEntries(list, tier, dimension, Prosperity.getConfig()), random, registries);
     }
 
     /** The target loot tables that currently carry any injection (immutable snapshot). */
@@ -285,24 +297,86 @@ public final class LootInjectionManager {
         return out;
     }
 
-    /** A copy of one entry's stack, chosen by weight; {@code null} for an empty list. */
+    /**
+     * One entry chosen by weight, realized to a stack; {@code null} when nothing can be drawn. A
+     * generative entry whose tag resolves empty or absent against {@code registries} is dropped from
+     * the pool <em>before</em> weighting, so the draw slot falls to the remaining entries rather than
+     * being wasted. Both the resolution order (tag order) and the weighted pick are deterministic for
+     * a given {@code random} seed.
+     */
     @Nullable
-    static ItemStack draw(List<Entry> eligible, RandomSource random) {
-        if (eligible.isEmpty()) {
+    public static ItemStack draw(List<Entry> eligible, RandomSource random, HolderLookup.Provider registries) {
+        List<Entry> pool = new ArrayList<>(eligible.size());
+        List<HolderSet.Named<Enchantment>> resolved = new ArrayList<>(eligible.size());
+        for (Entry entry : eligible) {
+            HolderSet.Named<Enchantment> holders = null;
+            if (entry.enchantRandomly().isPresent()) {
+                holders = resolveTag(registries, entry.enchantRandomly().get());
+                if (holders == null || holders.size() == 0) {
+                    continue;
+                }
+            }
+            pool.add(entry);
+            resolved.add(holders);
+        }
+        if (pool.isEmpty()) {
             return null;
         }
         int total = 0;
-        for (Entry entry : eligible) {
+        for (Entry entry : pool) {
             total += entry.weight();
         }
         int roll = random.nextInt(total);
-        for (Entry entry : eligible) {
-            roll -= entry.weight();
+        int chosen = pool.size() - 1;
+        for (int i = 0; i < pool.size(); i++) {
+            roll -= pool.get(i).weight();
             if (roll < 0) {
-                return entry.stack().copy();
+                chosen = i;
+                break;
             }
         }
-        return eligible.get(eligible.size() - 1).stack().copy();
+        Entry entry = pool.get(chosen);
+        HolderSet.Named<Enchantment> holders = resolved.get(chosen);
+        return holders == null ? entry.stack().copy()
+                : generate(entry.stack(), holders, entry.level(), random);
+    }
+
+    /** The tag's holder set in {@code registries}, or {@code null} when the tag is absent. */
+    @Nullable
+    private static HolderSet.Named<Enchantment> resolveTag(HolderLookup.Provider registries,
+            TagKey<Enchantment> tag) {
+        return registries.lookup(Registries.ENCHANTMENT)
+                .flatMap(lookup -> lookup.get(tag))
+                .orElse(null);
+    }
+
+    /**
+     * Realize a generative entry: one enchantment drawn uniformly from {@code holders} (known
+     * non-empty), stored on a copy of {@code prototype} at the level {@code policy} yields. The stack's
+     * item routes the write &mdash; {@link EnchantmentHelper#updateEnchantments} targets
+     * {@code stored_enchantments} on an enchanted book.
+     */
+    private static ItemStack generate(ItemStack prototype, HolderSet.Named<Enchantment> holders,
+            LevelPolicy policy, RandomSource random) {
+        Holder<Enchantment> holder = holders.get(random.nextInt(holders.size()));
+        int level = policyLevel(policy, holder.value().getMinLevel(), holder.value().getMaxLevel(), random);
+        ItemStack stack = prototype.copy();
+        EnchantmentHelper.updateEnchantments(stack, mutable -> mutable.set(holder, level));
+        return stack;
+    }
+
+    /**
+     * The enchantment level a policy yields within {@code [min, max]}: {@code mid} is the rounded-up
+     * midpoint {@code ceil(max/2)} (floored at {@code min}), {@code max} the top level, and
+     * {@code uniform} a uniform draw over the whole range &mdash; vanilla {@code enchant_randomly}
+     * semantics, the only policy that consumes {@code random}.
+     */
+    public static int policyLevel(LevelPolicy policy, int min, int max, RandomSource random) {
+        return switch (policy) {
+            case MID -> Math.max(min, (max + 1) / 2);
+            case MAX -> max;
+            case UNIFORM -> Mth.nextInt(random, min, max);
+        };
     }
 
     /**
@@ -407,11 +481,53 @@ public final class LootInjectionManager {
     }
 
     /**
-     * One injectable item: a prototype {@link ItemStack} (id, count, full data components) and its
-     * relative selection weight. The codec round-trips {@code {item, count, components, weight}}.
+     * The level a generative entry stores its drawn enchantment at, relative to the enchantment's own
+     * {@code [min, max]} range. See {@link #policyLevel}.
      */
-    public record Entry(ItemStack stack, int weight) {
-        public static final Codec<Entry> CODEC = RecordCodecBuilder.create(instance ->
+    public enum LevelPolicy implements StringRepresentable {
+        UNIFORM("uniform"),
+        MID("mid"),
+        MAX("max");
+
+        static final Codec<LevelPolicy> CODEC = StringRepresentable.fromEnum(LevelPolicy::values);
+
+        private final String name;
+
+        LevelPolicy(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getSerializedName() {
+            return name;
+        }
+    }
+
+    /** An enchantment-tag id with an optional {@code #} prefix (both forms accepted). */
+    private static final Codec<TagKey<Enchantment>> ENCHANTMENT_TAG_CODEC = Codec.STRING.comapFlatMap(
+            raw -> ResourceLocation.read(raw.startsWith("#") ? raw.substring(1) : raw)
+                    .map(id -> TagKey.create(Registries.ENCHANTMENT, id)),
+            tag -> "#" + tag.location());
+
+    /**
+     * One injectable item, in one of two mutually exclusive shapes. A <b>literal</b> entry is a
+     * prototype {@link ItemStack} (id, count, full data components) placed as authored. A
+     * <b>generative</b> entry instead names an enchantment tag ({@code enchant_randomly}) and a
+     * {@link LevelPolicy} ({@code level}): at draw time one enchantment is picked uniformly from the
+     * tag and stored on the prototype at the policy level, so a mod's whole catalog is covered without
+     * enumerating it. Both carry a relative selection {@code weight}. The codec round-trips
+     * {@code {item, count, components | enchant_randomly + level, weight}} and rejects an entry mixing
+     * {@code components} with {@code enchant_randomly}.
+     */
+    public record Entry(ItemStack stack, Optional<TagKey<Enchantment>> enchantRandomly, LevelPolicy level,
+            int weight) {
+
+        /** A literal entry: the prototype stack as authored, no generative fields. */
+        public Entry(ItemStack stack, int weight) {
+            this(stack, Optional.empty(), LevelPolicy.UNIFORM, weight);
+        }
+
+        public static final Codec<Entry> CODEC = RecordCodecBuilder.<Entry>create(instance ->
                 instance.group(
                         BuiltInRegistries.ITEM.byNameCodec().fieldOf("item")
                                 .forGetter(entry -> entry.stack.getItem()),
@@ -419,13 +535,21 @@ public final class LootInjectionManager {
                                 .forGetter(entry -> entry.stack.getCount()),
                         DataComponentPatch.CODEC.optionalFieldOf("components", DataComponentPatch.EMPTY)
                                 .forGetter(entry -> entry.stack.getComponentsPatch()),
+                        ENCHANTMENT_TAG_CODEC.optionalFieldOf("enchant_randomly")
+                                .forGetter(Entry::enchantRandomly),
+                        LevelPolicy.CODEC.optionalFieldOf("level", LevelPolicy.UNIFORM)
+                                .forGetter(Entry::level),
                         ExtraCodecs.POSITIVE_INT.optionalFieldOf("weight", 1).forGetter(Entry::weight)
-                ).apply(instance, LootInjectionManager::makeEntry));
+                ).apply(instance, LootInjectionManager::makeEntry)
+        ).validate(entry -> entry.enchantRandomly().isPresent() && !entry.stack().getComponentsPatch().isEmpty()
+                ? DataResult.error(() -> "components and enchant_randomly are mutually exclusive")
+                : DataResult.success(entry));
     }
 
-    private static Entry makeEntry(Item item, int count, DataComponentPatch components, int weight) {
+    private static Entry makeEntry(Item item, int count, DataComponentPatch components,
+            Optional<TagKey<Enchantment>> enchantRandomly, LevelPolicy level, int weight) {
         ItemStack stack = new ItemStack(item, count);
         stack.applyComponents(components);
-        return new Entry(stack, weight);
+        return new Entry(stack, enchantRandomly, level, weight);
     }
 }
