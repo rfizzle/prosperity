@@ -14,7 +14,7 @@ package com.rfizzle.prosperity.compat.tribulation;
 final class DropChanceScaling {
 
     /** Ceiling on the drop chance, reached only at max distance tier and max mob tier. */
-    static final float MAX_CHANCE = 0.35f;
+    static final float MAX_CHANCE = 0.25f;
 
     /** Weight a tier-0 mob keeps, so distance alone still yields a small chance. */
     static final float MOB_TIER_FLOOR = 0.25f;
