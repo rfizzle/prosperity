@@ -239,6 +239,12 @@ dependencies {
     // publicly resolvable; swap to maven.modrinth once it is.
     modCompileOnly "rfizzle:tribulation:${project.tribulation_version}"
 
+    // Meridian — sibling Concord mod; soft dependency for distance-scaled enchantment rolls on
+    // injected Meridian books. Compile-only against its api package behind isModLoaded guards,
+    // never bundled. Resolved from the GitHub release jar (GitHubReleases ivy repo) because the
+    // Modrinth project is not publicly resolvable; swap to maven.modrinth once it is.
+    modCompileOnly "rfizzle:meridian:${project.meridian_version}"
+
     // Tests
     testImplementation platform("org.junit:junit-bom:${project.junit_version}")
     testImplementation "org.junit.jupiter:junit-jupiter"

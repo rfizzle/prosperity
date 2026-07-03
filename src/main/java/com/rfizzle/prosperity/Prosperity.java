@@ -2,6 +2,7 @@ package com.rfizzle.prosperity;
 
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
+import com.rfizzle.prosperity.compat.meridian.MeridianCompat;
 import com.rfizzle.prosperity.compat.tribulation.TribulationCompat;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.ContainerProtection;
@@ -39,6 +40,10 @@ public class Prosperity implements ModInitializer {
         // registration order. TribulationCompat is only class-loaded behind this guard.
         if (FabricLoader.getInstance().isModLoaded("tribulation")) {
             TribulationCompat.register();
+        }
+        // MeridianCompat is only class-loaded behind this guard.
+        if (FabricLoader.getInstance().isModLoaded("meridian")) {
+            MeridianCompat.register();
         }
         LootInjectionManager.init();
         LootIndexDataSource.init();

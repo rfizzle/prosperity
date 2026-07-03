@@ -456,6 +456,25 @@ Depths. The file carries both gates: a file-level `fabric:load_conditions`
 header, so its `meridian:*` enchantment components never reach the registry-aware
 codec when Meridian is absent, and `requires_mods` on each injection.
 
+At generation time the authored enchantments on those books are the fallback,
+not the served result: `MeridianCompat` (in `compat/meridian`, class-loaded only
+behind `isModLoaded("meridian")`) installs the injection manager's
+stack-finalizer hook, and any injected `enchanted_book` carrying a `meridian:*`
+stored enchantment has its enchantments rolled live via
+`MeridianAPI.rollLootEnchantments` — the same rules as Meridian's enchanting
+table — at a power derived from the container's distance tier. The tier→power
+curve (`MeridianEnchantPower`) is conservative and pure math: index 0 (`local`)
+rolls nothing, the first travelled tier rolls at power 8, and the curve ramps
+linearly to 30 at the ladder's deepest tier; treasure-tagged enchantments only
+roll at the deepest tier, and Meridian's per-enchantment `maxLootLevel` caps the
+rolled levels. The roll consumes the injection draw's own deterministic
+`RandomSource` (container seed × refresh salt × player UUID), so instanced loot
+stays reproducible per player and re-rolls in lockstep with the main loot under
+`randomizeLootOnRefresh`. A Meridian call that fails — including the
+`LinkageError` from an older Meridian jar without the roll API — is contained
+and logged once, leaving the authored static enchantments standing. Books from
+the built-in vanilla injection files pass through the hook untouched.
+
 ### Wildcard Targets
 
 The special target `"prosperity:all_chests"` injects into every loot table matching `**/chests/**`. This allows pack makers to add items globally without listing every loot table individually.

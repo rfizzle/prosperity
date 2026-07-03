@@ -121,7 +121,7 @@
             {
               "id": "injection",
               "title": "Loot Table Injection",
-              "html": ["A datapack system adds custom items to vanilla loot tables gated by minimum distance tier, and optionally by dimension. Prosperity ships built-in injections so distance scaling feels meaningful out of the box. With <a href='https://meridian.rfizzle.com' class='text-accent hover:text-accent2 underline'>Meridian</a> installed, its entire enchantment catalog joins far-flung chests as enchanted books, banded by Meridian's own rarity — Common books from the Frontier out to its treasure-only enchants in the Depths, with mid levels at each enchant's home tier and max levels one tier deeper."]
+              "html": ["A datapack system adds custom items to vanilla loot tables gated by minimum distance tier, and optionally by dimension. Prosperity ships built-in injections so distance scaling feels meaningful out of the box. With <a href='https://meridian.rfizzle.com' class='text-accent hover:text-accent2 underline'>Meridian</a> installed, its entire enchantment catalog joins far-flung chests as enchanted books, banded by Meridian's own rarity — Common books from the Frontier out to its treasure-only enchants in the Depths. Each found book's enchantments are rolled live by Meridian's own loot-roll API at a power scaled to the container's distance tier — power 8 at the Frontier ramping to 30 in the Depths, treasure enchants Depths-only, capped by Meridian's per-enchant loot limits — deterministically per player, so deeper travel genuinely upgrades what the same book can be."]
             }
           ]
         }
