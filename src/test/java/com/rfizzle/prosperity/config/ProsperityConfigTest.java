@@ -36,6 +36,7 @@ class ProsperityConfigTest {
         assertEquals(4.0f, c.protectionBreakMultiplier);
         assertFalse(c.protectionUnbreakable);
         assertTrue(c.enableMobLootScaling);
+        assertTrue(c.enableTrialChamberScaling);
         assertTrue(c.endAlwaysMaxTier);
 
         // Client block (SPEC §Configuration "Client Config").
@@ -71,7 +72,8 @@ class ProsperityConfigTest {
                 new StructureOverride("minecraft:village_snowy", "maximum", "frontier"),
                 new StructureOverride("minecraft:village_taiga", "maximum", "frontier"),
                 new StructureOverride("minecraft:ancient_city", "minimum", "outlands"),
-                new StructureOverride("minecraft:trail_ruins", "minimum", "frontier")
+                new StructureOverride("minecraft:trail_ruins", "minimum", "frontier"),
+                new StructureOverride("minecraft:trial_chambers", "minimum", "wilderness")
         ), overrides);
     }
 
@@ -269,12 +271,14 @@ class ProsperityConfigTest {
         Path path = dir.resolve("prosperity.json");
         ProsperityConfig original = new ProsperityConfig();
         original.enableMobLootScaling = false;
+        original.enableTrialChamberScaling = false;
         original.lootRefreshDays = 14;
         original.client.hudOffsetY = 20;
         original.save(path);
 
         ProsperityConfig loaded = ProsperityConfig.load(path);
         assertFalse(loaded.enableMobLootScaling);
+        assertFalse(loaded.enableTrialChamberScaling);
         assertEquals(14, loaded.lootRefreshDays);
         assertEquals(20, loaded.client.hudOffsetY);
     }

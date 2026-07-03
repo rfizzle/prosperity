@@ -27,7 +27,7 @@ import com.rfizzle.prosperity.Prosperity;
  */
 final class ProsperityConfigMigrator {
 
-    static final int CURRENT_VERSION = 1;
+    static final int CURRENT_VERSION = 2;
 
     @FunctionalInterface
     interface Migration {
@@ -45,7 +45,34 @@ final class ProsperityConfigMigrator {
             // fields after deserialize. This migration exists so the
             // infrastructure is exercised on first load of a version-0 file and
             // future renames have a seam to slot into.
-            json -> {}
+            json -> {},
+            // v1 → v2: trial chamber scaling ships a default structure override for
+            // minecraft:trial_chambers. Existing configs carry their own saved
+            // structureOverrides list, so the new default is appended here, but only when
+            // the list has no entry for the structure — a hand-tuned trial_chambers entry
+            // is respected. (An emptied list still gains the entry; opting out of the
+            // feature is the enableTrialChamberScaling toggle's job.) A missing or
+            // non-array field is left for clamp() to backfill.
+            json -> {
+                JsonElement overrides = json.get("structureOverrides");
+                if (overrides == null || !overrides.isJsonArray()) {
+                    return;
+                }
+                for (JsonElement entry : overrides.getAsJsonArray()) {
+                    if (entry != null && entry.isJsonObject()) {
+                        JsonElement structure = entry.getAsJsonObject().get("structure");
+                        if (structure != null && structure.isJsonPrimitive()
+                                && "minecraft:trial_chambers".equals(structure.getAsString())) {
+                            return;
+                        }
+                    }
+                }
+                JsonObject added = new JsonObject();
+                added.addProperty("structure", "minecraft:trial_chambers");
+                added.addProperty("mode", "minimum");
+                added.addProperty("tier", "wilderness");
+                overrides.getAsJsonArray().add(added);
+            }
     };
 
     private ProsperityConfigMigrator() {}

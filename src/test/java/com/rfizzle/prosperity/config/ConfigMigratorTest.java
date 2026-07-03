@@ -60,6 +60,49 @@ class ConfigMigratorTest {
     }
 
     @Test
+    void v1ToV2AppendsTrialChambersOverride() {
+        JsonObject raw = JsonParser.parseString(
+                "{\"configVersion\": 1, \"structureOverrides\": ["
+                        + "{\"structure\": \"minecraft:monument\", \"mode\": \"fixed\", \"tier\": \"wilderness\"}"
+                        + "]}").getAsJsonObject();
+
+        assertTrue(ProsperityConfigMigrator.migrate(raw));
+
+        var overrides = raw.getAsJsonArray("structureOverrides");
+        assertEquals(2, overrides.size(), "the trial_chambers default is appended");
+        JsonObject added = overrides.get(1).getAsJsonObject();
+        assertEquals("minecraft:trial_chambers", added.get("structure").getAsString());
+        assertEquals("minimum", added.get("mode").getAsString());
+        assertEquals("wilderness", added.get("tier").getAsString());
+    }
+
+    @Test
+    void v1ToV2RespectsExistingTrialChambersOverride() {
+        JsonObject raw = JsonParser.parseString(
+                "{\"configVersion\": 1, \"structureOverrides\": ["
+                        + "{\"structure\": \"minecraft:trial_chambers\", \"mode\": \"fixed\", \"tier\": \"depths\"}"
+                        + "]}").getAsJsonObject();
+
+        assertTrue(ProsperityConfigMigrator.migrate(raw), "the version stamp still advances");
+
+        var overrides = raw.getAsJsonArray("structureOverrides");
+        assertEquals(1, overrides.size(), "a hand-tuned trial_chambers entry is left alone");
+        assertEquals("depths", overrides.get(0).getAsJsonObject().get("tier").getAsString());
+    }
+
+    @Test
+    void v1ToV2ToleratesMissingOrMalformedOverrides() {
+        JsonObject missing = JsonParser.parseString("{\"configVersion\": 1}").getAsJsonObject();
+        assertTrue(ProsperityConfigMigrator.migrate(missing));
+        assertFalse(missing.has("structureOverrides"), "a missing list is left for clamp() to backfill");
+
+        JsonObject malformed = JsonParser.parseString(
+                "{\"configVersion\": 1, \"structureOverrides\": \"nope\"}").getAsJsonObject();
+        assertTrue(ProsperityConfigMigrator.migrate(malformed));
+        assertEquals("nope", malformed.get("structureOverrides").getAsString());
+    }
+
+    @Test
     void noVersionFileMigratesToCurrentAndResaves(@TempDir Path dir) throws IOException {
         Path path = dir.resolve("prosperity.json");
         // A pre-versioned file: valid config object, no configVersion key.

@@ -16,7 +16,10 @@
         "LootTableAccessor",
         "NestedLootTableAccessor",
         "RandomizableContainerUnpackMixin",
-        "TagEntryAccessor"
+        "TagEntryAccessor",
+        "TrialSpawnerDataAccessor",
+        "TrialSpawnerMixin",
+        "VaultBlockEntityServerMixin"
     ],
     "client": [],
     "injectors": {
