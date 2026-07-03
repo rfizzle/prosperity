@@ -434,20 +434,27 @@ Prosperity ships a default set of injections to make distance scaling feel meani
 The default set is conservative — it adds items that already exist in vanilla progression but are normally structure-locked or extremely rare. Pack makers can extend or replace via datapacks.
 
 When [Meridian](https://github.com/rfizzle/meridian) is installed, a Meridian-gated
-in-jar file (`meridian_books.json`) adds its enchanted books to the same
-`prosperity:all_chests` pool — vanilla `minecraft:enchanted_book` items carrying
-`meridian:*` enchants in `stored_enchantments`:
+in-jar file (`meridian_books.json`) adds its full non-curse enchantment catalog
+(73 enchants) to the same `prosperity:all_chests` pool as vanilla
+`minecraft:enchanted_book` items carrying `meridian:*` enchants in
+`stored_enchantments`. Each enchant's home tier follows Meridian's own rarity:
 
-| Tier | Meridian books |
+| Meridian rarity | Home tier |
 |---|---|
-| Outlands | Insight II, Gravitas II, Vitality III |
-| Depths | Retribution III, Detonation II, Plunder III, Tether, Vital Mend II, Colossus II |
+| Common | Frontier |
+| Uncommon | Wilderness |
+| Rare | Outlands |
+| Very Rare (treasure) | Depths |
 
-The Depths entries are Meridian's treasure-tagged enchants (unavailable from its
-enchanting table), so distant chests are a genuine acquisition path for them. The
-file carries both gates: a file-level `fabric:load_conditions` header, so its
-`meridian:*` enchantment components never reach the registry-aware codec when
-Meridian is absent, and `requires_mods` on each injection.
+A multi-level enchant appears twice: at its home tier at mid level (⌈max/2⌉) and
+one tier deeper at max level (Very Rare enchants get both at Depths) — so deeper
+travel upgrades the same enchants, and the treasure-tagged set (unavailable from
+Meridian's enchanting table) makes distant chests a genuine acquisition path.
+Every book has weight 1 against the built-in files' weights of 12–60, holding the
+Meridian share of injected items to roughly 3% at Frontier rising to ~24% at
+Depths. The file carries both gates: a file-level `fabric:load_conditions`
+header, so its `meridian:*` enchantment components never reach the registry-aware
+codec when Meridian is absent, and `requires_mods` on each injection.
 
 ### Wildcard Targets
 

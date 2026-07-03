@@ -121,7 +121,7 @@
             {
               "id": "injection",
               "title": "Loot Table Injection",
-              "html": ["A datapack system adds custom items to vanilla loot tables gated by minimum distance tier, and optionally by dimension. Prosperity ships built-in injections so distance scaling feels meaningful out of the box. With <a href='https://meridian.rfizzle.com' class='text-accent hover:text-accent2 underline'>Meridian</a> installed, its enchanted books join far-flung chests too — utility books like Insight and Vitality from the Outlands, and its treasure-only enchants such as Retribution and Plunder in the Depths."]
+              "html": ["A datapack system adds custom items to vanilla loot tables gated by minimum distance tier, and optionally by dimension. Prosperity ships built-in injections so distance scaling feels meaningful out of the box. With <a href='https://meridian.rfizzle.com' class='text-accent hover:text-accent2 underline'>Meridian</a> installed, its entire enchantment catalog joins far-flung chests as enchanted books, banded by Meridian's own rarity — Common books from the Frontier out to its treasure-only enchants in the Depths, with mid levels at each enchant's home tier and max levels one tier deeper."]
             }
           ]
         }
