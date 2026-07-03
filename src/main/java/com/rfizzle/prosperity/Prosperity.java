@@ -5,6 +5,7 @@ import com.rfizzle.prosperity.command.ProsperityCommand;
 import com.rfizzle.prosperity.compat.meridian.MeridianCompat;
 import com.rfizzle.prosperity.compat.tribulation.TribulationCompat;
 import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.item.ProsperityItems;
 import com.rfizzle.prosperity.loot.ContainerProtection;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.LootModifiers;
@@ -29,6 +30,7 @@ public class Prosperity implements ModInitializer {
     @Override
     public void onInitialize() {
         config = ProsperityConfig.load();
+        ProsperityItems.register();
         ProsperityAttachments.init();
         ProsperityNetworking.register();
         InstancedLootInteraction.register();

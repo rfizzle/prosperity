@@ -1098,6 +1098,27 @@ Gated on `enableTrialChamberScaling` **and** `enableDistanceScaling` — this is
 
 ---
 
+## 17. Prospector's Compass
+
+A held compass item whose needle points at the nearest container the holder has not yet looted — the directional complement to the sparkle indicators (section 2), answering "where should I go next?" beyond the indicators' render distance.
+
+### Behavior
+
+- **Targeting** — the needle points at the nearest position in the client's unlooted-container cache (`UnlootedIndicatorCache`), the per-player set the server already computes in `UnlootedContainers.scanChunk`. Blacklist, double-chest anchoring, and refresh-expiry rules are therefore inherited: a blacklisted container is never a target, and a refreshed container becomes one again. Reach is the client's loaded-chunk radius.
+- **Per-player** — two players holding the compass at the same spot see different needles, because each client's cache reflects its own loot history.
+- **Retargeting** — looting or breaking the target evicts it from the cache (existing `ContainerLootedS2C`/`ContainerRemovedS2C` flow) and the needle swings to the next nearest candidate. The current target is sticky within a 2-block hysteresis so the needle does not flicker between near-equidistant containers.
+- **No candidates** — the needle spins randomly, exactly like a vanilla compass outside its dimension (vanilla `CompassItemPropertyFunction` behavior).
+- **Obtainability** — injected into chest loot via the bundled `loot_injections/prospectors_compass.json` at `min_tier: frontier`, weight 8. No crafting recipe. Uncommon rarity, stack size 1.
+- **Out of scope** — pointing at ungenerated structures, GUIs/waypoints/maps, and loot minecart targets.
+
+### Implementation Notes
+
+- `ProsperityItems.PROSPECTORS_COMPASS` is the mod's only registered item (a plain `Item` — no server-side behavior), placed in the Tools & Utilities creative tab after the vanilla compass.
+- Needle rotation is the vanilla `angle` item property: `ProspectorsCompassClient.register()` installs a `CompassItemPropertyFunction` whose `CompassTarget` reads the indicator cache, reusing vanilla's wobble and random-spin logic wholesale. Target selection (`selectTarget`) is a pure static function under JUnit.
+- The model mirrors the vanilla compass's 32-frame `angle` override ladder; the textures are the vanilla frames with the casing remapped to the design-system gold ramp (dial face, outline, and red needle stay vanilla) so the item reads instantly as "a compass, but for loot".
+
+---
+
 ## Configuration
 
 All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.

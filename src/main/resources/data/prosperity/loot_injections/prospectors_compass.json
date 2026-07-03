@@ -1,0 +1,14 @@
+{
+  "injections": [
+    {
+      "target": "prosperity:all_chests",
+      "min_tier": "frontier",
+      "entries": [
+        {
+          "item": "prosperity:prospectors_compass",
+          "weight": 8
+        }
+      ]
+    }
+  ]
+}

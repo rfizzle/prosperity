@@ -2,6 +2,7 @@ package com.rfizzle.prosperity.client.network;
 
 import com.rfizzle.prosperity.client.indicator.UnlootedIndicatorCache;
 import com.rfizzle.prosperity.client.indicator.UnlootedMinecartIndicatorCache;
+import com.rfizzle.prosperity.client.item.ProspectorsCompassClient;
 import com.rfizzle.prosperity.compat.index.LootIndexViewerRefresh;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
@@ -132,6 +133,9 @@ public final class ProsperityClientNetworking {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             UnlootedIndicatorCache.clear();
             UnlootedMinecartIndicatorCache.clear();
+            // The compass's sticky target reads the cache just cleared; drop it with the cache so a
+            // same-coordinates container in the next world can't inherit stale stickiness.
+            ProspectorsCompassClient.reset();
             ClientProtectionState.get().clear();
             // Reset the synced server config to the local one so the previous server's view doesn't
             // linger into the next session before its sync lands.

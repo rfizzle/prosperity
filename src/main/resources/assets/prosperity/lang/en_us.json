@@ -59,6 +59,7 @@
     "prosperity.config.hud_offset_x.tooltip": "Horizontal offset, in pixels, of the tier HUD badge from its anchor corner.",
     "prosperity.config.hud_offset_y": "HUD Offset Y",
     "prosperity.config.hud_offset_y.tooltip": "Vertical offset, in pixels, of the tier HUD badge from its anchor corner.",
+    "item.prosperity.prospectors_compass": "Prospector's Compass",
     "key.categories.prosperity": "Prosperity",
     "key.prosperity.peek_loot_detail": "Peek Loot Detail",
     "hud.prosperity.loot_detail.title": "Loot Detail",
