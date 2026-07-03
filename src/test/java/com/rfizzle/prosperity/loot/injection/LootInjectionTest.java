@@ -13,11 +13,13 @@ import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Entry;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.FileData;
+import com.rfizzle.prosperity.loot.injection.LootInjectionManager.LevelPolicy;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Loaded;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.RawInjection;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.SharedConstants;
@@ -25,9 +27,11 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -41,6 +45,7 @@ import org.junit.jupiter.api.Test;
  */
 class LootInjectionTest {
 
+    private static HolderLookup.Provider registries;
     private static RegistryOps<JsonElement> ops;
 
     /** Stand-in for {@code FabricLoader::isModLoaded} that treats every mod as present. */
@@ -60,7 +65,7 @@ class LootInjectionTest {
     static void bootstrap() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
-        HolderLookup.Provider registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
         ops = RegistryOps.create(JsonOps.INSTANCE, registries);
     }
 
@@ -325,13 +330,14 @@ class LootInjectionTest {
         Entry b = new Entry(new ItemStack(Items.BREAD), 1);
         List<Entry> eligible = List.of(a, b);
 
-        ItemStack first = LootInjectionManager.draw(eligible, RandomSource.create(99L));
-        ItemStack second = LootInjectionManager.draw(eligible, RandomSource.create(99L));
+        ItemStack first = LootInjectionManager.draw(eligible, RandomSource.create(99L), registries);
+        ItemStack second = LootInjectionManager.draw(eligible, RandomSource.create(99L), registries);
         assertTrue(ItemStack.isSameItem(first, second), "the same seed must draw the same item");
 
-        assertNull(LootInjectionManager.draw(List.of(), RandomSource.create(1L)), "empty pool draws nothing");
+        assertNull(LootInjectionManager.draw(List.of(), RandomSource.create(1L), registries),
+                "empty pool draws nothing");
 
-        ItemStack solo = LootInjectionManager.draw(List.of(a), RandomSource.create(7L));
+        ItemStack solo = LootInjectionManager.draw(List.of(a), RandomSource.create(7L), registries);
         assertEquals(Items.APPLE, solo.getItem(), "a single-entry pool always yields that entry");
     }
 
@@ -344,11 +350,104 @@ class LootInjectionTest {
         RandomSource random = RandomSource.create(12345L);
         int apples = 0;
         for (int i = 0; i < 1000; i++) {
-            if (LootInjectionManager.draw(eligible, random).getItem() == Items.APPLE) {
+            if (LootInjectionManager.draw(eligible, random, registries).getItem() == Items.APPLE) {
                 apples++;
             }
         }
         assertTrue(apples > 800, "the 9:1-weighted entry must dominate the draw: got " + apples + "/1000");
+    }
+
+    @Test
+    void parsesGenerativeEntry() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "outlands",
+                      "entries": [
+                        { "item": "minecraft:enchanted_book",
+                          "enchant_randomly": "#meridian:rarity/rare", "level": "mid", "weight": 3 },
+                        { "item": "minecraft:enchanted_book",
+                          "enchant_randomly": "minecraft:treasure" }
+                      ] }
+                  ]
+                }
+                """);
+
+        Entry hashed = file.injections().get(0).entries().get(0);
+        assertTrue(hashed.enchantRandomly().isPresent());
+        assertEquals(ResourceLocation.parse("meridian:rarity/rare"),
+                hashed.enchantRandomly().get().location(), "the # prefix is accepted and stripped");
+        assertEquals(LevelPolicy.MID, hashed.level());
+        assertEquals(3, hashed.weight());
+
+        Entry bare = file.injections().get(0).entries().get(1);
+        assertEquals(ResourceLocation.withDefaultNamespace("treasure"),
+                bare.enchantRandomly().orElseThrow().location(), "a bare tag id is also accepted");
+        assertEquals(LevelPolicy.UNIFORM, bare.level(), "level defaults to uniform");
+    }
+
+    @Test
+    void literalEntryCarriesNoGenerativeFields() {
+        FileData file = parse("""
+                { "injections": [ { "target": "minecraft:chests/a", "min_tier": "frontier",
+                  "entries": [ { "item": "minecraft:diamond" } ] } ] }
+                """);
+        Entry literal = file.injections().get(0).entries().get(0);
+        assertTrue(literal.enchantRandomly().isEmpty(),
+                "a literal entry parses with no enchant_randomly tag");
+    }
+
+    @Test
+    void rejectsComponentsMixedWithEnchantRandomly() {
+        JsonElement element = JsonParser.parseString("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "entries": [
+                        { "item": "minecraft:enchanted_book",
+                          "components": { "minecraft:damage": 1 },
+                          "enchant_randomly": "#minecraft:treasure" }
+                      ] }
+                  ]
+                }
+                """);
+        assertTrue(FileData.CODEC.parse(ops, element).isError(),
+                "components and enchant_randomly are mutually exclusive");
+    }
+
+    @Test
+    void policyLevelBandsAgainstTheEnchantmentRange() {
+        RandomSource random = RandomSource.create(1L);
+        assertEquals(3, LootInjectionManager.policyLevel(LevelPolicy.MID, 1, 5, random),
+                "mid is the rounded-up midpoint");
+        assertEquals(2, LootInjectionManager.policyLevel(LevelPolicy.MID, 1, 4, random));
+        assertEquals(1, LootInjectionManager.policyLevel(LevelPolicy.MID, 1, 1, random),
+                "a single-level enchantment stays at 1");
+        assertEquals(5, LootInjectionManager.policyLevel(LevelPolicy.MAX, 1, 5, random));
+
+        for (int i = 0; i < 100; i++) {
+            int level = LootInjectionManager.policyLevel(LevelPolicy.UNIFORM, 1, 3, random);
+            assertTrue(level >= 1 && level <= 3, "uniform draws inside [min, max]: got " + level);
+        }
+    }
+
+    @Test
+    void unresolvableTagFallsThroughToSiblingEntries() {
+        // The unit-test registry access carries no enchantment registry, so every tag is unresolvable —
+        // exactly the mod-absent case: the generative entry must drop from the pool before weighting.
+        Entry generative = new Entry(new ItemStack(Items.ENCHANTED_BOOK),
+                Optional.of(TagKey.create(Registries.ENCHANTMENT,
+                        ResourceLocation.parse("meridian:rarity/rare"))),
+                LevelPolicy.MID, 1000);
+        Entry literal = new Entry(new ItemStack(Items.BREAD), 1);
+
+        ItemStack drawn = LootInjectionManager.draw(List.of(generative, literal),
+                RandomSource.create(42L), registries);
+        assertEquals(Items.BREAD, drawn.getItem(),
+                "an unresolvable tag must not consume the draw; the literal sibling wins the slot");
+
+        assertNull(LootInjectionManager.draw(List.of(generative), RandomSource.create(42L), registries),
+                "a pool of only unresolvable generative entries draws nothing");
     }
 
     private static DistanceTier tier(ProsperityConfig cfg, String name) {
