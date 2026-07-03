@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition;
@@ -32,6 +33,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.ExtraCodecs;
@@ -68,11 +70,38 @@ public final class LootInjectionManager {
     private static final ResourceLocation ALL_CHESTS = Prosperity.id("all_chests");
     /** Decorrelates the injection draw from the loot-roll seed so it does not mirror the rolled items. */
     private static final long INJECTION_SALT = 0x9E3779B97F4A7C15L;
+    /** Log-once latch for a failing finalizer, so a persistent failure cannot warn-spam per generation. */
+    private static final AtomicBoolean FINALIZER_FAILURE_LOGGED = new AtomicBoolean(false);
 
     /** Target loot table &rarr; the tier-gated injection groups that apply to it. Deeply immutable. */
     private static volatile Map<ResourceLocation, List<Tiered>> REGISTRY = Map.of();
 
+    /**
+     * The last-writer-wins finalizer slot applied to the drawn stack before placement; defaults to
+     * the identity. Lets a compat integration rewrite an injected prototype at generation time (e.g.
+     * roll dynamic enchantments) without the manager referencing the sibling mod.
+     */
+    private static volatile InjectedStackFinalizer finalizer = (level, stack, tier, random) -> stack;
+
     private LootInjectionManager() {
+    }
+
+    /**
+     * Rewrites a drawn injected stack before it is placed. Receives the generating level, a private
+     * copy of the prototype stack, the container's resolved tier, and the injection draw's
+     * deterministic {@link RandomSource} (consume freely; the draw is already made). Return the stack
+     * to place — the input itself to leave the prototype as authored.
+     */
+    @FunctionalInterface
+    public interface InjectedStackFinalizer {
+        ItemStack apply(ServerLevel level, ItemStack stack, DistanceTier tier, RandomSource random);
+    }
+
+    /** Install {@code finalizer} as the injected-stack finalizer (last writer wins; null ignored). */
+    public static void setInjectedStackFinalizer(@Nullable InjectedStackFinalizer finalizer) {
+        if (finalizer != null) {
+            LootInjectionManager.finalizer = finalizer;
+        }
     }
 
     /**
@@ -142,16 +171,18 @@ public final class LootInjectionManager {
 
     /**
      * Add one eligible injected item to {@code items} for a generation of {@code table} at {@code tier}
-     * in {@code dimension}, placed in the first empty slot. An entry applies when its {@code min_tier} is
-     * at or below {@code tier} and its {@code dimensions} are empty or contain {@code dimension}. No-op
-     * when injection is disabled, the table is absent, no entry is eligible, or the container is full.
-     * The draw is deterministic for a given {@code (seedBase, salt, uuid)} triple, so a regeneration
-     * with the same salt regenerates the same bonus item; {@code salt} is the player's refresh count
-     * under {@code randomizeLootOnRefresh} (and {@code 0} otherwise), letting the bonus re-roll on a
-     * refresh in lockstep with the main loot.
+     * in {@code level}, placed in the first empty slot. An entry applies when its {@code min_tier} is
+     * at or below {@code tier} and its {@code dimensions} are empty or contain the level's dimension.
+     * No-op when injection is disabled, the table is absent, no entry is eligible, or the container is
+     * full. The draw is deterministic for a given {@code (seedBase, salt, uuid)} triple, so a
+     * regeneration with the same salt regenerates the same bonus item; {@code salt} is the player's
+     * refresh count under {@code randomizeLootOnRefresh} (and {@code 0} otherwise), letting the bonus
+     * re-roll on a refresh in lockstep with the main loot. The drawn stack passes through the
+     * installed {@link InjectedStackFinalizer} before placement, isolated so a throwing or
+     * empty-returning finalizer falls back to the drawn stack unchanged.
      */
     public static void augment(NonNullList<ItemStack> items, @Nullable ResourceKey<LootTable> table,
-            DistanceTier tier, ResourceLocation dimension, long seedBase, long salt, UUID uuid) {
+            DistanceTier tier, ServerLevel level, long seedBase, long salt, UUID uuid) {
         if (!Prosperity.getConfig().enableLootInjection || table == null) {
             return;
         }
@@ -160,15 +191,35 @@ public final class LootInjectionManager {
                 ^ Long.rotateLeft(uuid.getLeastSignificantBits(), 32)
                 ^ Long.rotateLeft(salt * INJECTION_SALT, 29);
         RandomSource random = RandomSource.create(mixed == 0L ? 1L : mixed);
-        ItemStack injected = pick(table.location(), tier, dimension, random);
+        ItemStack injected = pick(table.location(), tier, level.dimension().location(), random);
         if (injected == null || injected.isEmpty()) {
             return;
         }
+        injected = finalizeInjected(level, injected, tier, random);
         for (int slot = 0; slot < items.size(); slot++) {
             if (items.get(slot).isEmpty()) {
                 items.set(slot, injected);
                 return;
             }
+        }
+    }
+
+    /**
+     * Run {@code stack} through the installed finalizer with host-side error isolation: a finalizer
+     * that throws or returns null/empty must never break loot generation, so any such outcome falls
+     * back to the drawn stack unchanged.
+     */
+    private static ItemStack finalizeInjected(ServerLevel level, ItemStack stack, DistanceTier tier,
+            RandomSource random) {
+        try {
+            ItemStack finalized = finalizer.apply(level, stack, tier, random);
+            return finalized == null || finalized.isEmpty() ? stack : finalized;
+        } catch (Throwable e) {
+            if (FINALIZER_FAILURE_LOGGED.compareAndSet(false, true)) {
+                Prosperity.LOGGER.warn("Injected-stack finalizer failed; placing the authored stack"
+                        + " for this and any further failing generations", e);
+            }
+            return stack;
         }
     }
 
