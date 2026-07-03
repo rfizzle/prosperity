@@ -6,7 +6,9 @@ import com.rfizzle.prosperity.client.hud.LootDetailPanelMath.NearbyEntry;
 import com.rfizzle.prosperity.client.hud.LootDetailPanelMath.NearbyGroup;
 import com.rfizzle.prosperity.client.indicator.UnlootedIndicatorCache;
 import com.rfizzle.prosperity.client.indicator.UnlootedMinecartIndicatorCache;
+import com.rfizzle.prosperity.client.item.ProspectorsCompassClient;
 import com.rfizzle.prosperity.client.network.ClientProsperityData;
+import com.rfizzle.prosperity.item.ProsperityItems;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.LootScaling;
@@ -99,6 +101,15 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
     private final Map<String, Component> nearbyLabels = new HashMap<>();
     private long lastScanTick = Long.MIN_VALUE;
 
+    /**
+     * Nearest unlooted target resolved by the last scan — the "Nearest: 142 blocks NW" line (#62).
+     * Null tier name means no line: no candidates, or the player carries no Prospector's Compass
+     * (the compass is what grants the datum; without one only the grouped rows show).
+     */
+    private String nearestTierName;
+    private String nearestBearing;
+    private double nearestDistance;
+
     @Override
     public void onHudRender(GuiGraphics graphics, DeltaTracker delta) {
         // Same visibility rules as the badge (F1, open screen, spectator, death, HUD enabled), plus
@@ -160,6 +171,17 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
         Component nearbyHeading = Component.translatable("hud.prosperity.loot_detail.nearby_heading");
         Component noNearby = Component.translatable("hud.prosperity.loot_detail.no_nearby");
 
+        // Nearest-unlooted line (#62): distance + 8-way bearing to the compass's nearest target,
+        // shown only while the player carries a Prospector's Compass and something is in range.
+        boolean showNearest = hasNearby && nearestTierName != null;
+        Component nearestText = showNearest
+                ? Component.translatable("hud.prosperity.loot_detail.nearest", fmtInt(nearestDistance),
+                        Component.translatable("hud.prosperity.bearing." + nearestBearing))
+                : null;
+        Component nearestTierText = showNearest
+                ? Component.translatable("hud.prosperity.loot_detail.nearby_tier", tierName(nearestTierName))
+                : null;
+
         // Fixed-height "chrome": everything above the paged nearby list.
         int ladderH = LINE_H + ladder.size() * LINE_H + SECTION_GAP;   // heading + one row per tier
         int chromeH = 2 * INSET
@@ -169,7 +191,8 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
                 + 1 + SECTION_GAP                                          // divider
                 + ladderH                                                  // tier ladder
                 + 1 + SECTION_GAP                                          // divider
-                + LINE_H;                                                  // nearby heading
+                + LINE_H                                                   // nearby heading
+                + (showNearest ? LINE_H : 0);                              // nearest line
 
         // Paginate the nearby list to a comfortable, bounded height.
         int rowBudget = (int) (graphics.guiHeight() * MAX_SCREEN_FRACTION) - chromeH;
@@ -192,7 +215,8 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
             ladderW = Math.max(ladderW, ROW_INDENT + font.width(ladderName(tier)) + 12 + font.width(ladderFigures(tier)));
         }
         int nearbyW = hasNearby ? nearbyRowWidth(font, groups) : font.width(noNearby);
-        int contentW = max(MIN_CONTENT_W, headerW, distanceRowW, figuresW, ladderW, nearbyW, headingRowW);
+        int nearestW = showNearest ? font.width(nearestText) + 4 + font.width(nearestTierText) : 0;
+        int contentW = max(MIN_CONTENT_W, headerW, distanceRowW, figuresW, ladderW, nearbyW, headingRowW, nearestW);
 
         int contentH = chromeH - 2 * INSET + bodyRows * LINE_H;
         int panelW = contentW + 2 * INSET;
@@ -289,6 +313,14 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
             }
             y += LINE_H;
 
+            // The nearest line is static chrome — it neither pages nor fades with the list below.
+            if (showNearest) {
+                graphics.drawString(font, nearestText, contentX, y, COLOR_BONE, true);
+                graphics.drawString(font, nearestTierText, contentX + font.width(nearestText) + 4, y,
+                        HudMath.tierColor(nearestTierName), true);
+                y += LINE_H;
+            }
+
             int labelColor = fade(COLOR_BONE, bodyAlpha);
             for (NearbyGroup group : pages.get(page)) {
                 Component labelPart = nearbyLabelPart(group);
@@ -322,6 +354,7 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
         lastScanTick = now;
 
         List<NearbyEntry> entries = new ArrayList<>();
+        List<BlockPos> candidates = new ArrayList<>();
         nearbyLabels.clear();
 
         for (Set<BlockPos> positions : UnlootedIndicatorCache.view().values()) {
@@ -334,6 +367,7 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
                 String key = id.toString();
                 nearbyLabels.putIfAbsent(key, state.getBlock().getName());
                 entries.add(new NearbyEntry(key, tierNameAt(cfg, isEnd, pos.getX(), pos.getZ())));
+                candidates.add(pos);
             }
         }
 
@@ -346,10 +380,38 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
             String key = EntityType.getKey(type).toString();
             nearbyLabels.putIfAbsent(key, type.getDescription());
             entries.add(new NearbyEntry(key, tierNameAt(cfg, isEnd, entity.getX(), entity.getZ())));
+            candidates.add(entity.blockPosition());
         }
 
         nearbyGroups.clear();
         nearbyGroups.addAll(LootDetailPanelMath.groupNearby(entries));
+
+        refreshNearest(mc, cfg, isEnd, candidates);
+    }
+
+    /**
+     * Resolve the nearest-unlooted line from the scan's {@code candidates}: the same plain-nearest
+     * pick as the Prospector's Compass needle ({@link ProspectorsCompassClient#selectTarget}, no
+     * sticky state), extended over loot minecarts so the line never contradicts the rows above it.
+     * The line is compass-gated: it clears unless the player carries a Prospector's Compass.
+     */
+    private void refreshNearest(Minecraft mc, ProsperityConfig cfg, boolean isEnd, List<BlockPos> candidates) {
+        nearestTierName = null;
+        LocalPlayer player = mc.player;
+        if (player == null || candidates.isEmpty()) {
+            return;
+        }
+        if (!player.getInventory().hasAnyMatching(s -> s.is(ProsperityItems.PROSPECTORS_COMPASS))) {
+            return;
+        }
+        BlockPos target = ProspectorsCompassClient.selectTarget(null, candidates, player.position());
+        if (target == null) {
+            return;
+        }
+        nearestDistance = Math.sqrt(target.distToCenterSqr(player.getX(), player.getY(), player.getZ()));
+        nearestBearing = LootDetailPanelMath.bearing8(
+                target.getX() + 0.5 - player.getX(), target.getZ() + 0.5 - player.getZ());
+        nearestTierName = tierNameAt(cfg, isEnd, target.getX(), target.getZ());
     }
 
     private static String tierNameAt(ProsperityConfig cfg, boolean isEnd, double x, double z) {
