@@ -99,6 +99,7 @@ public class ProsperityConfig {
     public float protectionBreakMultiplier = 4.0f;
     public boolean protectionUnbreakable = false;
     public boolean enableMobLootScaling = true;
+    public boolean enableFishingLootScaling = true;
     public boolean enableTrialChamberScaling = true;
     public boolean endAlwaysMaxTier = true;
     /** Loot index (S-025, SPEC §11): loot-table id &rarr; structure id overrides for unmapped tables. */

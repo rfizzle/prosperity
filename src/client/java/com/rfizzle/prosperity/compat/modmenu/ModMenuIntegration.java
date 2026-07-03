@@ -182,6 +182,12 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setSaveConsumer(v -> working.enableMobLootScaling = v)
                     .build());
             extended.addEntry(entry.startBooleanToggle(
+                            label("enable_fishing_loot_scaling"), working.enableFishingLootScaling)
+                    .setDefaultValue(true)
+                    .setTooltip(tooltip("enable_fishing_loot_scaling"))
+                    .setSaveConsumer(v -> working.enableFishingLootScaling = v)
+                    .build());
+            extended.addEntry(entry.startBooleanToggle(
                             label("enable_trial_chamber_scaling"), working.enableTrialChamberScaling)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_trial_chamber_scaling"))

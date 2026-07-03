@@ -96,6 +96,10 @@
         },
         {
           "type": "prose",
+          "html": ["Fishing joins the same reward loop: the catch is rolled with the distance tier at the bobber's position, adding the tier's quality to the roll's luck — biasing toward the treasure category the further out you fish — and multiplying stackable catches (non-stackables like enchanted books are never multiplied). Luck of the Sea stacks on top. Independently togglable."]
+        },
+        {
+          "type": "prose",
           "html": ["Trial chambers join the same reward loop: vault loot (normal and ominous) and trial spawner reward ejections are scaled by the chamber's distance tier, and a shipped structure override raises chambers to at least the Wilderness tier. Vanilla's per-player vault gating and key consumption stay untouched — scaling only, independently togglable."]
         },
         {

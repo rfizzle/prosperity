@@ -103,6 +103,22 @@
       ]
     },
     {
+      "id": "fishing-loot-scaling",
+      "title": "Fishing Loot Scaling",
+      "intro": "Apply the distance tiers to fishing catches.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>enableFishingLootScaling</code>", "bool", "true", "Scale fishing catches by the bobber's distance tier."]
+          ]
+        },
+        { "type": "prose", "html": ["When you reel in a catch, the fishing roll is scaled by the distance tier at the <em>bobber's</em> position — the tier's quality is added to the roll's luck, biasing toward the treasure category, and stackable catches get the tier's stack multiplier (capped at the item's max stack; enchanted books and other non-stackables are never multiplied). Luck of the Sea still works and stacks on top. The Nether uses raw coordinates and the End is always the max tier, matching container scaling. This toggle is independent of the container and mob toggles; off, fishing is exactly vanilla."] }
+      ]
+    },
+    {
       "id": "trial-chamber-scaling",
       "title": "Trial Chamber Scaling",
       "intro": "Apply the distance tiers to trial chamber vault loot and trial spawner rewards.",

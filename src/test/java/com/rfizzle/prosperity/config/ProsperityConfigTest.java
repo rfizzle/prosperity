@@ -36,6 +36,7 @@ class ProsperityConfigTest {
         assertEquals(4.0f, c.protectionBreakMultiplier);
         assertFalse(c.protectionUnbreakable);
         assertTrue(c.enableMobLootScaling);
+        assertTrue(c.enableFishingLootScaling);
         assertTrue(c.enableTrialChamberScaling);
         assertTrue(c.endAlwaysMaxTier);
 
@@ -271,6 +272,7 @@ class ProsperityConfigTest {
         Path path = dir.resolve("prosperity.json");
         ProsperityConfig original = new ProsperityConfig();
         original.enableMobLootScaling = false;
+        original.enableFishingLootScaling = false;
         original.enableTrialChamberScaling = false;
         original.lootRefreshDays = 14;
         original.client.hudOffsetY = 20;
@@ -278,6 +280,7 @@ class ProsperityConfigTest {
 
         ProsperityConfig loaded = ProsperityConfig.load(path);
         assertFalse(loaded.enableMobLootScaling);
+        assertFalse(loaded.enableFishingLootScaling);
         assertFalse(loaded.enableTrialChamberScaling);
         assertEquals(14, loaded.lootRefreshDays);
         assertEquals(20, loaded.client.hudOffsetY);
