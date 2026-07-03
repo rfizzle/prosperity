@@ -13,9 +13,13 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -78,18 +82,29 @@ public final class UnlootedOverlayRenderer {
         long gameTime = context.world().getGameTime();
         float partialTick = context.tickCounter().getGameTimeDeltaPartialTick(false);
         double bob = IndicatorMath.bobOffset(gameTime + partialTick);
+        // Every indicator this frame shares the same animation frame, so a single per-frame render
+        // type (keyed by the frame's own texture) batches them all.
         int frame = IndicatorMath.animationFrame(gameTime);
-        float v0 = (float) frame / IndicatorMath.FRAME_COUNT;
-        float v1 = (float) (frame + 1) / IndicatorMath.FRAME_COUNT;
 
+        ClientLevel blockLevel = context.world();
         PoseStack pose = context.matrixStack();
         boolean drewAny = false;
         for (Map.Entry<ChunkPos, Set<BlockPos>> chunk : UnlootedIndicatorCache.view().entrySet()) {
             for (BlockPos blockPos : chunk.getValue()) {
                 // Centre of the block's top face, raised by the hover height.
+                double centreX = blockPos.getX() + 0.5;
+                double centreZ = blockPos.getZ() + 0.5;
+                // A double chest is cached at its primary half only, so nudge the anchor half a block
+                // toward the connected half to sit over the pair's seam rather than one half's centre.
+                BlockState state = blockLevel.getBlockState(blockPos);
+                if (state.getBlock() instanceof ChestBlock && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
+                    Direction connected = ChestBlock.getConnectedDirection(state);
+                    centreX += connected.getStepX() * 0.5;
+                    centreZ += connected.getStepZ() * 0.5;
+                }
                 drewAny |= renderBillboard(pose, consumers, cam, cameraRotation,
-                        blockPos.getX() + 0.5, blockPos.getY() + 1.0 + HOVER, blockPos.getZ() + 0.5,
-                        bob, v0, v1, renderDistance, xrayDistance);
+                        centreX, blockPos.getY() + 1.0 + HOVER, centreZ,
+                        bob, frame, renderDistance, xrayDistance);
             }
         }
 
@@ -105,19 +120,19 @@ public final class UnlootedOverlayRenderer {
                 Vec3 anchor = cart.getPosition(partialTick);
                 drewAny |= renderBillboard(pose, consumers, cam, cameraRotation,
                         anchor.x, anchor.y + cart.getBbHeight() + HOVER, anchor.z,
-                        bob, v0, v1, renderDistance, xrayDistance);
+                        bob, frame, renderDistance, xrayDistance);
             }
         }
 
         if (drewAny) {
-            bufferSource.endBatch(ProsperityRenderTypes.xray());
-            bufferSource.endBatch(ProsperityRenderTypes.occluded());
+            bufferSource.endBatch(ProsperityRenderTypes.xray(frame));
+            bufferSource.endBatch(ProsperityRenderTypes.occluded(frame));
         }
     }
 
     private static boolean renderBillboard(PoseStack pose, MultiBufferSource consumers, Vec3 cam,
             Quaternionf cameraRotation, double anchorX, double anchorY, double anchorZ, double bob,
-            float v0, float v1, double renderDistance, double xrayDistance) {
+            int frame, double renderDistance, double xrayDistance) {
         double dx = anchorX - cam.x;
         double dy = anchorY - cam.y;
         double dz = anchorZ - cam.z;
@@ -129,18 +144,18 @@ public final class UnlootedOverlayRenderer {
         }
         int alpha255 = Math.clamp((long) (alpha * 255.0f), 0, 255);
 
-        VertexConsumer buffer = consumers.getBuffer(
-                distance <= xrayDistance ? ProsperityRenderTypes.xray() : ProsperityRenderTypes.occluded());
+        VertexConsumer buffer = consumers.getBuffer(distance <= xrayDistance
+                ? ProsperityRenderTypes.xray(frame) : ProsperityRenderTypes.occluded(frame));
 
         pose.pushPose();
         pose.translate(dx, dy + bob, dz);
         pose.mulPose(cameraRotation);
         Matrix4f matrix = pose.last().pose();
-        // Texture top (v0) maps to the quad's top (+y); the sprite is gold, so tint white + fade alpha.
-        buffer.addVertex(matrix, -HALF_SIZE, -HALF_SIZE, 0.0f).setUv(0.0f, v1).setColor(255, 255, 255, alpha255);
-        buffer.addVertex(matrix, HALF_SIZE, -HALF_SIZE, 0.0f).setUv(1.0f, v1).setColor(255, 255, 255, alpha255);
-        buffer.addVertex(matrix, HALF_SIZE, HALF_SIZE, 0.0f).setUv(1.0f, v0).setColor(255, 255, 255, alpha255);
-        buffer.addVertex(matrix, -HALF_SIZE, HALF_SIZE, 0.0f).setUv(0.0f, v0).setColor(255, 255, 255, alpha255);
+        // The frame's own texture fills the quad (v=0 at the top); the sprite is gold, so tint white + fade alpha.
+        buffer.addVertex(matrix, -HALF_SIZE, -HALF_SIZE, 0.0f).setUv(0.0f, 1.0f).setColor(255, 255, 255, alpha255);
+        buffer.addVertex(matrix, HALF_SIZE, -HALF_SIZE, 0.0f).setUv(1.0f, 1.0f).setColor(255, 255, 255, alpha255);
+        buffer.addVertex(matrix, HALF_SIZE, HALF_SIZE, 0.0f).setUv(1.0f, 0.0f).setColor(255, 255, 255, alpha255);
+        buffer.addVertex(matrix, -HALF_SIZE, HALF_SIZE, 0.0f).setUv(0.0f, 0.0f).setColor(255, 255, 255, alpha255);
         pose.popPose();
         return true;
     }

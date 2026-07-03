@@ -26,8 +26,8 @@ import net.minecraft.resources.ResourceLocation;
  */
 public final class LootTableReiDisplayCategory implements DisplayCategory<LootTableReiDisplay> {
 
-    /** The unlooted-indicator sprite (16×16 frame on a 16×64 strip); frame 0 marks injected rows. */
-    private static final ResourceLocation SPARKLE = Prosperity.id("textures/overlay/unlooted.png");
+    /** The unlooted-indicator sparkle (first animation frame); marks injected rows. */
+    private static final ResourceLocation SPARKLE = Prosperity.id("textures/overlay/unlooted_0.png");
     private static final ResourceLocation ICON_TEXTURE = Prosperity.id("icon.png");
     private static final Renderer MOD_ICON =
             (GuiGraphics graphics, Rectangle bounds, int mouseX, int mouseY, float delta) ->
@@ -86,9 +86,9 @@ public final class LootTableReiDisplayCategory implements DisplayCategory<LootTa
                 .markOutput());
 
         if (entry.origin() == LootIndexEntry.Origin.INJECTED) {
-            // Gold-sparkle marker (frame 0 of the 16×64 strip) in the output slot's top-right corner.
+            // Gold-sparkle marker in the output slot's top-right corner.
             widgets.add(Widgets.createDrawableWidget((graphics, mouseX, mouseY, delta) ->
-                    graphics.blit(SPARKLE, x + 38, y + SLOT_Y - 2, 8, 8, 0F, 0F, 16, 16, 16, 64)));
+                    graphics.blit(SPARKLE, x + 38, y + SLOT_Y - 2, 8, 8, 0F, 0F, 16, 16, 16, 16)));
         }
 
         widgets.add(Widgets.createLabel(new Point(x + TEXT_X, y + 4), structureName).leftAligned());
