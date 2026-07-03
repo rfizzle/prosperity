@@ -3,6 +3,7 @@ package com.rfizzle.prosperity.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.rfizzle.prosperity.client.hud.LootDetailPanelRenderer;
 import com.rfizzle.prosperity.client.hud.ProsperityHudOverlay;
+import com.rfizzle.prosperity.client.item.ProspectorsCompassClient;
 import com.rfizzle.prosperity.client.network.ClientProtectionState;
 import com.rfizzle.prosperity.client.network.ProsperityClientNetworking;
 import com.rfizzle.prosperity.client.render.UnlootedOverlayRenderer;
@@ -31,6 +32,7 @@ public class ProsperityClient implements ClientModInitializer {
                 "key.categories.prosperity"));
 
         ProsperityClientNetworking.init();
+        ProspectorsCompassClient.register();
         UnlootedOverlayRenderer.register();
         ProsperityHudOverlay.register();
         HudRenderCallback.EVENT.register(new LootDetailPanelRenderer());

@@ -1,0 +1,6 @@
+{
+    "parent": "item/generated",
+    "textures": {
+        "layer0": "prosperity:item/prospectors_compass_23"
+    }
+}
