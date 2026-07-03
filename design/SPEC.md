@@ -1109,6 +1109,7 @@ A held compass item whose needle points at the nearest container the holder has 
 - **Retargeting** — looting or breaking the target evicts it from the cache (existing `ContainerLootedS2C`/`ContainerRemovedS2C` flow) and the needle swings to the next nearest candidate. The current target is sticky within a 2-block hysteresis so the needle does not flicker between near-equidistant containers.
 - **No candidates** — the needle spins randomly, exactly like a vanilla compass outside its dimension (vanilla `CompassItemPropertyFunction` behavior).
 - **Obtainability** — injected into chest loot via the bundled `loot_injections/prospectors_compass.json` at `min_tier: frontier`, weight 8. No crafting recipe. Uncommon rarity, stack size 1.
+- **Peek-panel readout** — carrying a compass anywhere in the inventory adds a `Nearest: <blocks> <bearing>` line to the peek panel's "Nearby unlooted" pillar: the rounded distance and 8-way cardinal bearing to the same plain-nearest target the needle selects (extended over loot minecarts, which the pillar also lists), with the target's tier suffixed in its tier color. The line is absent with no compass or no candidates in range; the pillar's empty state is unchanged. Bearing math (`LootDetailPanelMath.bearing8`) is pure and under JUnit.
 - **Out of scope** — pointing at ungenerated structures, GUIs/waypoints/maps, and loot minecart targets.
 
 ### Implementation Notes

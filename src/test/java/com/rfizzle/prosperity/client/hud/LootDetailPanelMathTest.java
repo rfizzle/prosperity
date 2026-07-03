@@ -174,4 +174,34 @@ class LootDetailPanelMathTest {
         // A zero fade is always opaque.
         assertEquals(1f, LootDetailPanelMath.pageAlpha(0, 2600, 0), 1e-6);
     }
+
+    @Test
+    void bearing8ResolvesAllEightSectorCenters() {
+        // Minecraft axes: north is -Z, east is +X.
+        assertEquals("n", LootDetailPanelMath.bearing8(0, -10));
+        assertEquals("ne", LootDetailPanelMath.bearing8(10, -10));
+        assertEquals("e", LootDetailPanelMath.bearing8(10, 0));
+        assertEquals("se", LootDetailPanelMath.bearing8(10, 10));
+        assertEquals("s", LootDetailPanelMath.bearing8(0, 10));
+        assertEquals("sw", LootDetailPanelMath.bearing8(-10, 10));
+        assertEquals("w", LootDetailPanelMath.bearing8(-10, 0));
+        assertEquals("nw", LootDetailPanelMath.bearing8(-10, -10));
+    }
+
+    @Test
+    void bearing8SectorBoundariesFallClockwise() {
+        // Exactly 22.5 degrees east of north sits on the N/NE boundary; the sector floor puts it in NE.
+        double t = Math.tan(Math.toRadians(22.5));
+        assertEquals("ne", LootDetailPanelMath.bearing8(t * 10, -10));
+        // Just inside north's sector on either side stays N.
+        assertEquals("n", LootDetailPanelMath.bearing8(t * 10 - 0.01, -10));
+        assertEquals("n", LootDetailPanelMath.bearing8(-t * 10 + 0.01, -10));
+        // The NW/N boundary (337.5 degrees) rolls forward into N.
+        assertEquals("n", LootDetailPanelMath.bearing8(-t * 10, -10));
+    }
+
+    @Test
+    void bearing8ZeroOffsetIsWellDefined() {
+        assertEquals("n", LootDetailPanelMath.bearing8(0, 0));
+    }
 }

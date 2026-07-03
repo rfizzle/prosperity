@@ -76,7 +76,7 @@ public final class ProspectorsCompassClient {
      * {@code null} when there are no candidates. Pure — no client state touched.
      */
     @Nullable
-    static BlockPos selectTarget(@Nullable BlockPos current, Iterable<BlockPos> candidates,
+    public static BlockPos selectTarget(@Nullable BlockPos current, Iterable<BlockPos> candidates,
             Vec3 player) {
         BlockPos nearest = null;
         double nearestSq = Double.MAX_VALUE;
