@@ -433,6 +433,22 @@ Prosperity ships a default set of injections to make distance scaling feel meani
 
 The default set is conservative — it adds items that already exist in vanilla progression but are normally structure-locked or extremely rare. Pack makers can extend or replace via datapacks.
 
+When [Meridian](https://github.com/rfizzle/meridian) is installed, a Meridian-gated
+in-jar file (`meridian_books.json`) adds its enchanted books to the same
+`prosperity:all_chests` pool — vanilla `minecraft:enchanted_book` items carrying
+`meridian:*` enchants in `stored_enchantments`:
+
+| Tier | Meridian books |
+|---|---|
+| Outlands | Insight II, Gravitas II, Vitality III |
+| Depths | Retribution III, Detonation II, Plunder III, Tether, Vital Mend II, Colossus II |
+
+The Depths entries are Meridian's treasure-tagged enchants (unavailable from its
+enchanting table), so distant chests are a genuine acquisition path for them. The
+file carries both gates: a file-level `fabric:load_conditions` header, so its
+`meridian:*` enchantment components never reach the registry-aware codec when
+Meridian is absent, and `requires_mods` on each injection.
+
 ### Wildcard Targets
 
 The special target `"prosperity:all_chests"` injects into every loot table matching `**/chests/**`. This allows pack makers to add items globally without listing every loot table individually.

@@ -1,0 +1,129 @@
+{
+  "fabric:load_conditions": [
+    {
+      "condition": "fabric:all_mods_loaded",
+      "values": [
+        "meridian"
+      ]
+    }
+  ],
+  "injections": [
+    {
+      "target": "prosperity:all_chests",
+      "min_tier": "outlands",
+      "requires_mods": [
+        "meridian"
+      ],
+      "entries": [
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:insight": 2
+              }
+            }
+          },
+          "weight": 2
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:gravitas": 2
+              }
+            }
+          },
+          "weight": 2
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:vitality": 3
+              }
+            }
+          },
+          "weight": 2
+        }
+      ]
+    },
+    {
+      "target": "prosperity:all_chests",
+      "min_tier": "depths",
+      "requires_mods": [
+        "meridian"
+      ],
+      "entries": [
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:retribution": 3
+              }
+            }
+          },
+          "weight": 2
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:detonation": 2
+              }
+            }
+          },
+          "weight": 1
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:plunder": 3
+              }
+            }
+          },
+          "weight": 1
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:tether": 1
+              }
+            }
+          },
+          "weight": 1
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:vital_mend": 2
+              }
+            }
+          },
+          "weight": 1
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "components": {
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "meridian:colossus": 2
+              }
+            }
+          },
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}
