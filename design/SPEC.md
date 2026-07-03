@@ -1120,6 +1120,55 @@ A held compass item whose needle points at the nearest container the holder has 
 
 ---
 
+## 18. Fishing Loot Scaling
+
+Distance-based scaling applied to fishing catches, extending the tier system to the third vanilla loot source.
+
+### Problem
+
+Distance tiers apply to container loot (section 3) and mob drops (section 13), but fishing loot stays flat. A player fishing at 10,000 blocks pulls the same treasure odds as one at spawn — the "further = better" reward signal breaks for the third vanilla loot source.
+
+### Behavior
+
+When a player reels in a catch, the fishing loot roll is processed with the same distance tier system used for containers and mobs:
+
+1. **Calculate distance** — Euclidean distance from the **bobber's** position (not the angler's) to world origin (XZ plane).
+2. **Determine tier** — Same tier brackets as container scaling (section 3).
+3. **Apply quality modifier** — The tier's `qualityModifier` is added to the `luck` value in the fishing roll's `LootParams`, biasing vanilla's quality-weighted fishing table toward the treasure category. Luck of the Sea's own contribution is untouched and stacks on top.
+4. **Apply stack multiplier** — Same stack size scaling as containers: each stackable catch has its count multiplied by the tier's `stackMultiplier`, floored, capped at max stack size. Non-stackable catches (enchanted books, bows, name tags) are never count-multiplied.
+
+### Scope
+
+- **Loot rolls only.** Reeling in a hooked entity or an empty hook is unaffected.
+- **Player-owned bobbers only.** A hook with no player owner rolls vanilla loot.
+- Instancing does not apply — fishing loot is inherently per-player already.
+- Wait-time/bite mechanics and Luck of the Sea itself are unchanged.
+
+### Loot Modifier API Integration
+
+Fishing scaling fires `LootModifierCallback.EVENT` the same way container and mob loot do, so registered listeners automatically affect fishing rolls too. The `LootModifierContext` carries the angler as `player()`, the bobber's position as `containerPos()` (the loot-source position), and `minecraft:gameplay/fishing` as `lootTable()`.
+
+### Configuration
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enableFishingLootScaling` | bool | true | Toggle distance scaling for fishing catches |
+
+### Nether and End
+
+Same dimension rules as container scaling:
+- **Nether:** Distance calculated from Nether coordinates (not multiplied by 8).
+- **End:** All fishing in the End uses the maximum configured tier.
+
+### Implementation Notes
+
+- A mixin on `FishingHook#retrieve` — the method every fishing catch funnels through — carries the scaling. `@ModifyArg` on `LootParams.Builder#withLuck` runs the gate, fires `LootModifierCallback` (via the `FishingLootScaling` helper), and replaces vanilla's `this.luck + player.getLuck()` with `this.luck` plus the event's final luck; `@ModifyVariable` on the rolled `List<ItemStack>` scales each catch with `LootScaling.scaledCount`. The resolve lives in the `withLuck` injector rather than `HEAD` because `retrieve` also handles hooked entities and empty reels — the `withLuck` call sits inside the caught-something branch, so the event fires exactly once per actual loot roll and a non-scalable reel stays byte-identical to vanilla.
+- The gate and the loot-modifier fire live in `FishingLootScaling.resolve`, the fishing parallel of `MobLootScaling.resolve`; the tier is the ungated geographic `LootScaling.resolveTier` from the bobber's coordinates, so the Nether's raw coordinates and the End's max tier carry over for free.
+- The event luck already folds in the angler's `generic.luck` via the default listener, so the mixin adds back only the rod's Luck of the Sea contribution (`FishingHook.luck`) from the vanilla operands — vanilla luck is never double-counted.
+- `enableFishingLootScaling` gates this feature independently of `enableDistanceScaling` and `enableMobLootScaling` — separate toggles for separate loot sources.
+
+---
+
 ## Configuration
 
 All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
@@ -1145,6 +1194,7 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
 | `protectionUnbreakable` | bool | false | Make protected containers fully unbreakable in survival instead of merely slower |
 | `enableMobLootScaling` | bool | true | Toggle distance scaling for mob drops |
+| `enableFishingLootScaling` | bool | true | Toggle distance scaling for fishing catches |
 | `enableTrialChamberScaling` | bool | true | Toggle distance scaling for trial chamber vault and spawner rewards |
 | `endAlwaysMaxTier` | bool | true | Treat all End containers as max distance tier |
 | `lootTableStructures` | map | {} | Loot index (§11): loot-table id → structure id overrides for tables the hardcoded vanilla map does not cover |

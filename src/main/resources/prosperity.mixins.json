@@ -9,6 +9,7 @@
         "ContainerEntityUnpackMixin",
         "EntityRemoveMixin",
         "ExplosionDamageCalculatorMixin",
+        "FishingHookRetrieveMixin",
         "LevelChunkRemoveBlockEntityMixin",
         "LivingEntityDropLootMixin",
         "LootItemAccessor",
