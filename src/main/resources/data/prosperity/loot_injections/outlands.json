@@ -6,21 +6,29 @@
       "entries": [
         {
           "item": "minecraft:netherite_upgrade_smithing_template",
-          "weight": 2
+          "weight": 24
         },
         {
           "item": "minecraft:enchanted_book",
           "components": {
-            "minecraft:stored_enchantments": { "levels": { "minecraft:sharpness": 5 } }
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "minecraft:sharpness": 5
+              }
+            }
           },
-          "weight": 3
+          "weight": 36
         },
         {
           "item": "minecraft:diamond_pickaxe",
           "components": {
-            "minecraft:enchantments": { "levels": { "minecraft:efficiency": 4 } }
+            "minecraft:enchantments": {
+              "levels": {
+                "minecraft:efficiency": 4
+              }
+            }
           },
-          "weight": 2
+          "weight": 24
         }
       ]
     }

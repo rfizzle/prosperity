@@ -6,15 +6,15 @@
       "entries": [
         {
           "item": "minecraft:enchanted_golden_apple",
-          "weight": 2
+          "weight": 24
         },
         {
           "item": "minecraft:diamond_horse_armor",
-          "weight": 2
+          "weight": 24
         },
         {
           "item": "minecraft:music_disc_otherside",
-          "weight": 1
+          "weight": 12
         }
       ]
     }

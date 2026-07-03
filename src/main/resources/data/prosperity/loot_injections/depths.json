@@ -7,25 +7,33 @@
         {
           "item": "minecraft:netherite_upgrade_smithing_template",
           "count": 2,
-          "weight": 2
+          "weight": 24
         },
         {
           "item": "minecraft:enchanted_book",
           "components": {
-            "minecraft:stored_enchantments": { "levels": { "minecraft:mending": 1 } }
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "minecraft:mending": 1
+              }
+            }
           },
-          "weight": 2
+          "weight": 24
         },
         {
           "item": "minecraft:enchanted_book",
           "components": {
-            "minecraft:stored_enchantments": { "levels": { "minecraft:silk_touch": 1 } }
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "minecraft:silk_touch": 1
+              }
+            }
           },
-          "weight": 2
+          "weight": 24
         },
         {
           "item": "minecraft:trident",
-          "weight": 1
+          "weight": 12
         }
       ]
     }

@@ -7,20 +7,28 @@
         {
           "item": "minecraft:enchanted_book",
           "components": {
-            "minecraft:stored_enchantments": { "levels": { "minecraft:sharpness": 3 } }
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "minecraft:sharpness": 3
+              }
+            }
           },
-          "weight": 5
+          "weight": 60
         },
         {
           "item": "minecraft:enchanted_book",
           "components": {
-            "minecraft:stored_enchantments": { "levels": { "minecraft:protection": 3 } }
+            "minecraft:stored_enchantments": {
+              "levels": {
+                "minecraft:protection": 3
+              }
+            }
           },
-          "weight": 5
+          "weight": 60
         },
         {
           "item": "minecraft:iron_horse_armor",
-          "weight": 3
+          "weight": 36
         }
       ]
     }
