@@ -478,7 +478,8 @@ Structure overrides are defined in the server config:
     { "structure": "minecraft:village_snowy",       "mode": "maximum", "tier": "frontier"   },
     { "structure": "minecraft:village_taiga",       "mode": "maximum", "tier": "frontier"   },
     { "structure": "minecraft:ancient_city",        "mode": "minimum", "tier": "outlands"   },
-    { "structure": "minecraft:trail_ruins",         "mode": "minimum", "tier": "frontier"   }
+    { "structure": "minecraft:trail_ruins",         "mode": "minimum", "tier": "frontier"   },
+    { "structure": "minecraft:trial_chambers",      "mode": "minimum", "tier": "wilderness" }
   ]
 }
 ```
@@ -1009,9 +1010,43 @@ All commands use the `prosperity` root. Admin commands require **operator level 
 
 ---
 
+## 16. Trial Chamber Scaling
+
+Distance-based scaling applied to trial chamber reward sources — vault loot (normal and ominous) and trial spawner ejected rewards. Scaling only, no instancing: vanilla vaults already gate rewards per player, so instancing them would add nothing.
+
+### Behavior
+
+- **Vault loot** — when a player inserts a key, the reward roll's luck is replaced with the loot-modifier event's final value (tier quality + the player's `generic.luck` + any API listener) and each rolled stackable stack is multiplied by the tier's `stackMultiplier` (floored, capped at max stack size). Normal and ominous vaults are both covered — each is a `VaultConfig` with its own loot table on the same roll path.
+- **Trial spawner rewards** — the ejected reward roll is scaled the same way for the player being rewarded. Vanilla ejects one roll per detected player and then removes the head of the detected set; that head is the player the roll is attributed to.
+- **Structure override** — the roll position runs through the standard tier pipeline (`LootScaling.resolveForGeneration`), so the `minecraft:trial_chambers` entry in `structureOverrides` participates. The shipped default raises trial chambers to at least the `wilderness` tier.
+- **Loot Modifier API** — `LootModifierCallback.EVENT` fires once per roll with the vault/spawner position as `containerPos()` and the rolled table as `lootTable()`, so API listeners compose exactly as they do for containers and mob drops.
+- **Notification** — the tier action-bar notification (section 8) shows on a successful vault open, consistent with container generation. Spawner ejections stay silent — they fire on a timer with no per-player open moment.
+
+### Vanilla Gating Untouched
+
+Key consumption, the per-player rewarded set, and vault re-locking all live outside the hooked roll methods and are not modified. The vault display-item cycling roll is likewise untouched.
+
+### Configuration
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enableTrialChamberScaling` | bool | true | Toggle distance scaling for trial chamber vault and spawner rewards |
+
+Gated on `enableTrialChamberScaling` **and** `enableDistanceScaling` — this is an extension of distance scaling, not an independent loot source. With either off, trial chamber loot is byte-identical to vanilla and no event fires.
+
+### Implementation Notes
+
+- The gate and the loot-modifier fire live in `TrialChamberScaling.resolve`, the trial chamber parallel of `MobLootScaling.resolve`; the two mixins are pure plumbing.
+- `VaultBlockEntityServerMixin` hooks `VaultBlockEntity.Server#resolveItemsToEject` — the one method every vault unlock funnels through, called only from `tryInsertKey` with the opening player. Three coordinated injectors: `@Inject(HEAD)` resolves the decision, `@ModifyArg` on `LootParams.Builder#withLuck` replaces vanilla's `player.getLuck()` with the event's final luck, and `@Inject(RETURN)` scales the rolled stacks in place and sends the notification on a non-empty roll.
+- `TrialSpawnerMixin` hooks `TrialSpawner#ejectReward`: `@Inject(HEAD)` attributes the roll to the head of the spawner's detected-player set (via a `TrialSpawnerData` accessor), `@ModifyArg` on `LootTable#getRandomItems` swaps in a `LootParams` carrying the final luck (vanilla rolls this table with no luck at all), and `@ModifyArg` on `DefaultDispenseItemBehavior#spawnItem` scales each dispensed stack.
+- Stack scaling reuses `LootScaling.scaledCount`, identical to container and mob scaling.
+- Existing configs gain the `minecraft:trial_chambers` default override via a v1 → v2 config migration that appends it only when no entry for the structure exists — a hand-tuned or deliberately removed entry is respected.
+
+---
+
 ## Configuration
 
-All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **1**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
+All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
 
 ### Server Config
 
@@ -1034,6 +1069,7 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
 | `protectionUnbreakable` | bool | false | Make protected containers fully unbreakable in survival instead of merely slower |
 | `enableMobLootScaling` | bool | true | Toggle distance scaling for mob drops |
+| `enableTrialChamberScaling` | bool | true | Toggle distance scaling for trial chamber vault and spawner rewards |
 | `endAlwaysMaxTier` | bool | true | Treat all End containers as max distance tier |
 | `lootTableStructures` | map | {} | Loot index (§11): loot-table id → structure id overrides for tables the hardcoded vanilla map does not cover |
 
@@ -1061,7 +1097,8 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
   { "structure": "minecraft:village_snowy",       "mode": "maximum", "tier": "frontier"   },
   { "structure": "minecraft:village_taiga",       "mode": "maximum", "tier": "frontier"   },
   { "structure": "minecraft:ancient_city",        "mode": "minimum", "tier": "outlands"   },
-  { "structure": "minecraft:trail_ruins",         "mode": "minimum", "tier": "frontier"   }
+  { "structure": "minecraft:trail_ruins",         "mode": "minimum", "tier": "frontier"   },
+  { "structure": "minecraft:trial_chambers",      "mode": "minimum", "tier": "wilderness" }
 ]
 ```
 

@@ -83,6 +83,10 @@
         },
         {
           "type": "prose",
+          "html": ["Trial chambers join the same reward loop: vault loot (normal and ominous) and trial spawner reward ejections are scaled by the chamber's distance tier, and a shipped structure override raises chambers to at least the Wilderness tier. Vanilla's per-player vault gating and key consumption stay untouched — scaling only, independently togglable."]
+        },
+        {
+          "type": "prose",
           "html": ["With <a href='https://tribulation.rfizzle.com' class='text-accent hover:text-accent2 underline'>Tribulation</a> installed, the local difficulty adds bonus luck on top of the distance tier, everywhere distance scaling applies — a dangerous area yields richer chests and better drops from its scaled mobs. The bonus follows Tribulation's own tier thresholds, stays small through the early tiers, is capped at +2 luck, and gives stack counts a slight nudge only at the two highest tiers."]
         },
         {

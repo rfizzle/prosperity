@@ -78,6 +78,7 @@
             ["<code class='whitespace-nowrap'>minecraft:stronghold</code>", "minimum", "outlands"],
             ["<code class='whitespace-nowrap'>minecraft:ancient_city</code>", "minimum", "outlands"],
             ["<code class='whitespace-nowrap'>minecraft:trail_ruins</code>", "minimum", "frontier"],
+            ["<code class='whitespace-nowrap'>minecraft:trial_chambers</code>", "minimum", "wilderness"],
             ["<code class='whitespace-nowrap'>minecraft:village_*</code>", "maximum", "frontier"]
           ],
           "note": "Each of the five vanilla village variants (plains, desert, savanna, snowy, taiga) ships its own maximum-frontier override."
@@ -99,6 +100,22 @@
           ]
         },
         { "type": "prose", "html": ["When you land the killing blow on a hostile mob, its drops are scaled by the same distance tier used for containers — stack counts multiplied (capped at the item's max stack) and the tier's quality added to the loot luck. Passive mobs and environmental or non-player kills are never scaled. The Nether uses raw coordinates and the End is always the max tier, matching container scaling. This toggle is independent of <code class='text-accent2'>distanceTiers</code> scaling for containers."] }
+      ]
+    },
+    {
+      "id": "trial-chamber-scaling",
+      "title": "Trial Chamber Scaling",
+      "intro": "Apply the distance tiers to trial chamber vault loot and trial spawner rewards.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>enableTrialChamberScaling</code>", "bool", "true", "Scale trial chamber vault loot and trial spawner rewards by the chamber's distance tier."]
+          ]
+        },
+        { "type": "prose", "html": ["Vault rewards (normal and ominous) and trial spawner ejections are scaled by the chamber's distance tier — stack counts multiplied (capped at the item's max stack) and the tier's quality added to the loot luck — with the shipped <code class='text-accent2'>minecraft:trial_chambers</code> structure override raising chambers to at least the Wilderness tier. Scaling only: vanilla's per-player vault gating and key consumption are untouched. Requires <code class='text-accent2'>enableDistanceScaling</code>; with either toggle off, trial chamber loot is exactly vanilla."] }
       ]
     },
     {

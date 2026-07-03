@@ -99,6 +99,7 @@ public class ProsperityConfig {
     public float protectionBreakMultiplier = 4.0f;
     public boolean protectionUnbreakable = false;
     public boolean enableMobLootScaling = true;
+    public boolean enableTrialChamberScaling = true;
     public boolean endAlwaysMaxTier = true;
     /** Loot index (S-025, SPEC §11): loot-table id &rarr; structure id overrides for unmapped tables. */
     public Map<String, String> lootTableStructures = new LinkedHashMap<>();
@@ -142,6 +143,7 @@ public class ProsperityConfig {
         overrides.add(new StructureOverride("minecraft:village_taiga", "maximum", "frontier"));
         overrides.add(new StructureOverride("minecraft:ancient_city", "minimum", "outlands"));
         overrides.add(new StructureOverride("minecraft:trail_ruins", "minimum", "frontier"));
+        overrides.add(new StructureOverride("minecraft:trial_chambers", "minimum", "wilderness"));
         return overrides;
     }
 

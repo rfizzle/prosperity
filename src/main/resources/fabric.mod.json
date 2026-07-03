@@ -46,6 +46,7 @@
             "com.rfizzle.prosperity.gametest.MobLootScalingGameTest",
             "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest",
             "com.rfizzle.prosperity.gametest.StructureScalingGameTest",
+            "com.rfizzle.prosperity.gametest.TrialChamberScalingGameTest",
             "com.rfizzle.prosperity.gametest.UnlootedSyncGameTest"
         ]
     },
