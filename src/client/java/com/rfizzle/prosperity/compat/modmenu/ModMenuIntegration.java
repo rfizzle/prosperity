@@ -158,6 +158,19 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setTooltip(tooltip("randomize_loot_on_refresh"))
                     .setSaveConsumer(v -> working.randomizeLootOnRefresh = v)
                     .build());
+            feedback.addEntry(entry.startBooleanToggle(
+                            label("evict_absent_player_data"), working.evictAbsentPlayerData)
+                    .setDefaultValue(false)
+                    .setTooltip(tooltip("evict_absent_player_data"))
+                    .setSaveConsumer(v -> working.evictAbsentPlayerData = v)
+                    .build());
+            feedback.addEntry(entry.startIntField(
+                            label("absent_player_eviction_days"), working.absentPlayerEvictionDays)
+                    .setDefaultValue(60)
+                    .setMin(1)
+                    .setTooltip(tooltip("absent_player_eviction_days"))
+                    .setSaveConsumer(v -> working.absentPlayerEvictionDays = v)
+                    .build());
 
             // --- Extended ---
             ConfigCategory extended = builder.getOrCreateCategory(

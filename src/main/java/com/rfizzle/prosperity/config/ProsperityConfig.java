@@ -96,6 +96,9 @@ public class ProsperityConfig {
     public boolean enableLootRefresh = false;
     public int lootRefreshDays = 7;
     public boolean randomizeLootOnRefresh = false;
+    /** Absent-player eviction (issue #43): reclaim per-player container entries of long-gone players. */
+    public boolean evictAbsentPlayerData = false;
+    public int absentPlayerEvictionDays = 60;
     public boolean enableContainerProtection = false;
     public float protectionBreakMultiplier = 4.0f;
     public boolean protectionUnbreakable = false;
@@ -182,6 +185,7 @@ public class ProsperityConfig {
         // it — a hand-edited xray > render distance is silently capped to the render distance.
         indicatorXrayDistance = Math.min(indicatorXrayDistance, indicatorRenderDistance);
         lootRefreshDays = Math.clamp(lootRefreshDays, 1, Integer.MAX_VALUE);
+        absentPlayerEvictionDays = Math.clamp(absentPlayerEvictionDays, 1, Integer.MAX_VALUE);
         protectionBreakMultiplier = Math.clamp(protectionBreakMultiplier, 1.0f, 100.0f);
 
         if (distanceTiers == null) {

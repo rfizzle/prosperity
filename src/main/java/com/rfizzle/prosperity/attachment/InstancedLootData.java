@@ -36,8 +36,10 @@ import org.jetbrains.annotations.Nullable;
  * inventory so a high-traffic container does not accrue a stored inventory per visitor forever. Their
  * lightweight {@code lastGeneratedTick} (and {@code refreshCount}) remain as the "has visited" marker
  * — see {@link #hasGenerated} — so no loot is re-rolled and the looted indicator is unaffected. Those
- * long-valued maps still grow one small entry per distinct player; only a refresh clear or
- * {@code /prosperity reset|refresh} removes them.
+ * long-valued maps still grow one small entry per distinct player; a refresh clear or
+ * {@code /prosperity reset|refresh} removes the tick (retaining the salt), and the config-gated
+ * absent-player eviction (issue #43) reclaims all three entries via {@link #evictPlayer} for players
+ * gone beyond a last-seen threshold.
  *
  * <p><b>Dirtying:</b> this is a plain mutable value with no reference to its owner. Mutating it in
  * place does <em>not</em> mark the owning block entity dirty — only {@code setAttached(...)} does.
@@ -146,6 +148,32 @@ public final class InstancedLootData {
         Set<UUID> ids = new HashSet<>(playerInventories.keySet());
         ids.addAll(lastGeneratedTick.keySet());
         return ids;
+    }
+
+    /**
+     * Every player with <em>any</em> entry here — a stored inventory, a last-generated tick, or a
+     * retained refresh count — as a defensive copy. A superset of {@link #playerIds()}: a salt-only
+     * player (all their state cleared by {@code /prosperity reset}, leaving just the refresh count)
+     * appears here but is not a live instance. This is the census for absent-player eviction
+     * (issue #43), which must reclaim salt-only entries too.
+     */
+    public Set<UUID> trackedPlayerIds() {
+        Set<UUID> ids = new HashSet<>(playerInventories.keySet());
+        ids.addAll(lastGeneratedTick.keySet());
+        ids.addAll(refreshCount.keySet());
+        return ids;
+    }
+
+    /**
+     * Drop every entry for {@code player} — inventory, last-generated tick, and refresh count —
+     * without advancing any salt (absent-player eviction, issue #43). Unlike {@link #clearForPlayer},
+     * which preserves the refresh count as the re-roll salt for a player expected back, this forgets
+     * the player entirely: if they do return, they regenerate from scratch with a salt of {@code 0}.
+     */
+    public void evictPlayer(UUID player) {
+        playerInventories.remove(player);
+        lastGeneratedTick.remove(player);
+        refreshCount.remove(player);
     }
 
     /** The player's inventory, creating an empty one sized to {@code size} if absent. */

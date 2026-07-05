@@ -11,6 +11,7 @@ import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.LootModifiers;
 import com.rfizzle.prosperity.loot.LootRefreshSweep;
 import com.rfizzle.prosperity.loot.MinecartLootInteraction;
+import com.rfizzle.prosperity.loot.eviction.AbsentPlayerEviction;
 import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
@@ -36,6 +37,7 @@ public class Prosperity implements ModInitializer {
         InstancedLootInteraction.register();
         MinecartLootInteraction.register();
         LootRefreshSweep.register();
+        AbsentPlayerEviction.register();
         ContainerProtection.register();
         LootModifiers.registerDefaults();
         // After registerDefaults() so the vanilla-luck listener precedes the Tribulation bias in

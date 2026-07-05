@@ -231,6 +231,23 @@
       ]
     },
     {
+      "id": "absent-eviction",
+      "title": "Absent-Player Data Eviction",
+      "intro": "Optional housekeeping that reclaims stored container data from players who stopped playing.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>evictAbsentPlayerData</code>", "bool", "false", "Drop a player's per-container data once they have been offline past the threshold."],
+            ["<code class='text-accent2 whitespace-nowrap'>absentPlayerEvictionDays</code>", "int", "60", "In-game days a player must be gone before their entries are evicted (minimum 1)."]
+          ]
+        },
+        { "type": "prose", "html": ["Every player who opens an instanced container leaves small permanent entries on it — a visited marker and a refresh counter — even after looting it clean. On a long-running public server those accumulate one per historical visitor, forever. With eviction enabled, a container drops <em>all</em> of a player's entries (stored loot included) the next time it is touched, if that player has not logged in for the configured number of in-game days. Absence is tracked by a self-owned ledger updated on join and disconnect. The ledger is always maintained — history starts accruing when the server first runs a Prosperity version that ships it, even while the toggle is off — so a player with no login since then becomes evictable one full threshold after that first run (which may be immediately, if you enable the toggle later). Nothing ever scans the world, and an online player is never evicted.", "The trade-off is deliberate and mirrors loot refresh: an evicted player who does return forfeits any loot they left uncollected, and their containers regenerate from scratch on the next open. Leave this off (the default) if that guarantee matters more than the bounded save size."] }
+      ]
+    },
+    {
       "id": "protection",
       "title": "Container Protection",
       "intro": "Optional anti-grief break resistance for instanced loot containers.",

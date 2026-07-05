@@ -6,6 +6,7 @@ import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.loot.completion.StructureCompletion;
+import com.rfizzle.prosperity.loot.eviction.AbsentPlayerEviction;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.UUID;
@@ -234,6 +235,13 @@ public final class InstancedLootInteraction {
             ChestBlockEntity primary, BlockPos secondaryPos, ChestBlockEntity secondary,
             ServerPlayer player) {
         UUID uuid = player.getUUID();
+        ContainerAdapter primaryAdapter = new BlockEntityContainerAdapter(level, primaryPos, primary);
+        ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
+        // Opportunistic absent-player eviction (issue #43) before any state is read: the combined
+        // instance lives on the primary half, but the secondary can carry residual entries of its own
+        // (e.g. from its earlier life as a single chest).
+        AbsentPlayerEviction.prune(primaryAdapter);
+        AbsentPlayerEviction.prune(secondaryAdapter);
         InstancedLootData primaryData = ProsperityAttachments.get(primary);
         if (primaryData != null && primaryData.hasGenerated(uuid)) {
             if (!LootRefresh.isExpired(primaryData, uuid, level.getGameTime())) {
@@ -248,8 +256,6 @@ public final class InstancedLootInteraction {
             ProsperityAttachments.update(primary, data -> data.clearForPlayer(uuid));
         }
 
-        ContainerAdapter primaryAdapter = new BlockEntityContainerAdapter(level, primaryPos, primary);
-        ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
         LootRef primaryRef = resolveTable(primaryAdapter);
         LootRef secondaryRef = resolveTable(secondaryAdapter);
         // The combined instance and its refresh count both live on the primary half, so the salt for
@@ -336,6 +342,9 @@ public final class InstancedLootInteraction {
      */
     public static NonNullList<ItemStack> generateAndStore(ContainerAdapter adapter, ServerPlayer player) {
         UUID uuid = player.getUUID();
+        // Opportunistic absent-player eviction (issue #43) before any state is read, so an evicted
+        // returning player falls through to a from-scratch generation below.
+        AbsentPlayerEviction.prune(adapter);
         InstancedLootData existing = adapter.data();
         if (existing != null && existing.hasGenerated(uuid)) {
             if (!LootRefresh.isExpired(existing, uuid, adapter.level().getGameTime())) {
