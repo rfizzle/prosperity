@@ -14,6 +14,7 @@
       "requires_mods": [
         "meridian"
       ],
+      "chance": 0.03,
       "entries": [
         {
           "item": "minecraft:enchanted_book",
@@ -29,6 +30,7 @@
       "requires_mods": [
         "meridian"
       ],
+      "chance": 0.015,
       "entries": [
         {
           "item": "minecraft:enchanted_book",
@@ -50,6 +52,7 @@
       "requires_mods": [
         "meridian"
       ],
+      "chance": 0.015,
       "entries": [
         {
           "item": "minecraft:enchanted_book",
@@ -71,6 +74,7 @@
       "requires_mods": [
         "meridian"
       ],
+      "chance": 0.015,
       "entries": [
         {
           "item": "minecraft:enchanted_book",

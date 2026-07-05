@@ -3,37 +3,34 @@
     {
       "target": "prosperity:all_chests",
       "min_tier": "depths",
+      "chance": 0.045,
       "entries": [
+        {
+          "item": "minecraft:enchanted_book",
+          "enchant_randomly": "#prosperity:rarity/rare",
+          "level": "max",
+          "weight": 20
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "enchant_randomly": "#prosperity:rarity/very_rare",
+          "level": "uniform",
+          "weight": 15
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "enchant_randomly": "#prosperity:rarity/treasure",
+          "level": "uniform",
+          "weight": 10
+        },
         {
           "item": "minecraft:netherite_upgrade_smithing_template",
           "count": 2,
-          "weight": 24
-        },
-        {
-          "item": "minecraft:enchanted_book",
-          "components": {
-            "minecraft:stored_enchantments": {
-              "levels": {
-                "minecraft:mending": 1
-              }
-            }
-          },
-          "weight": 24
-        },
-        {
-          "item": "minecraft:enchanted_book",
-          "components": {
-            "minecraft:stored_enchantments": {
-              "levels": {
-                "minecraft:silk_touch": 1
-              }
-            }
-          },
-          "weight": 24
+          "weight": 30
         },
         {
           "item": "minecraft:trident",
-          "weight": 12
+          "weight": 25
         }
       ]
     }

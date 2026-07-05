@@ -3,6 +3,7 @@
     {
       "target": "prosperity:all_chests",
       "min_tier": "frontier",
+      "chance": 0.01,
       "entries": [
         {
           "item": "prosperity:prospectors_compass",

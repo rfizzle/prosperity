@@ -147,6 +147,7 @@
     "prosperity.loot_index.any_tier": "Any tier",
     "prosperity.loot_index.tier": "%s+",
     "prosperity.loot_index.injected": "Added by Prosperity at %s tier",
+    "prosperity.loot_index.random_enchantment": "Random %s enchantment",
     "prosperity.loot_index.source.vanilla": "Vanilla loot",
     "prosperity.loot_index.structure.dungeon": "Dungeon",
     "prosperity.loot_index.structure.mineshaft": "Mineshaft",

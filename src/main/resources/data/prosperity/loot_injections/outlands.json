@@ -3,21 +3,23 @@
     {
       "target": "prosperity:all_chests",
       "min_tier": "outlands",
+      "chance": 0.035,
       "entries": [
         {
-          "item": "minecraft:netherite_upgrade_smithing_template",
-          "weight": 24
+          "item": "minecraft:enchanted_book",
+          "enchant_randomly": "#prosperity:rarity/uncommon",
+          "level": "max",
+          "weight": 20
         },
         {
           "item": "minecraft:enchanted_book",
-          "components": {
-            "minecraft:stored_enchantments": {
-              "levels": {
-                "minecraft:sharpness": 5
-              }
-            }
-          },
-          "weight": 36
+          "enchant_randomly": "#prosperity:rarity/rare",
+          "level": "mid",
+          "weight": 25
+        },
+        {
+          "item": "minecraft:netherite_upgrade_smithing_template",
+          "weight": 30
         },
         {
           "item": "minecraft:diamond_pickaxe",
@@ -28,7 +30,7 @@
               }
             }
           },
-          "weight": 24
+          "weight": 25
         }
       ]
     }

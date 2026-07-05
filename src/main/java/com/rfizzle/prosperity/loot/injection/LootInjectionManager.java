@@ -63,7 +63,11 @@ import org.jetbrains.annotations.Nullable;
  * both must pass: the container's resolved {@link DistanceTier} (the geographic/structure tier, not
  * the post-modifier luck) being at or above the entry's {@code min_tier}, compared by
  * {@link DistanceTier#minDistance()}; and the container's dimension being in the entry's
- * {@code dimensions} list (an empty list matches any dimension).
+ * {@code dimensions} list (an empty list matches any dimension). A group additionally carries a
+ * {@code chance} (default {@code 1.0}): at generation time each eligible group rolls it independently
+ * from the injection draw's deterministic {@link RandomSource} <em>before</em> the weighted draw, and
+ * a failed roll drops the group from the pool — so a bonus item appears in only a fraction of
+ * generations. When every group fails, nothing is placed.
  *
  * <p>The wildcard target {@code prosperity:all_chests} expands at load time to every loot table whose
  * path contains a {@code chests/} segment, scanned from the live resource manager.
@@ -189,7 +193,9 @@ public final class LootInjectionManager {
      * full. The draw is deterministic for a given {@code (seedBase, salt, uuid)} triple, so a
      * regeneration with the same salt regenerates the same bonus item; {@code salt} is the player's
      * refresh count under {@code randomizeLootOnRefresh} (and {@code 0} otherwise), letting the bonus
-     * re-roll on a refresh in lockstep with the main loot. The drawn stack passes through the
+     * re-roll on a refresh in lockstep with the main loot. Each eligible group's {@code chance} is
+     * rolled from the same {@link RandomSource} before the weighted draw, so the whether and the
+     * which of the bonus re-roll together. The drawn stack passes through the
      * installed {@link InjectedStackFinalizer} before placement, isolated so a throwing or
      * empty-returning finalizer falls back to the drawn stack unchanged. Returns whether an item
      * was actually placed, so callers can count rewards received rather than attempts (loot stats).
@@ -205,7 +211,7 @@ public final class LootInjectionManager {
                 ^ Long.rotateLeft(salt * INJECTION_SALT, 29);
         RandomSource random = RandomSource.create(mixed == 0L ? 1L : mixed);
         ItemStack injected = pick(table.location(), tier, level.dimension().location(), random,
-                level.registryAccess());
+                level.registryAccess(), true);
         if (injected == null || injected.isEmpty()) {
             return false;
         }
@@ -229,7 +235,9 @@ public final class LootInjectionManager {
      * template-placed chest does). Returns {@code null} when the table is absent or has no eligible
      * entry. Gated by {@code enableStructureCompletionBonus} at the caller, not by
      * {@code enableLootInjection} &mdash; the completion bonus is its own feature that draws from the
-     * injection pool, not an injection.
+     * injection pool, not an injection. For the same reason it bypasses the per-group {@code chance}
+     * gate: the completion is already earned, so the bonus draws over every tier-and-dimension
+     * eligible entry rather than paying out only a fraction of the time.
      */
     @Nullable
     public static ItemStack completionBonus(@Nullable ResourceKey<LootTable> table, DistanceTier tier,
@@ -245,7 +253,7 @@ public final class LootInjectionManager {
                 ^ COMPLETION_SALT;
         RandomSource random = RandomSource.create(mixed == 0L ? 1L : mixed);
         ItemStack drawn = pick(table.location(), tier, level.dimension().location(), random,
-                level.registryAccess());
+                level.registryAccess(), false);
         if (drawn == null || drawn.isEmpty()) {
             return null;
         }
@@ -274,17 +282,24 @@ public final class LootInjectionManager {
     /**
      * One weighted-random eligible injected item for {@code table} at {@code tier} in {@code dimension},
      * or {@code null} when the table has no injections or none are eligible. Generative entries resolve
-     * their enchantment tag against {@code registries} at draw time.
+     * their enchantment tag against {@code registries} at draw time. With {@code applyChance} each
+     * eligible group first rolls its {@code chance} from {@code random} (a failed roll drops the group,
+     * possibly leaving nothing to draw); without it the chance gate is bypassed and the draw runs over
+     * every eligible entry — the completion-bonus path.
      */
     @Nullable
     public static ItemStack pick(ResourceLocation table, DistanceTier tier, ResourceLocation dimension,
-            RandomSource random, HolderLookup.Provider registries) {
+            RandomSource random, HolderLookup.Provider registries, boolean applyChance) {
         Map<ResourceLocation, List<Tiered>> registry = REGISTRY;
         List<Tiered> list = registry.get(table);
         if (list == null || list.isEmpty()) {
             return null;
         }
-        return draw(eligibleEntries(list, tier, dimension, Prosperity.getConfig()), random, registries);
+        ProsperityConfig cfg = Prosperity.getConfig();
+        List<Entry> pool = applyChance
+                ? survivingEntries(list, tier, dimension, cfg, random)
+                : eligibleEntries(list, tier, dimension, cfg);
+        return draw(pool, random, registries);
     }
 
     /** The target loot tables that currently carry any injection (immutable snapshot). */
@@ -293,9 +308,10 @@ public final class LootInjectionManager {
     }
 
     /**
-     * The injections registered for {@code table}, flattened to (prototype stack, gating tier name)
-     * pairs for the loot index (S-025). The wildcard is already expanded into concrete tables in the
-     * registry, so this returns the entries that actually apply to {@code table}. Empty when none do.
+     * The injections registered for {@code table}, flattened to {@link InjectedView}s (prototype
+     * stack, gating tier name, and the generative enchantment tag when present) for the loot index
+     * (S-025). The wildcard is already expanded into concrete tables in the registry, so this
+     * returns the entries that actually apply to {@code table}. Empty when none do.
      */
     public static List<InjectedView> injectionsFor(ResourceLocation table) {
         List<Tiered> list = REGISTRY.get(table);
@@ -305,33 +321,74 @@ public final class LootInjectionManager {
         List<InjectedView> out = new ArrayList<>();
         for (Tiered tiered : list) {
             for (Entry entry : tiered.entries()) {
-                out.add(new InjectedView(entry.stack(), tiered.minTier()));
+                out.add(new InjectedView(entry.stack(), tiered.minTier(), entry.enchantRandomly()));
             }
         }
         return List.copyOf(out);
     }
 
-    /** A read-only view of one injectable entry for the loot index: its prototype stack and gating tier. */
-    public record InjectedView(ItemStack stack, String minTier) {
+    /**
+     * A read-only view of one injectable entry for the loot index: its prototype stack, gating tier,
+     * and — for a generative entry — the enchantment tag it draws from, so the index can present
+     * "random &lt;rarity&gt; enchantment" instead of the blank prototype book.
+     */
+    public record InjectedView(ItemStack stack, String minTier,
+            Optional<TagKey<Enchantment>> enchantRandomly) {
+
+        /** A literal entry's view: no generative tag. */
+        public InjectedView(ItemStack stack, String minTier) {
+            this(stack, minTier, Optional.empty());
+        }
     }
 
     /**
      * The injection groups eligible at {@code containerTier} in {@code dimension}: their {@code min_tier}
      * resolves and is at or below the tier, and their {@code dimensions} are empty (any) or contain the
-     * dimension. The two gates compose — both must pass.
+     * dimension. The two gates compose — both must pass. The per-group {@code chance} is <em>not</em>
+     * consulted here; see {@link #survivingEntries} for the generation-time roll.
      */
     public static List<Entry> eligibleEntries(List<Tiered> list, DistanceTier containerTier,
             ResourceLocation dimension, ProsperityConfig cfg) {
         List<Entry> out = new ArrayList<>();
         for (Tiered tiered : list) {
-            DistanceTier min = LootScaling.tierByName(cfg, tiered.minTier());
-            boolean tierOk = min != null && containerTier.minDistance() >= min.minDistance();
-            boolean dimensionOk = tiered.dimensions().isEmpty() || tiered.dimensions().contains(dimension);
-            if (tierOk && dimensionOk) {
+            if (applies(tiered, containerTier, dimension, cfg)) {
                 out.addAll(tiered.entries());
             }
         }
         return out;
+    }
+
+    /**
+     * {@link #eligibleEntries} narrowed by the per-group {@code chance} roll: each eligible group with
+     * {@code chance < 1.0} consumes one {@code random.nextFloat()}, in registry (file-id) order, and
+     * survives only when the roll lands under its chance. A group at the default {@code 1.0} consumes
+     * <em>no</em> randomness, so a registry with no gated groups sharing the target draws
+     * bit-identically to a build without the gate — a pre-gate datapack's worlds reproduce their
+     * loot exactly. (A gated group ahead of an ungated one does shift the ungated group's draw, as
+     * any pool change would.)
+     */
+    public static List<Entry> survivingEntries(List<Tiered> list, DistanceTier containerTier,
+            ResourceLocation dimension, ProsperityConfig cfg, RandomSource random) {
+        List<Entry> out = new ArrayList<>();
+        for (Tiered tiered : list) {
+            if (!applies(tiered, containerTier, dimension, cfg)) {
+                continue;
+            }
+            if (tiered.chance() < 1.0f && random.nextFloat() >= tiered.chance()) {
+                continue;
+            }
+            out.addAll(tiered.entries());
+        }
+        return out;
+    }
+
+    /** Whether {@code tiered}'s tier and dimension gates both pass — the chance roll is separate. */
+    private static boolean applies(Tiered tiered, DistanceTier containerTier, ResourceLocation dimension,
+            ProsperityConfig cfg) {
+        DistanceTier min = LootScaling.tierByName(cfg, tiered.minTier());
+        boolean tierOk = min != null && containerTier.minDistance() >= min.minDistance();
+        boolean dimensionOk = tiered.dimensions().isEmpty() || tiered.dimensions().contains(dimension);
+        return tierOk && dimensionOk;
     }
 
     /**
@@ -440,7 +497,7 @@ public final class LootInjectionManager {
                     continue;
                 }
                 Tiered tiered = new Tiered(injection.minTier(), List.copyOf(injection.dimensions()),
-                        List.copyOf(injection.entries()));
+                        injection.chance(), List.copyOf(injection.entries()));
                 for (ResourceLocation target : expand(injection.target(), chestTables)) {
                     if (data.replace() && clearedThisFile.add(target)) {
                         acc.put(target, new ArrayList<>());
@@ -491,13 +548,14 @@ public final class LootInjectionManager {
 
     /**
      * One target loot table, the minimum tier to apply at, the dimensions it is restricted to (empty
-     * means any), the mod ids that must all be loaded for it to apply (empty means unconditional), and
+     * means any), the mod ids that must all be loaded for it to apply (empty means unconditional), the
+     * per-generation {@code chance} the group survives its gate roll (default {@code 1.0}: always), and
      * the items to inject. The {@code requires_mods} gate is a finer-grained complement to the file-level
      * {@code fabric:load_conditions} header: it lets a single file mix unconditional injections with ones
      * scoped to a sibling mod, evaluated at load time only.
      */
     public record RawInjection(ResourceLocation target, String minTier, List<ResourceLocation> dimensions,
-            List<String> requiresMods, List<Entry> entries) {
+            List<String> requiresMods, float chance, List<Entry> entries) {
         public static final Codec<RawInjection> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         ResourceLocation.CODEC.fieldOf("target").forGetter(RawInjection::target),
@@ -506,15 +564,23 @@ public final class LootInjectionManager {
                                 .forGetter(RawInjection::dimensions),
                         Codec.STRING.listOf().optionalFieldOf("requires_mods", List.of())
                                 .forGetter(RawInjection::requiresMods),
+                        Codec.floatRange(0.0f, 1.0f).optionalFieldOf("chance", 1.0f)
+                                .forGetter(RawInjection::chance),
                         Entry.CODEC.listOf().fieldOf("entries").forGetter(RawInjection::entries)
                 ).apply(instance, RawInjection::new));
     }
 
     /**
      * An injection group reduced to what the registry needs: the gating tier name, the dimensions it is
-     * restricted to (empty means any), and its entries.
+     * restricted to (empty means any), the per-generation survival chance, and its entries.
      */
-    public record Tiered(String minTier, List<ResourceLocation> dimensions, List<Entry> entries) {
+    public record Tiered(String minTier, List<ResourceLocation> dimensions, float chance,
+            List<Entry> entries) {
+
+        /** An always-injecting group (chance {@code 1.0}) — the pre-gate shape, kept for tests. */
+        public Tiered(String minTier, List<ResourceLocation> dimensions, List<Entry> entries) {
+            this(minTier, dimensions, 1.0f, entries);
+        }
     }
 
     /**

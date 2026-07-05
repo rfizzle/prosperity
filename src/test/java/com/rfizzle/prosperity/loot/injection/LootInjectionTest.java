@@ -257,6 +257,133 @@ class LootInjectionTest {
     }
 
     @Test
+    void parsesChanceDefaultingToAlways() {
+        FileData file = parse("""
+                {
+                  "injections": [
+                    { "target": "minecraft:chests/a", "min_tier": "frontier",
+                      "entries": [ { "item": "minecraft:diamond" } ] },
+                    { "target": "minecraft:chests/b", "min_tier": "frontier", "chance": 0.25,
+                      "entries": [ { "item": "minecraft:emerald" } ] }
+                  ]
+                }
+                """);
+
+        assertEquals(1.0f, file.injections().get(0).chance(),
+                "an omitted chance field defaults to 1.0 (always inject)");
+        assertEquals(0.25f, file.injections().get(1).chance(), "the chance value round-trips");
+    }
+
+    @Test
+    void rejectsChanceOutOfRange() {
+        for (String chance : List.of("1.5", "-0.25")) {
+            JsonElement element = JsonParser.parseString("""
+                    {
+                      "injections": [
+                        { "target": "minecraft:chests/a", "min_tier": "frontier", "chance": %s,
+                          "entries": [ { "item": "minecraft:diamond" } ] }
+                      ]
+                    }
+                    """.formatted(chance));
+            assertTrue(FileData.CODEC.parse(ops, element).isError(),
+                    "chance " + chance + " is outside [0.0, 1.0] and must fail to parse");
+        }
+    }
+
+    @Test
+    void survivingEntriesRollChancePerGroup() {
+        ProsperityConfig cfg = new ProsperityConfig();
+        DistanceTier frontier = tier(cfg, "frontier");
+        Entry always = new Entry(new ItemStack(Items.IRON_INGOT), 1);
+        Entry never = new Entry(new ItemStack(Items.NETHERITE_INGOT), 1);
+        List<Tiered> list = List.of(
+                new Tiered("frontier", List.of(), 1.0f, List.of(always)),
+                new Tiered("frontier", List.of(), 0.0f, List.of(never)));
+
+        for (long seed = 0; seed < 50; seed++) {
+            List<Entry> surviving = LootInjectionManager.survivingEntries(
+                    list, frontier, OVERWORLD, cfg, RandomSource.create(seed));
+            assertEquals(List.of(always), surviving,
+                    "chance 1.0 always survives and chance 0.0 never does (seed " + seed + ")");
+        }
+    }
+
+    @Test
+    void fullChanceConsumesNoRandomness() {
+        // A group at the default 1.0 must not consume a roll: files without a chance field draw
+        // bit-identically to a build without the gate, so existing worlds' injections are unchanged.
+        ProsperityConfig cfg = new ProsperityConfig();
+        DistanceTier frontier = tier(cfg, "frontier");
+        List<Tiered> ungated = List.of(
+                new Tiered("frontier", List.of(), List.of(new Entry(new ItemStack(Items.IRON_INGOT), 1))),
+                new Tiered("frontier", List.of(), List.of(new Entry(new ItemStack(Items.GOLD_INGOT), 1))));
+
+        RandomSource random = RandomSource.create(4242L);
+        LootInjectionManager.survivingEntries(ungated, frontier, OVERWORLD, cfg, random);
+        assertEquals(RandomSource.create(4242L).nextLong(), random.nextLong(),
+                "surviving full-chance groups must leave the random stream untouched");
+    }
+
+    @Test
+    void fractionalChanceIsDeterministicAndProportional() {
+        ProsperityConfig cfg = new ProsperityConfig();
+        DistanceTier frontier = tier(cfg, "frontier");
+        List<Tiered> gated = List.of(new Tiered("frontier", List.of(), 0.25f,
+                List.of(new Entry(new ItemStack(Items.EMERALD), 1))));
+
+        int survived = 0;
+        for (long raw = 0; raw < 1000; raw++) {
+            // Mix like augment() does before seeding: LegacyRandomSource's first nextFloat over
+            // small sequential raw seeds is confined to a narrow band (the low bits never reach
+            // the output's top state bits), which would starve the survival count.
+            long seed = raw * 0x9E3779B97F4A7C15L;
+            List<Entry> first = LootInjectionManager.survivingEntries(
+                    gated, frontier, OVERWORLD, cfg, RandomSource.create(seed));
+            List<Entry> replay = LootInjectionManager.survivingEntries(
+                    gated, frontier, OVERWORLD, cfg, RandomSource.create(seed));
+            assertEquals(first, replay, "the gate roll must be deterministic per seed");
+            if (!first.isEmpty()) {
+                survived++;
+            }
+        }
+        assertTrue(survived > 150 && survived < 350,
+                "a 0.25 chance survives roughly a quarter of generations: got " + survived + "/1000");
+    }
+
+    @Test
+    void gateRollsConsumeTheStreamInGroupOrder() {
+        // Golden test pinning the stream layout survivingEntries promises: one nextFloat per gated
+        // group, consumed in list order. The mixed seed's first two floats are ~0.3317 then ~0.6079,
+        // so against two 0.5-chance groups exactly the group holding the FIRST roll survives —
+        // swapping the group order must swap the survivor. A refactor that reordered or batched the
+        // gate rolls would change every gated world's loot; this pins the layout, not just P(survive).
+        ProsperityConfig cfg = new ProsperityConfig();
+        DistanceTier frontier = tier(cfg, "frontier");
+        long seed = 112L * 0x9E3779B97F4A7C15L;
+        Entry a = new Entry(new ItemStack(Items.APPLE), 1);
+        Entry b = new Entry(new ItemStack(Items.BREAD), 1);
+        Tiered groupA = new Tiered("frontier", List.of(), 0.5f, List.of(a));
+        Tiered groupB = new Tiered("frontier", List.of(), 0.5f, List.of(b));
+
+        assertEquals(List.of(a), LootInjectionManager.survivingEntries(
+                        List.of(groupA, groupB), frontier, OVERWORLD, cfg, RandomSource.create(seed)),
+                "the first-listed group takes the first (passing) roll");
+        assertEquals(List.of(b), LootInjectionManager.survivingEntries(
+                        List.of(groupB, groupA), frontier, OVERWORLD, cfg, RandomSource.create(seed)),
+                "swapping the group order must hand the passing roll to the other group");
+    }
+
+    @Test
+    void eligibleEntriesIgnoreChance() {
+        ProsperityConfig cfg = new ProsperityConfig();
+        List<Tiered> gated = List.of(new Tiered("frontier", List.of(), 0.0f,
+                List.of(new Entry(new ItemStack(Items.EMERALD), 1))));
+
+        assertEquals(1, LootInjectionManager.eligibleEntries(gated, tier(cfg, "frontier"), OVERWORLD, cfg).size(),
+                "the chance-free eligibility view (completion bonus, loot index) must ignore the gate");
+    }
+
+    @Test
     void eligibleEntriesGateByMinTier() {
         ProsperityConfig cfg = new ProsperityConfig();
         Entry frontierItem = new Entry(new ItemStack(Items.IRON_INGOT), 1);
