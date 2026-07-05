@@ -3,18 +3,31 @@
     {
       "target": "prosperity:all_chests",
       "min_tier": "wilderness",
+      "chance": 0.03,
       "entries": [
         {
+          "item": "minecraft:enchanted_book",
+          "enchant_randomly": "#prosperity:rarity/common",
+          "level": "max",
+          "weight": 20
+        },
+        {
+          "item": "minecraft:enchanted_book",
+          "enchant_randomly": "#prosperity:rarity/uncommon",
+          "level": "mid",
+          "weight": 25
+        },
+        {
           "item": "minecraft:enchanted_golden_apple",
-          "weight": 24
+          "weight": 20
         },
         {
           "item": "minecraft:diamond_horse_armor",
-          "weight": 24
+          "weight": 20
         },
         {
           "item": "minecraft:music_disc_otherside",
-          "weight": 12
+          "weight": 15
         }
       ]
     }

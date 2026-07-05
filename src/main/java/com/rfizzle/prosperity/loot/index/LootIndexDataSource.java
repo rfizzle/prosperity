@@ -14,13 +14,16 @@ import java.util.Optional;
 import java.util.TreeSet;
 import java.util.function.Function;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ReloadableServerRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.level.storage.loot.LootTable;
 
 /**
@@ -136,10 +139,34 @@ public final class LootIndexDataSource {
                 out.add(new LootIndexEntry(new ItemStack(item), table, structure, Optional.empty(), Origin.VANILLA));
             }
             for (InjectedView injected : injections.getOrDefault(table, List.of())) {
-                out.add(new LootIndexEntry(injected.stack().copy(), table, structure,
+                out.add(new LootIndexEntry(displayStack(injected), table, structure,
                         Optional.of(injected.minTier()), Origin.INJECTED));
             }
         }
         return List.copyOf(out);
+    }
+
+    /**
+     * The stack a row displays. A literal entry shows its prototype as authored; a generative entry's
+     * prototype is a blank enchanted book, so it gains a lore line naming the draw — "Random
+     * &lt;rarity&gt; enchantment", the rarity taken from the tag path's last segment (so
+     * {@code prosperity:rarity/common} and {@code meridian:rarity/common} both read "Common"). The
+     * rarity nests as its own {@code prosperity.rarity.<segment>} translatable with the title-cased
+     * fallback, mirroring {@code LootIndexLabels}' custom-tier handling, so lang packs can override
+     * band names. The line rides the stack itself, so all three viewers and the S2C index sync
+     * inherit it unchanged.
+     */
+    private static ItemStack displayStack(InjectedView injected) {
+        if (injected.enchantRandomly().isEmpty()) {
+            return injected.stack().copy();
+        }
+        String path = injected.enchantRandomly().get().location().getPath();
+        String segment = path.substring(path.lastIndexOf('/') + 1);
+        Component rarity = Component.translatableWithFallback("prosperity.rarity." + segment,
+                LootIndexFormat.titleCase(segment));
+        ItemStack stack = injected.stack().copy();
+        stack.set(DataComponents.LORE, new ItemLore(List.of(
+                Component.translatable("prosperity.loot_index.random_enchantment", rarity))));
+        return stack;
     }
 }

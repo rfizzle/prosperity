@@ -10,12 +10,15 @@ import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Entry;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.LevelPolicy;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
@@ -37,11 +40,14 @@ import net.minecraft.world.level.storage.loot.LootTable;
 /**
  * Runtime checks for loot injection (S-014) after a real data-pack reload: the built-in defaults load,
  * the {@code prosperity:all_chests} wildcard expands against the loaded loot tables, {@code augment}
- * adds exactly one tier-eligible reward at or above {@code min_tier} and nothing below it, and
+ * adds at most one tier-eligible reward at or above {@code min_tier} and nothing below it, the shipped
+ * per-group {@code chance} gate (issue #68) holds the Frontier bonus rate near its tuned 1-in-20 and
+ * stays deterministic per seed, the shipped {@code prosperity:rarity/*} tags resolve treasure-free
+ * against the real enchantment registry, the completion bonus bypasses the chance gate, and
  * dimension-gated entries (S-039) resolve against the level's real {@code dimension()} id.
  *
- * <p>Asserts against {@link LootInjectionManager#augment} directly with a fixed seed/UUID rather than
- * opening a container, so the outcome is exact (one filled slot) without RNG sampling.
+ * <p>Asserts against {@link LootInjectionManager#augment} directly with fixed seeds/UUIDs rather than
+ * opening a container, so every outcome — including the gate-rate scan — is deterministic.
  */
 public class LootInjectionGameTest implements FabricGameTest {
 
@@ -61,15 +67,43 @@ public class LootInjectionGameTest implements FabricGameTest {
         helper.succeed();
     }
 
-    /** At Frontier the built-in defaults (no dimension filter) inject exactly one reward into an empty slot. */
+    /**
+     * The shipped Frontier defaults are chance-gated (issue #68): across a fixed seed range the
+     * placement rate lands near the tuned ~1-in-20 (frontier group 0.04 + compass group 0.01), never
+     * more than one reward lands per generation, and a placing seed reproduces the identical item —
+     * the whether and the which of the bonus are both deterministic per (seed, salt, player).
+     */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
     @SuppressWarnings("removal")
-    public void injectsOneRewardAtFrontier(GameTestHelper helper) {
-        NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
-        LootInjectionManager.augment(items, SIMPLE_DUNGEON, tier("frontier"), helper.getLevel(), SEED, 0L, PLAYER);
+    public void frontierInjectionIsChanceGatedAndDeterministic(GameTestHelper helper) {
+        int samples = 2000;
+        int placed = 0;
+        long placingSeed = -1L;
+        for (long seed = 0; seed < samples; seed++) {
+            NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
+            if (LootInjectionManager.augment(items, SIMPLE_DUNGEON, tier("frontier"),
+                    helper.getLevel(), seed, 0L, PLAYER)) {
+                placed++;
+                placingSeed = seed;
+                helper.assertTrue(filledSlots(items) == 1,
+                        "a passing generation places exactly one reward: got " + filledSlots(items));
+            }
+        }
+        // ~5% expected; the wide band guards the gate's existence and order of magnitude, not the
+        // exact tuning, so a datapack-level retune does not silently break the test.
+        helper.assertTrue(placed >= samples / 100 && placed <= samples / 8,
+                "the Frontier bonus rate must sit near 1-in-20: " + placed + "/" + samples);
 
-        helper.assertTrue(filledSlots(items) == 1,
-                "a Frontier container must receive exactly one injected item: got " + filledSlots(items));
+        NonNullList<ItemStack> first = NonNullList.withSize(27, ItemStack.EMPTY);
+        NonNullList<ItemStack> replay = NonNullList.withSize(27, ItemStack.EMPTY);
+        LootInjectionManager.augment(first, SIMPLE_DUNGEON, tier("frontier"),
+                helper.getLevel(), placingSeed, 0L, PLAYER);
+        LootInjectionManager.augment(replay, SIMPLE_DUNGEON, tier("frontier"),
+                helper.getLevel(), placingSeed, 0L, PLAYER);
+        for (int slot = 0; slot < first.size(); slot++) {
+            helper.assertTrue(ItemStack.matches(first.get(slot), replay.get(slot)),
+                    "the same seed must reproduce the identical gated injection");
+        }
         helper.succeed();
     }
 
@@ -191,6 +225,101 @@ public class LootInjectionGameTest implements FabricGameTest {
                 LootInjectionManager.draw(List.of(unresolvable), RandomSource.create(SEED), registries) == null,
                 "a pool of only unresolvable generative entries injects nothing");
         helper.succeed();
+    }
+
+    /**
+     * The shipped {@code prosperity:rarity/*} tags (issue #68) resolve non-empty against the real
+     * enchantment registry, the four rarity bands carry no treasure and no curse enchantments — a
+     * treasure enchant is only reachable through the Depths-gated {@code rarity/treasure} draw — and
+     * the treasure tag itself is all vanilla-treasure yet curse-free.
+     */
+    @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void shippedRarityTagsResolveTreasureFree(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        for (String band : List.of("common", "uncommon", "rare", "very_rare")) {
+            HolderSet.Named<Enchantment> holders = rarityTag(registries, band);
+            helper.assertTrue(holders != null && holders.size() > 0,
+                    "prosperity:rarity/" + band + " must resolve non-empty after reload");
+            for (Holder<Enchantment> enchantment : holders) {
+                helper.assertTrue(!enchantment.is(EnchantmentTags.TREASURE),
+                        band + " must not carry the treasure enchantment " + enchantment);
+                helper.assertTrue(!enchantment.is(EnchantmentTags.CURSE),
+                        band + " must not carry the curse " + enchantment);
+            }
+        }
+        HolderSet.Named<Enchantment> treasure = rarityTag(registries, "treasure");
+        helper.assertTrue(treasure != null && treasure.size() > 0,
+                "prosperity:rarity/treasure must resolve non-empty after reload");
+        for (Holder<Enchantment> enchantment : treasure) {
+            helper.assertTrue(enchantment.is(EnchantmentTags.TREASURE),
+                    "rarity/treasure holds only vanilla-treasure enchantments: got " + enchantment);
+            helper.assertTrue(!enchantment.is(EnchantmentTags.CURSE),
+                    "rarity/treasure must stay curse-free: got " + enchantment);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A generative draw over the shipped {@code rarity/common} tag — the rewritten Frontier book
+     * entry — yields books whose single stored enchantment is in the tag, at levels that vary across
+     * seeds under the {@code uniform} policy: repeated Frontier chests no longer converge on a fixed
+     * Sharpness 3 / Protection 3 (issue #68 acceptance).
+     */
+    @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void frontierBookDrawVariesEnchantmentAndLevel(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Entry frontierBook = new Entry(new ItemStack(Items.ENCHANTED_BOOK),
+                Optional.of(TagKey.create(Registries.ENCHANTMENT, Prosperity.id("rarity/common"))),
+                LevelPolicy.UNIFORM, 1);
+
+        Set<Integer> levels = new HashSet<>();
+        for (long seed = 0; seed < 40; seed++) {
+            ItemStack drawn = LootInjectionManager.draw(List.of(frontierBook),
+                    RandomSource.create(seed), registries);
+            helper.assertTrue(drawn != null && drawn.is(Items.ENCHANTED_BOOK),
+                    "the shipped common tag must realize to an enchanted book");
+            ItemEnchantments stored =
+                    drawn.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY);
+            helper.assertTrue(stored.size() == 1,
+                    "exactly one enchantment is drawn: got " + stored.size());
+            Holder<Enchantment> enchantment = stored.keySet().iterator().next();
+            helper.assertTrue(rarityTag(registries, "common").contains(enchantment),
+                    "the drawn enchantment must come from rarity/common: got " + enchantment);
+            levels.add(stored.getLevel(enchantment));
+        }
+        // Every rarity/common member spans levels 1–4+; 40 uniform draws over fixed seeds cannot
+        // all land on one level unless the policy stopped varying.
+        helper.assertTrue(levels.size() > 1,
+                "uniform draws across seeds must vary the stored level: got only " + levels);
+        helper.succeed();
+    }
+
+    /**
+     * The structure-completion bonus draw bypasses the per-group chance gate (issue #68): at Frontier,
+     * where every shipped group is gated to a few percent, the bonus still pays out for every
+     * structure seed — the completion is already earned, so the pool is drawn ungated.
+     */
+    @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void completionBonusBypassesChanceGate(GameTestHelper helper) {
+        for (long structureSeed = 0; structureSeed < 20; structureSeed++) {
+            ItemStack bonus = LootInjectionManager.completionBonus(SIMPLE_DUNGEON, tier("frontier"),
+                    helper.getLevel(), SEED, 0L, PLAYER, structureSeed);
+            helper.assertTrue(bonus != null && !bonus.isEmpty(),
+                    "the completion bonus must ignore the chance gate and always draw at Frontier"
+                            + " (structure seed " + structureSeed + ")");
+        }
+        helper.succeed();
+    }
+
+    /** The named {@code prosperity:rarity/<band>} tag resolved against {@code registries}. */
+    private static HolderSet.Named<Enchantment> rarityTag(RegistryAccess registries, String band) {
+        return registries.lookup(Registries.ENCHANTMENT)
+                .flatMap(lookup -> lookup.get(TagKey.create(Registries.ENCHANTMENT,
+                        Prosperity.id("rarity/" + band))))
+                .orElse(null);
     }
 
     /** A {@code fabric:load_conditions} payload requiring {@code modId} to be loaded. */

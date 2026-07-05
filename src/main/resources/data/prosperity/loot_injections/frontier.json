@@ -3,32 +3,21 @@
     {
       "target": "prosperity:all_chests",
       "min_tier": "frontier",
+      "chance": 0.04,
       "entries": [
         {
           "item": "minecraft:enchanted_book",
-          "components": {
-            "minecraft:stored_enchantments": {
-              "levels": {
-                "minecraft:sharpness": 3
-              }
-            }
-          },
-          "weight": 60
-        },
-        {
-          "item": "minecraft:enchanted_book",
-          "components": {
-            "minecraft:stored_enchantments": {
-              "levels": {
-                "minecraft:protection": 3
-              }
-            }
-          },
-          "weight": 60
+          "enchant_randomly": "#prosperity:rarity/common",
+          "level": "uniform",
+          "weight": 40
         },
         {
           "item": "minecraft:iron_horse_armor",
-          "weight": 36
+          "weight": 35
+        },
+        {
+          "item": "minecraft:golden_apple",
+          "weight": 25
         }
       ]
     }

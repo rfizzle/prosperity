@@ -178,20 +178,29 @@ public class LootStatsGameTest implements FabricGameTest {
 
     /**
      * {@code augment} reports what the injected-rewards stat records: {@code true} only when an
-     * eligible entry was drawn <em>and</em> placed — {@code false} below every injection tier and
-     * {@code false} when the container has no empty slot.
+     * eligible entry survived the chance gate, was drawn <em>and</em> placed — {@code false} below
+     * every injection tier and {@code false} when the container has no empty slot. The shipped
+     * defaults gate Frontier injections behind a per-group {@code chance} (issue #68), so the
+     * placing case first scans a bounded seed range for a generation that passes the gate
+     * (deterministic: the scan is over fixed seeds).
      */
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
     public void augmentReportsActualPlacement(GameTestHelper helper) {
-        NonNullList<ItemStack> empty = NonNullList.withSize(27, ItemStack.EMPTY);
-        helper.assertTrue(LootInjectionManager.augment(empty, TABLE,
-                        LootScaling.tierByName(Prosperity.getConfig(), "frontier"),
-                        helper.getLevel(), SEED, 0L, INJECT_PLAYER),
-                "a Frontier draw into an empty container must report placement");
+        long placingSeed = -1L;
+        for (long seed = 0; seed < 500 && placingSeed < 0; seed++) {
+            NonNullList<ItemStack> probe = NonNullList.withSize(27, ItemStack.EMPTY);
+            if (LootInjectionManager.augment(probe, TABLE,
+                    LootScaling.tierByName(Prosperity.getConfig(), "frontier"),
+                    helper.getLevel(), seed, 0L, INJECT_PLAYER)) {
+                placingSeed = seed;
+            }
+        }
+        helper.assertTrue(placingSeed >= 0,
+                "some seed in [0, 500) must pass the Frontier chance gate and report placement");
 
         NonNullList<ItemStack> belowTier = NonNullList.withSize(27, ItemStack.EMPTY);
         helper.assertFalse(LootInjectionManager.augment(belowTier, TABLE,
-                        ProsperityConfig.LOCAL_SENTINEL, helper.getLevel(), SEED, 0L, INJECT_PLAYER),
+                        ProsperityConfig.LOCAL_SENTINEL, helper.getLevel(), placingSeed, 0L, INJECT_PLAYER),
                 "a Local draw is below every default injection tier and must report no placement");
 
         NonNullList<ItemStack> full = NonNullList.withSize(27, ItemStack.EMPTY);
@@ -200,7 +209,7 @@ public class LootStatsGameTest implements FabricGameTest {
         }
         helper.assertFalse(LootInjectionManager.augment(full, TABLE,
                         LootScaling.tierByName(Prosperity.getConfig(), "frontier"),
-                        helper.getLevel(), SEED, 0L, INJECT_PLAYER),
+                        helper.getLevel(), placingSeed, 0L, INJECT_PLAYER),
                 "a full container leaves the drawn reward unplaced and must report no placement");
 
         helper.succeed();

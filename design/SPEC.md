@@ -342,6 +342,7 @@ Custom loot entries are defined in datapack files and injected into vanilla loot
 - The **target loot table** to inject into (e.g. `minecraft:chests/simple_dungeon`).
 - The **minimum distance tier** required for the entry to be eligible.
 - An optional **dimension filter** restricting the entry to specific dimensions.
+- An optional **chance** (per injection group) that the group injects at all in a given generation.
 - The **item(s)** to add, with full data component support.
 - An optional **weight** controlling how often the entry appears relative to the pool it joins.
 
@@ -373,6 +374,7 @@ Files at `data/prosperity/loot_injections/<name>.json`:
       "target": "minecraft:chests/stronghold_corridor",
       "min_tier": "outlands",
       "dimensions": [ "minecraft:the_nether" ],
+      "chance": 0.05,
       "entries": [
         {
           "item": "minecraft:netherite_upgrade_smithing_template",
@@ -389,6 +391,19 @@ Files at `data/prosperity/loot_injections/<name>.json`:
 - `target`: `ResourceLocation` of the vanilla loot table to inject into.
 - `min_tier`: Minimum distance tier name (matches config tier names: `local`, `frontier`, `wilderness`, `outlands`, `depths`). Entry is only eligible if the container is at or above this tier.
 - `dimensions`: Optional list of dimension IDs the entry is restricted to (e.g. `["minecraft:the_nether"]`). Omitted or empty matches any dimension. Composes with `min_tier` — both gates must pass for the entry to be eligible.
+- `chance`: Optional per-group injection probability in `[0.0, 1.0]` (default `1.0`: always inject —
+  files without the field behave exactly as before the gate existed). At generation time each
+  tier-and-dimension eligible group rolls its chance independently from the injection draw's
+  deterministic per-player `RandomSource` *before* the weighted draw, so the whether and the which of
+  the bonus re-roll together in refresh lockstep; the weighted draw then runs over the merged entries
+  of the *surviving* groups, and when every group fails nothing is placed. A group at the default
+  `1.0` consumes no randomness, keeping existing worlds' draws unchanged. Note the composition trap
+  when tuning: because groups roll independently, an always-inject group fills the slot whenever its
+  gated siblings fail, making its items dramatically more common — tune all files that share a target
+  together (every shipped file carries a `chance` for this reason). `chance: 0.0` is not a soft
+  delete: the group still consumes its gate roll (shifting sibling groups' rolls), still pays out
+  through the structure-completion bonus (which bypasses the gate), and still appears in the loot
+  index — to remove a group, remove it (or `replace` the target) instead.
 - `requires_mods`: Optional list of mod IDs that must **all** be loaded for the injection to apply (e.g. `["meridian"]`). Omitted or empty is unconditional. Evaluated at load time only — an injection naming an absent mod is silently dropped (no log spam), so a file can mix unconditional injections with ones scoped to a sibling mod.
 - `entries[].item`: Item ID.
 - `entries[].count`: Stack count (default 1).
@@ -434,16 +449,35 @@ Both gates are re-evaluated on every load (`SERVER_STARTING` and `END_DATA_PACK_
 
 ### Built-In Injections
 
-Prosperity ships a default set of injections to make distance scaling feel meaningful out of the box:
+Prosperity ships a default set of injections to make distance scaling feel meaningful out of the box.
+Every book entry is generative, drawing uniformly from a rarity tag; every group is chance-gated so
+the overwhelming majority of chests contain vanilla-only loot (issue #68):
 
-| Tier | Injections (`prosperity:all_chests`) |
-|---|---|
-| Frontier | Sharpness III book, Protection III book, iron horse armor |
-| Wilderness | Enchanted golden apple, diamond horse armor, Otherside music disc |
-| Outlands | Netherite upgrade template, Sharpness V book, Efficiency IV diamond pickaxe |
-| Depths | Netherite upgrade template (×2), Mending book, Silk Touch book, trident |
+| Tier | Chance | Injections (`prosperity:all_chests`) |
+|---|---|---|
+| Frontier | 0.04 | Common-rarity book (uniform level), iron horse armor, golden apple |
+| Wilderness | 0.03 | Common book (max), uncommon book (mid), enchanted golden apple, diamond horse armor, Otherside music disc |
+| Outlands | 0.035 | Uncommon book (max), rare book (mid), netherite upgrade template, Efficiency IV diamond pickaxe |
+| Depths | 0.045 | Rare book (max), very-rare book (uniform), treasure book (uniform), netherite upgrade template (×2), trident |
 
-The default set is conservative — it adds items that already exist in vanilla progression but are normally structure-locked or extremely rare. Pack makers can extend or replace via datapacks.
+Because tier pools are cumulative and each group rolls independently, the effective bonus rate is
+roughly 1 in 20 chests at Frontier, rising to about 1 in 7 in the Depths (Prospector's Compass group
+included). The chances escalate with depth — past the Frontier anchor, the deepest eligible group is
+the likeliest payer, so deeper bonuses skew toward that tier's rewards rather than being drowned out
+by the accumulated lower-tier groups. The default set is conservative — it adds items that already
+exist in vanilla progression but are normally structure-locked or extremely rare. Pack makers can
+extend or replace via datapacks.
+
+#### Vanilla enchantment rarity tags
+
+The generative book entries draw from shipped enchantment tags at
+`data/prosperity/tags/enchantment/rarity/{common,uncommon,rare,very_rare,treasure}.json`, grouping
+vanilla enchantments by the `weight` field of their data-driven definitions: weight 10 → `common`
+(Sharpness, Protection, Efficiency, Power, Piercing), weight 5 → `uncommon`, weight 2 → `rare`,
+weight 1 → `very_rare`. Treasure enchantments (Mending, Frost Walker, Soul Speed, Swift Sneak, Wind
+Burst) are excluded from the four rarity bands and live only in `rarity/treasure`, reachable solely
+through the Depths group — mirroring the Meridian ladder's treasure rule. Curses are excluded from
+every tag, the treasure one included: an injected book is a reward, not a booby trap.
 
 When [Meridian](https://github.com/rfizzle/meridian) is installed, a Meridian-gated
 in-jar file (`meridian_books.json`) adds its full non-curse enchantment catalog
@@ -462,11 +496,16 @@ A multi-level enchant appears twice: at its home tier at mid level (⌈max/2⌉)
 one tier deeper at max level (Very Rare enchants get both at Depths) — so deeper
 travel upgrades the same enchants, and the treasure-tagged set (unavailable from
 Meridian's enchanting table) makes distant chests a genuine acquisition path.
-Every book has weight 1 against the built-in files' weights of 12–60, holding the
-Meridian share of injected items to roughly 3% at Frontier rising to ~24% at
-Depths. The file carries both gates: a file-level `fabric:load_conditions`
-header, so its `meridian:*` enchantment components never reach the registry-aware
-codec when Meridian is absent, and `requires_mods` on each injection.
+Each Meridian group is chance-gated like the built-in files (issue #68): 0.03 at
+Frontier and 0.015 per deeper group, holding a Meridian book to roughly 1 in 30
+chests at Frontier — its pre-gate effective rate — rising to about 1 in 15 in
+the Depths where all four groups are eligible (a surviving Meridian group must
+also win the merged weighted draw against any co-surviving vanilla group, which
+dilutes the raw ~1-in-14 gate rate), instead of inflating when the vanilla
+groups fail their own rolls. The file carries both load gates: a
+file-level `fabric:load_conditions` header, so its `meridian:*` enchantment
+components never reach the registry-aware codec when Meridian is absent, and
+`requires_mods` on each injection.
 
 At generation time the authored enchantments on those books are the fallback,
 not the served result: `MeridianCompat` (in `compat/meridian`, class-loaded only
@@ -495,7 +534,7 @@ The special target `"prosperity:all_chests"` injects into every loot table match
 
 - Injection data is loaded on `SERVER_STARTING` (and re-loaded on `END_DATA_PACK_RELOAD` for runtime `/reload`) by `LootInjectionManager`, which reads each file with a registry-aware codec so item components deserialize against the loaded enchantment/effect registries.
 - At loot generation time (section 1, step 4), after the distance tier is determined, `LootInjectionManager.augment` queries the injection registry for entries matching the container's loot table whose `min_tier` is at or below the resolved tier and whose `dimensions` filter (if any) contains the container's dimension. The dimension is threaded from the generation call site via `ServerLevel#dimension()`.
-- Injection is purely additive: the eligible entries form a single weighted pool and exactly one is drawn (deterministically, from the container's per-player seed and refresh salt — so it re-rolls in lockstep with the main loot when `randomizeLootOnRefresh` is on) and placed in a spare slot. Vanilla loot is never displaced — injected rewards sit alongside the rolled items rather than competing with them in a vanilla pool.
+- Injection is purely additive: each eligible group rolls its `chance` (in registry order, groups at `1.0` consuming no randomness), the surviving groups' entries form a single weighted pool, and at most one item is drawn (deterministically, from the container's per-player seed and refresh salt — so it re-rolls in lockstep with the main loot when `randomizeLootOnRefresh` is on) and placed in a spare slot. When every group fails its roll, nothing is placed. Vanilla loot is never displaced — injected rewards sit alongside the rolled items rather than competing with them in a vanilla pool.
 - The injection registry is a `Map<ResourceLocation, List<TieredInjection>>` keyed by target loot table, rebuilt wholesale and published atomically on each load. Lookup is O(1) per loot table.
 - Wildcard targets are expanded to concrete loot table IDs at load time by scanning the resource manager for loot tables whose path contains a `chests/` segment.
 
@@ -815,6 +854,11 @@ Entries added by Prosperity's loot injection system (section 5) are visually dis
 - A small Prosperity icon (gold sparkle, same as the unlooted indicator) in the corner of the entry.
 - Hovering shows: "Added by Prosperity at [tier]+ tier."
 - This lets players distinguish vanilla drops from mod-added drops.
+- A generative entry (`enchant_randomly`) would otherwise display as a blank prototype book, so its
+  display stack carries a lore line naming the draw — "Random [rarity] enchantment", the rarity
+  title-cased from the tag path's last segment (`prosperity:rarity/common` and
+  `meridian:rarity/common` both read "Common"). The line rides the stack itself, so all three
+  viewers and the S2C index sync inherit it without payload changes.
 
 ### Data Source
 
@@ -1112,7 +1156,7 @@ A held compass item whose needle points at the nearest container the holder has 
 - **Per-player** — two players holding the compass at the same spot see different needles, because each client's cache reflects its own loot history.
 - **Retargeting** — looting or breaking the target evicts it from the cache (existing `ContainerLootedS2C`/`ContainerRemovedS2C` flow) and the needle swings to the next nearest candidate. The current target is sticky within a 2-block hysteresis so the needle does not flicker between near-equidistant containers.
 - **No candidates** — the needle spins randomly, exactly like a vanilla compass outside its dimension (vanilla `CompassItemPropertyFunction` behavior).
-- **Obtainability** — injected into chest loot via the bundled `loot_injections/prospectors_compass.json` at `min_tier: frontier`, weight 8. No crafting recipe. Uncommon rarity, stack size 1.
+- **Obtainability** — injected into chest loot via the bundled `loot_injections/prospectors_compass.json` at `min_tier: frontier`, `chance: 0.01` (its own gate roll, independent of the other bundled groups — about 1 in 100 chests), weight 8. No crafting recipe. Uncommon rarity, stack size 1.
 - **Peek-panel readout** — carrying a compass anywhere in the inventory adds a `Nearest: <blocks> <bearing>` line to the peek panel's "Nearby unlooted" pillar: the rounded distance and 8-way cardinal bearing to the same plain-nearest target the needle selects (extended over loot minecarts, which the pillar also lists), with the target's tier suffixed in its tier color. The line is absent with no compass or no candidates in range; the pillar's empty state is unchanged. Bearing math (`LootDetailPanelMath.bearing8`) is pure and under JUnit.
 - **Out of scope** — pointing at ungenerated structures, GUIs/waypoints/maps, and loot minecart targets.
 
@@ -1201,7 +1245,7 @@ When a player generates loot for the **last remaining** instanced container insi
 |---|---|---|---|
 | `enableStructureCompletionBonus` | bool | true | Toggle the structure completion bonus |
 
-The bonus draws from the injection pool but is deliberately **not** gated by `enableLootInjection` — it is its own feature that reuses the pool, not an injection.
+The bonus draws from the injection pool but is deliberately **not** gated by `enableLootInjection` — it is its own feature that reuses the pool, not an injection. For the same reason it bypasses the per-group `chance` gate (issue #68): the completion is already earned, so the draw runs over every tier-and-dimension eligible entry and always pays out when the pool is non-empty.
 
 The draw runs at the container's *generation* tier, mirroring regular injection: with `enableDistanceScaling` off every generation is Local-tier, and the shipped injection defaults all gate at Frontier or above, so completions then pay the fanfare only. Ship a Local-tier (`min_tier: "local"`) injection entry via datapack to give scaling-off servers a material bonus.
 

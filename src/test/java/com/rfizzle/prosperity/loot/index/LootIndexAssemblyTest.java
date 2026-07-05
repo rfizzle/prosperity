@@ -10,11 +10,18 @@ import com.rfizzle.prosperity.loot.injection.LootInjectionManager.InjectedView;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import net.minecraft.SharedConstants;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.ItemLore;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -88,6 +95,36 @@ class LootIndexAssemblyTest {
         assertEquals(Origin.INJECTED, index.get(0).origin());
         assertEquals(StructureIcons.BURIED_TREASURE, index.get(0).structure());
         assertFalse(index.get(0).minTier().isEmpty());
+    }
+
+    @Test
+    void generativeEntryGainsRandomEnchantmentLore() {
+        InjectedView generative = new InjectedView(new ItemStack(Items.ENCHANTED_BOOK), "frontier",
+                Optional.of(TagKey.create(Registries.ENCHANTMENT,
+                        ResourceLocation.fromNamespaceAndPath("prosperity", "rarity/common"))));
+        InjectedView literal = new InjectedView(new ItemStack(Items.EMERALD), "frontier");
+        Map<ResourceLocation, List<InjectedView>> injections =
+                Map.of(DUNGEON, List.of(generative, literal));
+
+        List<LootIndexEntry> index = LootIndexDataSource.assemble(Map.of(), injections, new ProsperityConfig());
+
+        ItemLore lore = index.get(0).output().get(DataComponents.LORE);
+        assertTrue(lore != null && lore.lines().size() == 1,
+                "a generative entry's display stack carries one descriptive lore line");
+        Component line = lore.lines().get(0);
+        assertTrue(line.getContents() instanceof TranslatableContents contents
+                        && contents.getKey().equals("prosperity.loot_index.random_enchantment"),
+                "the lore line is the random-enchantment translatable: got " + line);
+        Object arg = ((TranslatableContents) line.getContents()).getArgs()[0];
+        assertTrue(arg instanceof Component rarity
+                        && rarity.getContents() instanceof TranslatableContents band
+                        && band.getKey().equals("prosperity.rarity.common")
+                        && "Common".equals(band.getFallback()),
+                "the rarity nests as an overridable translatable with a title-cased fallback: got " + arg);
+
+        ItemLore literalLore = index.get(1).output().get(DataComponents.LORE);
+        assertTrue(literalLore == null || literalLore.lines().isEmpty(),
+                "a literal entry's display stack stays as authored (no lore lines)");
     }
 
     @Test
