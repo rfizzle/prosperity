@@ -1,0 +1,30 @@
+{
+  "parent": "prosperity:volume_50",
+  "criteria": {
+    "looted_containers": {
+      "conditions": {
+        "min_containers": 250
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "advancements.prosperity.volume_250.description"
+    },
+    "frame": "challenge",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:diamond"
+    },
+    "title": {
+      "translate": "advancements.prosperity.volume_250.title"
+    }
+  },
+  "requirements": [
+    [
+      "looted_containers"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

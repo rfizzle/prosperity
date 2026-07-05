@@ -24,6 +24,7 @@
         "fabric-datagen": ["com.rfizzle.prosperity.data.ProsperityDataGenerator"],
         "fabric-gametest": [
             "com.rfizzle.prosperity.gametest.AbsentPlayerEvictionGameTest",
+            "com.rfizzle.prosperity.gametest.AdvancementGameTest",
             "com.rfizzle.prosperity.gametest.BlacklistGameTest",
             "com.rfizzle.prosperity.gametest.BlockHopperInstancingGameTest",
             "com.rfizzle.prosperity.gametest.ContainerProtectionGameTest",

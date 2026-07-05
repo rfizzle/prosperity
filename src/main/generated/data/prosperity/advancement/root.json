@@ -1,0 +1,30 @@
+{
+  "criteria": {
+    "looted_container": {
+      "conditions": {
+        "min_containers": 1
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "announce_to_chat": false,
+    "background": "minecraft:textures/gui/advancements/backgrounds/adventure.png",
+    "description": {
+      "translate": "advancements.prosperity.root.description"
+    },
+    "icon": {
+      "count": 1,
+      "id": "prosperity:prospectors_compass"
+    },
+    "title": {
+      "translate": "advancements.prosperity.root.title"
+    }
+  },
+  "requirements": [
+    [
+      "looted_container"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

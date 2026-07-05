@@ -1,0 +1,29 @@
+{
+  "parent": "prosperity:root",
+  "criteria": {
+    "looted_containers": {
+      "conditions": {
+        "min_containers": 10
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "advancements.prosperity.volume_10.description"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:chest"
+    },
+    "title": {
+      "translate": "advancements.prosperity.volume_10.title"
+    }
+  },
+  "requirements": [
+    [
+      "looted_containers"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

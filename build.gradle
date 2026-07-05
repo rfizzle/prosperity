@@ -172,6 +172,11 @@ loom {
             vmArg "-Dfabric-api.datagen.output-dir=${file("src/main/generated")}"
             vmArg "-Dfabric-api.datagen.modid=prosperity"
             runDir "build/datagen"
+            // fabric-gametest-api's initializer eagerly instantiates every `fabric-gametest`
+            // entrypoint class on any server launch, so the datagen server needs the gametest source
+            // set on its classpath or it crashes with ClassNotFoundException before generating. The
+            // gametests only *register* here (they run under -Dfabric-api.gametest, which datagen omits).
+            source sourceSets.gametest
         }
         gametest {
             server()

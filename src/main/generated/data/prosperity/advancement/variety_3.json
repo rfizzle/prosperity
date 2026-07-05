@@ -1,0 +1,29 @@
+{
+  "parent": "prosperity:root",
+  "criteria": {
+    "distinct_structures": {
+      "conditions": {
+        "min_structures": 3
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "advancements.prosperity.variety_3.description"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:cartography_table"
+    },
+    "title": {
+      "translate": "advancements.prosperity.variety_3.title"
+    }
+  },
+  "requirements": [
+    [
+      "distinct_structures"
+    ]
+  ],
+  "sends_telemetry_event": true
+}
