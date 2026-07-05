@@ -179,14 +179,19 @@ public class ProsperityConfig {
      * safe to call on a fresh default instance.
      */
     public void clamp() {
-        indicatorRenderDistance = Math.clamp(indicatorRenderDistance, 0, 512);
-        indicatorXrayDistance = Math.clamp(indicatorXrayDistance, 0, 512);
+        indicatorRenderDistance = clampInt("indicatorRenderDistance", indicatorRenderDistance, 0, 512);
+        indicatorXrayDistance = clampInt("indicatorXrayDistance", indicatorXrayDistance, 0, 512);
         // Xray reveals containers through walls only inside the render radius, so it can never exceed
-        // it — a hand-edited xray > render distance is silently capped to the render distance.
-        indicatorXrayDistance = Math.min(indicatorXrayDistance, indicatorRenderDistance);
-        lootRefreshDays = Math.clamp(lootRefreshDays, 1, Integer.MAX_VALUE);
-        absentPlayerEvictionDays = Math.clamp(absentPlayerEvictionDays, 1, Integer.MAX_VALUE);
-        protectionBreakMultiplier = Math.clamp(protectionBreakMultiplier, 1.0f, 100.0f);
+        // it — a hand-edited xray > render distance is capped to the render distance (and logged).
+        if (indicatorXrayDistance > indicatorRenderDistance) {
+            Prosperity.LOGGER.warn(
+                    "indicatorXrayDistance must not exceed indicatorRenderDistance ({}), got {}; capped to {}",
+                    indicatorRenderDistance, indicatorXrayDistance, indicatorRenderDistance);
+            indicatorXrayDistance = indicatorRenderDistance;
+        }
+        lootRefreshDays = clampInt("lootRefreshDays", lootRefreshDays, 1, Integer.MAX_VALUE);
+        absentPlayerEvictionDays = clampInt("absentPlayerEvictionDays", absentPlayerEvictionDays, 1, Integer.MAX_VALUE);
+        protectionBreakMultiplier = clampFloat("protectionBreakMultiplier", protectionBreakMultiplier, 1.0f, 100.0f);
 
         if (distanceTiers == null) {
             distanceTiers = defaultDistanceTiers();
@@ -214,6 +219,31 @@ public class ProsperityConfig {
         }
         client.hudOffsetX = Math.clamp(client.hudOffsetX, 0, 10_000);
         client.hudOffsetY = Math.clamp(client.hudOffsetY, 0, 10_000);
+    }
+
+    /**
+     * Clamps an int field into {@code [min, max]}, logging a warning only when it actually corrects
+     * an out-of-range value so a player sees exactly what their hand-edited config did (the
+     * {@code mc-config} warn-and-clamp standard). An in-range value passes through silently.
+     */
+    private static int clampInt(String name, int value, int min, int max) {
+        int clamped = Math.clamp(value, min, max);
+        if (clamped != value) {
+            Prosperity.LOGGER.warn("{} must be in [{}, {}], got {}; clamped to {}", name, min, max, value, clamped);
+        }
+        return clamped;
+    }
+
+    /**
+     * Float counterpart to {@link #clampInt(String, int, int, int)}: clamps into {@code [min, max]}
+     * and warns only on an actual correction.
+     */
+    private static float clampFloat(String name, float value, float min, float max) {
+        float clamped = Math.clamp(value, min, max);
+        if (clamped != value) {
+            Prosperity.LOGGER.warn("{} must be in [{}, {}], got {}; clamped to {}", name, min, max, value, clamped);
+        }
+        return clamped;
     }
 
     /**

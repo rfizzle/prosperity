@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry.Origin;
 import com.rfizzle.prosperity.loot.injection.InjectedView;
@@ -100,8 +101,7 @@ class LootIndexAssemblyTest {
     @Test
     void generativeEntryGainsRandomEnchantmentLore() {
         InjectedView generative = new InjectedView(new ItemStack(Items.ENCHANTED_BOOK), "frontier",
-                Optional.of(TagKey.create(Registries.ENCHANTMENT,
-                        ResourceLocation.fromNamespaceAndPath("prosperity", "rarity/common"))));
+                Optional.of(TagKey.create(Registries.ENCHANTMENT, Prosperity.id("rarity/common"))));
         InjectedView literal = new InjectedView(new ItemStack(Items.EMERALD), "frontier");
         Map<ResourceLocation, List<InjectedView>> injections =
                 Map.of(DUNGEON, List.of(generative, literal));

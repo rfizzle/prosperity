@@ -24,6 +24,8 @@
 |---|---|---|
 | Unlooted container overlay | `art/glyphs/unlooted-sparkle.glyph` | `assets/prosperity/textures/overlay/unlooted.png` |
 | HUD loot-tier icon (treasure chest) | `art/glyphs/hud_icon.glyph` (self-contained; renders the 32px chest) | `assets/prosperity/textures/gui/hud_icon.png` |
+| Loot detail panel frame | `art/glyphs/panel-frame-64.glyph` | `assets/prosperity/textures/gui/loot_detail_panel.png` |
+| Prospector's compass (32-frame animation) | `MISSING` | `assets/prosperity/textures/item/prospectors_compass_00.png` … `_31.png` |
 | 256px treasure chest | `art/glyphs/chest-256.glyph` (from `chest-256.gen.py`) | `art/chest-256.png` master |
 | Mod icon (chest medallion) | `art/glyphs/icon.glyph` (from `icon.gen.py`: computed medallion + baked-in chest) | `art/icon-512.png`/`art/icon-128.png` masters → `assets/prosperity/icon.png` (256, in-jar), `site/assets/icon.png` |
 
