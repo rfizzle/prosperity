@@ -5,6 +5,7 @@ import com.rfizzle.prosperity.api.LootModifierContext;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
+import com.rfizzle.prosperity.loot.completion.StructureCompletion;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.UUID;
@@ -295,6 +296,10 @@ public final class InstancedLootInteraction {
         primaryAdapter.notifyGenerated(player);
         // First-generation action-bar notification (S-021), reflecting the final modifier values.
         LootNotification.send(player, level, origin, scaled, mods.stackMultiplier(), mods.luck());
+        // After the instance is stored: this double may have been the structure's last unlooted
+        // container for the player, earning the completion bonus into the just-stored inventory.
+        StructureCompletion.onLootGenerated(primaryAdapter, player, primaryRef.key(), tier,
+                primaryRef.seed(), salt);
         return combined;
     }
 
@@ -366,6 +371,9 @@ public final class InstancedLootInteraction {
         adapter.notifyGenerated(player);
         // First-generation action-bar notification (S-021), reflecting the final modifier values.
         LootNotification.send(player, adapter.level(), origin, scaled, mods.stackMultiplier(), mods.luck());
+        // After the instance is stored: this may have been the structure's last unlooted container
+        // for the player, earning the completion bonus into the just-stored inventory.
+        StructureCompletion.onLootGenerated(adapter, player, ref.key(), tier, ref.seed(), salt);
         return generated;
     }
 

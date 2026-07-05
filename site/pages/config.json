@@ -87,6 +87,22 @@
       ]
     },
     {
+      "id": "completion-bonus",
+      "title": "Structure Completion Bonus",
+      "intro": "A one-time, per-player bonus reward for fully looting a structure.",
+      "blocks": [
+        {
+          "type": "table",
+          "bottomGap": true,
+          "headers": ["Key", "Type", "Default", "Description"],
+          "rows": [
+            ["<code class='text-accent2 whitespace-nowrap'>enableStructureCompletionBonus</code>", "bool", "true", "Grant one extra injected reward, once per structure instance per player, for looting every instanced container in a multi-container structure."]
+          ]
+        },
+        { "type": "prose", "html": ["When a player generates loot for the last remaining instanced container inside a structure, that container receives one extra reward drawn from the loot injection pool at the container's tier, plus an action-bar fanfare (honoring <code class='text-accent2'>enableLootNotifications</code>). Completions are tracked server-side per player and per structure instance, so loot refresh never re-arms the bonus. Single-container structures and blacklisted containers never qualify, and container minecarts are not counted. The bonus draws from the injection pool but is independent of <code class='text-accent2'>enableLootInjection</code>. The shipped injection defaults gate at Frontier and above, so with <code class='text-accent2'>enableDistanceScaling</code> off (every generation is Local-tier) a completion pays the fanfare only — add a <code class='text-accent2'>min_tier: \"local\"</code> injection entry via datapack to change that."] }
+      ]
+    },
+    {
       "id": "mob-loot-scaling",
       "title": "Mob Loot Scaling",
       "intro": "Apply the distance tiers to hostile-mob drops on player kills.",

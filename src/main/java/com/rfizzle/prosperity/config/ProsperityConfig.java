@@ -91,6 +91,7 @@ public class ProsperityConfig {
     public List<StructureOverride> structureOverrides = defaultStructureOverrides();
     public List<String> lootTableBlacklist = new ArrayList<>();
     public boolean enableLootInjection = true;
+    public boolean enableStructureCompletionBonus = true;
     public boolean enableLootNotifications = true;
     public boolean enableLootRefresh = false;
     public int lootRefreshDays = 7;
