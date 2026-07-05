@@ -11,12 +11,6 @@ import com.mojang.serialization.JsonOps;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Entry;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.FileData;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.LevelPolicy;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Loaded;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.RawInjection;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -119,7 +113,7 @@ class LootInjectionTest {
                   ]
                 }
                 """);
-        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+        Map<ResourceLocation, List<Tiered>> registry = InjectionRegistry.build(
                 List.of(new Loaded(Prosperity.id("wild"), file)), Set.of(CHEST_A, CHEST_B), ALL_LOADED);
 
         assertEquals(Set.of(CHEST_A, CHEST_B), registry.keySet(),
@@ -143,7 +137,7 @@ class LootInjectionTest {
                 """);
 
         // Sorted by id: a_first < b_other < c_replace, so the replace file lands last.
-        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(List.of(
+        Map<ResourceLocation, List<Tiered>> registry = InjectionRegistry.build(List.of(
                 new Loaded(Prosperity.id("a_first"), first),
                 new Loaded(Prosperity.id("c_replace"), second),
                 new Loaded(Prosperity.id("b_other"), untouched)),
@@ -189,7 +183,7 @@ class LootInjectionTest {
                   ]
                 }
                 """);
-        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+        Map<ResourceLocation, List<Tiered>> registry = InjectionRegistry.build(
                 List.of(new Loaded(Prosperity.id("gated"), file)), Set.of(CHEST_A, CHEST_B),
                 mod -> false);
 
@@ -207,7 +201,7 @@ class LootInjectionTest {
                   ]
                 }
                 """);
-        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+        Map<ResourceLocation, List<Tiered>> registry = InjectionRegistry.build(
                 List.of(new Loaded(Prosperity.id("gated"), file)), Set.of(CHEST_A, CHEST_B),
                 mod -> mod.equals("meridian"));
 
@@ -229,7 +223,7 @@ class LootInjectionTest {
                   ]
                 }
                 """);
-        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+        Map<ResourceLocation, List<Tiered>> registry = InjectionRegistry.build(
                 List.of(new Loaded(Prosperity.id("mixed"), file)), Set.of(CHEST_A, CHEST_B),
                 mod -> false);
 
@@ -249,7 +243,7 @@ class LootInjectionTest {
                   ]
                 }
                 """);
-        Map<ResourceLocation, List<Tiered>> registry = LootInjectionManager.build(
+        Map<ResourceLocation, List<Tiered>> registry = InjectionRegistry.build(
                 List.of(new Loaded(Prosperity.id("gated"), file)), Set.of(CHEST_A, CHEST_B),
                 mod -> mod.equals("meridian"));
 
@@ -301,7 +295,7 @@ class LootInjectionTest {
                 new Tiered("frontier", List.of(), 0.0f, List.of(never)));
 
         for (long seed = 0; seed < 50; seed++) {
-            List<Entry> surviving = LootInjectionManager.survivingEntries(
+            List<Entry> surviving = InjectionSelector.survivingEntries(
                     list, frontier, OVERWORLD, cfg, RandomSource.create(seed));
             assertEquals(List.of(always), surviving,
                     "chance 1.0 always survives and chance 0.0 never does (seed " + seed + ")");
@@ -319,7 +313,7 @@ class LootInjectionTest {
                 new Tiered("frontier", List.of(), List.of(new Entry(new ItemStack(Items.GOLD_INGOT), 1))));
 
         RandomSource random = RandomSource.create(4242L);
-        LootInjectionManager.survivingEntries(ungated, frontier, OVERWORLD, cfg, random);
+        InjectionSelector.survivingEntries(ungated, frontier, OVERWORLD, cfg, random);
         assertEquals(RandomSource.create(4242L).nextLong(), random.nextLong(),
                 "surviving full-chance groups must leave the random stream untouched");
     }
@@ -337,9 +331,9 @@ class LootInjectionTest {
             // small sequential raw seeds is confined to a narrow band (the low bits never reach
             // the output's top state bits), which would starve the survival count.
             long seed = raw * 0x9E3779B97F4A7C15L;
-            List<Entry> first = LootInjectionManager.survivingEntries(
+            List<Entry> first = InjectionSelector.survivingEntries(
                     gated, frontier, OVERWORLD, cfg, RandomSource.create(seed));
-            List<Entry> replay = LootInjectionManager.survivingEntries(
+            List<Entry> replay = InjectionSelector.survivingEntries(
                     gated, frontier, OVERWORLD, cfg, RandomSource.create(seed));
             assertEquals(first, replay, "the gate roll must be deterministic per seed");
             if (!first.isEmpty()) {
@@ -365,10 +359,10 @@ class LootInjectionTest {
         Tiered groupA = new Tiered("frontier", List.of(), 0.5f, List.of(a));
         Tiered groupB = new Tiered("frontier", List.of(), 0.5f, List.of(b));
 
-        assertEquals(List.of(a), LootInjectionManager.survivingEntries(
+        assertEquals(List.of(a), InjectionSelector.survivingEntries(
                         List.of(groupA, groupB), frontier, OVERWORLD, cfg, RandomSource.create(seed)),
                 "the first-listed group takes the first (passing) roll");
-        assertEquals(List.of(b), LootInjectionManager.survivingEntries(
+        assertEquals(List.of(b), InjectionSelector.survivingEntries(
                         List.of(groupB, groupA), frontier, OVERWORLD, cfg, RandomSource.create(seed)),
                 "swapping the group order must hand the passing roll to the other group");
     }
@@ -379,7 +373,7 @@ class LootInjectionTest {
         List<Tiered> gated = List.of(new Tiered("frontier", List.of(), 0.0f,
                 List.of(new Entry(new ItemStack(Items.EMERALD), 1))));
 
-        assertEquals(1, LootInjectionManager.eligibleEntries(gated, tier(cfg, "frontier"), OVERWORLD, cfg).size(),
+        assertEquals(1, InjectionSelector.eligibleEntries(gated, tier(cfg, "frontier"), OVERWORLD, cfg).size(),
                 "the chance-free eligibility view (completion bonus, loot index) must ignore the gate");
     }
 
@@ -393,14 +387,14 @@ class LootInjectionTest {
                 new Tiered("depths", List.of(), List.of(depthsItem)));
 
         DistanceTier wilderness = tier(cfg, "wilderness");
-        List<Entry> atWilderness = LootInjectionManager.eligibleEntries(list, wilderness, OVERWORLD, cfg);
+        List<Entry> atWilderness = InjectionSelector.eligibleEntries(list, wilderness, OVERWORLD, cfg);
         assertEquals(List.of(frontierItem), atWilderness, "wilderness clears frontier but not depths");
 
-        List<Entry> atDepths = LootInjectionManager.eligibleEntries(list, tier(cfg, "depths"), OVERWORLD, cfg);
+        List<Entry> atDepths = InjectionSelector.eligibleEntries(list, tier(cfg, "depths"), OVERWORLD, cfg);
         assertEquals(2, atDepths.size(), "depths clears every lower-tier injection");
 
         List<Entry> atLocal =
-                LootInjectionManager.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, OVERWORLD, cfg);
+                InjectionSelector.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, OVERWORLD, cfg);
         assertTrue(atLocal.isEmpty(), "local is below every default injection tier");
     }
 
@@ -415,16 +409,16 @@ class LootInjectionTest {
 
         DistanceTier wilderness = tier(cfg, "wilderness");
         // Both clear the tier; the Nether-scoped group fires only in the Nether.
-        List<Entry> inOverworld = LootInjectionManager.eligibleEntries(list, wilderness, OVERWORLD, cfg);
+        List<Entry> inOverworld = InjectionSelector.eligibleEntries(list, wilderness, OVERWORLD, cfg);
         assertEquals(List.of(anywhere), inOverworld,
                 "an empty dimension list matches any dimension; a Nether-scoped one does not match the Overworld");
 
-        List<Entry> inNether = LootInjectionManager.eligibleEntries(list, wilderness, NETHER, cfg);
+        List<Entry> inNether = InjectionSelector.eligibleEntries(list, wilderness, NETHER, cfg);
         assertEquals(2, inNether.size(), "in the Nether both the any-dimension and Nether-scoped groups apply");
 
         // The dimension gate composes with the tier gate: below min_tier, neither group fires in the Nether.
         List<Entry> belowTier =
-                LootInjectionManager.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, NETHER, cfg);
+                InjectionSelector.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, NETHER, cfg);
         assertTrue(belowTier.isEmpty(), "the dimension match cannot override the tier gate");
     }
 
@@ -457,14 +451,14 @@ class LootInjectionTest {
         Entry b = new Entry(new ItemStack(Items.BREAD), 1);
         List<Entry> eligible = List.of(a, b);
 
-        ItemStack first = LootInjectionManager.draw(eligible, RandomSource.create(99L), registries);
-        ItemStack second = LootInjectionManager.draw(eligible, RandomSource.create(99L), registries);
+        ItemStack first = InjectionSelector.draw(eligible, RandomSource.create(99L), registries);
+        ItemStack second = InjectionSelector.draw(eligible, RandomSource.create(99L), registries);
         assertTrue(ItemStack.isSameItem(first, second), "the same seed must draw the same item");
 
-        assertNull(LootInjectionManager.draw(List.of(), RandomSource.create(1L), registries),
+        assertNull(InjectionSelector.draw(List.of(), RandomSource.create(1L), registries),
                 "empty pool draws nothing");
 
-        ItemStack solo = LootInjectionManager.draw(List.of(a), RandomSource.create(7L), registries);
+        ItemStack solo = InjectionSelector.draw(List.of(a), RandomSource.create(7L), registries);
         assertEquals(Items.APPLE, solo.getItem(), "a single-entry pool always yields that entry");
     }
 
@@ -477,7 +471,7 @@ class LootInjectionTest {
         RandomSource random = RandomSource.create(12345L);
         int apples = 0;
         for (int i = 0; i < 1000; i++) {
-            if (LootInjectionManager.draw(eligible, random, registries).getItem() == Items.APPLE) {
+            if (InjectionSelector.draw(eligible, random, registries).getItem() == Items.APPLE) {
                 apples++;
             }
         }
@@ -545,15 +539,15 @@ class LootInjectionTest {
     @Test
     void policyLevelBandsAgainstTheEnchantmentRange() {
         RandomSource random = RandomSource.create(1L);
-        assertEquals(3, LootInjectionManager.policyLevel(LevelPolicy.MID, 1, 5, random),
+        assertEquals(3, InjectionSelector.policyLevel(LevelPolicy.MID, 1, 5, random),
                 "mid is the rounded-up midpoint");
-        assertEquals(2, LootInjectionManager.policyLevel(LevelPolicy.MID, 1, 4, random));
-        assertEquals(1, LootInjectionManager.policyLevel(LevelPolicy.MID, 1, 1, random),
+        assertEquals(2, InjectionSelector.policyLevel(LevelPolicy.MID, 1, 4, random));
+        assertEquals(1, InjectionSelector.policyLevel(LevelPolicy.MID, 1, 1, random),
                 "a single-level enchantment stays at 1");
-        assertEquals(5, LootInjectionManager.policyLevel(LevelPolicy.MAX, 1, 5, random));
+        assertEquals(5, InjectionSelector.policyLevel(LevelPolicy.MAX, 1, 5, random));
 
         for (int i = 0; i < 100; i++) {
-            int level = LootInjectionManager.policyLevel(LevelPolicy.UNIFORM, 1, 3, random);
+            int level = InjectionSelector.policyLevel(LevelPolicy.UNIFORM, 1, 3, random);
             assertTrue(level >= 1 && level <= 3, "uniform draws inside [min, max]: got " + level);
         }
     }
@@ -568,12 +562,12 @@ class LootInjectionTest {
                 LevelPolicy.MID, 1000);
         Entry literal = new Entry(new ItemStack(Items.BREAD), 1);
 
-        ItemStack drawn = LootInjectionManager.draw(List.of(generative, literal),
+        ItemStack drawn = InjectionSelector.draw(List.of(generative, literal),
                 RandomSource.create(42L), registries);
         assertEquals(Items.BREAD, drawn.getItem(),
                 "an unresolvable tag must not consume the draw; the literal sibling wins the slot");
 
-        assertNull(LootInjectionManager.draw(List.of(generative), RandomSource.create(42L), registries),
+        assertNull(InjectionSelector.draw(List.of(generative), RandomSource.create(42L), registries),
                 "a pool of only unresolvable generative entries draws nothing");
     }
 

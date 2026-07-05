@@ -2,7 +2,7 @@ package com.rfizzle.prosperity.gametest;
 
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.item.ProsperityItems;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
+import com.rfizzle.prosperity.loot.injection.InjectionRegistry;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -28,7 +28,7 @@ public class ProspectorsCompassGameTest implements FabricGameTest {
 
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
     public void compassIsInjectedAtFrontierTier(GameTestHelper helper) {
-        boolean offered = LootInjectionManager
+        boolean offered = InjectionRegistry
                 .injectionsFor(BuiltInLootTables.SIMPLE_DUNGEON.location()).stream()
                 .anyMatch(view -> view.stack().is(ProsperityItems.PROSPECTORS_COMPASS)
                         && "frontier".equals(view.minTier()));

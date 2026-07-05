@@ -6,10 +6,12 @@ import com.mojang.serialization.JsonOps;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.loot.injection.Entry;
+import com.rfizzle.prosperity.loot.injection.InjectionRegistry;
+import com.rfizzle.prosperity.loot.injection.InjectionSelector;
+import com.rfizzle.prosperity.loot.injection.LevelPolicy;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Entry;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.LevelPolicy;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
+import com.rfizzle.prosperity.loot.injection.Tiered;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -62,7 +64,7 @@ public class LootInjectionGameTest implements FabricGameTest {
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
     @SuppressWarnings("removal")
     public void wildcardExpandsToVanillaChestTables(GameTestHelper helper) {
-        helper.assertTrue(LootInjectionManager.targets().contains(SIMPLE_DUNGEON.location()),
+        helper.assertTrue(InjectionRegistry.targets().contains(SIMPLE_DUNGEON.location()),
                 "all_chests must expand to minecraft:chests/simple_dungeon after reload");
         helper.succeed();
     }
@@ -138,13 +140,13 @@ public class LootInjectionGameTest implements FabricGameTest {
                 new Tiered("frontier", List.of(NETHER), List.of(netherOnly)));
 
         helper.assertTrue(
-                LootInjectionManager.eligibleEntries(list, frontier, overworld, cfg).equals(List.of(anywhere)),
+                InjectionSelector.eligibleEntries(list, frontier, overworld, cfg).equals(List.of(anywhere)),
                 "a Nether-scoped injection must not fire in the Overworld; the unscoped one does");
         helper.assertTrue(
-                LootInjectionManager.eligibleEntries(list, frontier, NETHER, cfg).size() == 2,
+                InjectionSelector.eligibleEntries(list, frontier, NETHER, cfg).size() == 2,
                 "in the Nether both the unscoped and Nether-scoped groups apply");
         helper.assertTrue(
-                LootInjectionManager.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, NETHER, cfg).isEmpty(),
+                InjectionSelector.eligibleEntries(list, ProsperityConfig.LOCAL_SENTINEL, NETHER, cfg).isEmpty(),
                 "the dimension match cannot override the tier gate");
         helper.succeed();
     }
@@ -183,7 +185,7 @@ public class LootInjectionGameTest implements FabricGameTest {
                         ResourceLocation.withDefaultNamespace("treasure"))),
                 LevelPolicy.MID, 1);
 
-        ItemStack drawn = LootInjectionManager.draw(List.of(generative), RandomSource.create(SEED), registries);
+        ItemStack drawn = InjectionSelector.draw(List.of(generative), RandomSource.create(SEED), registries);
         helper.assertTrue(drawn != null && drawn.is(Items.ENCHANTED_BOOK),
                 "a generative entry must realize to an enchanted book");
         ItemEnchantments stored = drawn.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY);
@@ -192,12 +194,12 @@ public class LootInjectionGameTest implements FabricGameTest {
         Holder<Enchantment> enchantment = stored.keySet().iterator().next();
         helper.assertTrue(enchantment.is(EnchantmentTags.TREASURE),
                 "the drawn enchantment must come from the named tag: got " + enchantment);
-        int expected = LootInjectionManager.policyLevel(LevelPolicy.MID,
+        int expected = InjectionSelector.policyLevel(LevelPolicy.MID,
                 enchantment.value().getMinLevel(), enchantment.value().getMaxLevel(), RandomSource.create(0L));
         helper.assertTrue(stored.getLevel(enchantment) == expected,
                 "the mid policy stores ceil(max/2): expected " + expected + ", got " + stored.getLevel(enchantment));
 
-        ItemStack replay = LootInjectionManager.draw(List.of(generative), RandomSource.create(SEED), registries);
+        ItemStack replay = InjectionSelector.draw(List.of(generative), RandomSource.create(SEED), registries);
         helper.assertTrue(ItemStack.matches(drawn, replay), "the same seed must reproduce the identical book");
         helper.succeed();
     }
@@ -217,12 +219,12 @@ public class LootInjectionGameTest implements FabricGameTest {
                 LevelPolicy.MID, 1000);
         Entry literal = new Entry(new ItemStack(Items.BREAD), 1);
 
-        ItemStack drawn = LootInjectionManager.draw(List.of(unresolvable, literal),
+        ItemStack drawn = InjectionSelector.draw(List.of(unresolvable, literal),
                 RandomSource.create(SEED), registries);
         helper.assertTrue(drawn != null && drawn.is(Items.BREAD),
                 "the literal sibling must win the slot when the tag resolves empty");
         helper.assertTrue(
-                LootInjectionManager.draw(List.of(unresolvable), RandomSource.create(SEED), registries) == null,
+                InjectionSelector.draw(List.of(unresolvable), RandomSource.create(SEED), registries) == null,
                 "a pool of only unresolvable generative entries injects nothing");
         helper.succeed();
     }
@@ -276,7 +278,7 @@ public class LootInjectionGameTest implements FabricGameTest {
 
         Set<Integer> levels = new HashSet<>();
         for (long seed = 0; seed < 40; seed++) {
-            ItemStack drawn = LootInjectionManager.draw(List.of(frontierBook),
+            ItemStack drawn = InjectionSelector.draw(List.of(frontierBook),
                     RandomSource.create(seed), registries);
             helper.assertTrue(drawn != null && drawn.is(Items.ENCHANTED_BOOK),
                     "the shipped common tag must realize to an enchanted book");

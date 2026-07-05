@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry.Origin;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.InjectedView;
+import com.rfizzle.prosperity.loot.injection.InjectedView;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
