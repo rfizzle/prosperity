@@ -2,8 +2,9 @@ package com.rfizzle.prosperity.loot.index;
 
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.config.ProsperityConfig;
+import com.rfizzle.prosperity.loot.injection.InjectedView;
+import com.rfizzle.prosperity.loot.injection.InjectionRegistry;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.InjectedView;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry.Origin;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -95,7 +96,7 @@ public final class LootIndexDataSource {
                 tables.add(id);
             }
         }
-        tables.addAll(LootInjectionManager.targets());
+        tables.addAll(InjectionRegistry.targets());
 
         Map<ResourceLocation, List<Item>> tableItems = new HashMap<>();
         Map<ResourceLocation, List<InjectedView>> injections = new HashMap<>();
@@ -103,7 +104,7 @@ public final class LootIndexDataSource {
         for (ResourceLocation id : tables) {
             LootTable table = registries.getLootTable(ResourceKey.create(Registries.LOOT_TABLE, id));
             tableItems.put(id, LootTableInspector.collect(table, resolver));
-            List<InjectedView> injected = LootInjectionManager.injectionsFor(id);
+            List<InjectedView> injected = InjectionRegistry.injectionsFor(id);
             if (!injected.isEmpty()) {
                 injections.put(id, injected);
             }

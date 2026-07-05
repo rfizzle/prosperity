@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.config.ProsperityConfig;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
-import com.rfizzle.prosperity.loot.injection.LootInjectionManager.Tiered;
+import com.rfizzle.prosperity.loot.injection.InjectionRegistry;
+import com.rfizzle.prosperity.loot.injection.Tiered;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -49,7 +49,7 @@ import org.junit.jupiter.api.Test;
  *       backed by a {@link ConcurrentHashMap}; the per-player window is single-threaded by design
  *       (one netty thread per player), but the map is touched cross-thread by distinct players and
  *       by disconnect cleanup.</li>
- *   <li><b>Injection registry</b> — {@link LootInjectionManager}'s {@code volatile} registry,
+ *   <li><b>Injection registry</b> — {@link InjectionRegistry}'s {@code volatile} registry,
  *       rebuilt wholesale and published atomically; readers must always see a complete, immutable
  *       snapshot.</li>
  *   <li><b>Config reference</b> — {@link Prosperity}'s {@code volatile} config, published via
@@ -150,10 +150,10 @@ class ThreadSafetyTest {
         });
     }
 
-    // --- 2. LootInjectionManager — volatile registry swap vs lookup ---
+    // --- 2. InjectionRegistry — volatile registry swap vs lookup ---
 
     /**
-     * Writer threads run the real {@link LootInjectionManager#reload} build-and-swap path (empty
+     * Writer threads run the real {@link InjectionRegistry#reload} build-and-swap path (empty
      * resource manager, {@link RegistryAccess#EMPTY} — so no datapack/registry deref) while reader
      * threads call the lookups. Neither side may throw; readers iterate only immutable snapshots.
      */
@@ -161,21 +161,21 @@ class ThreadSafetyTest {
     void injectionConcurrentReloadVsLookup() throws Exception {
         ResourceManager empty = emptyResourceManager();
         // Establish a baseline snapshot before readers start.
-        LootInjectionManager.reload(RegistryAccess.EMPTY, empty);
+        InjectionRegistry.reload(RegistryAccess.EMPTY, empty);
         ResourceLocation probe = Prosperity.id("any_table");
 
         runConcurrent(THREADS, (tid) -> {
             boolean writer = (tid % 2 == 0);
             for (int i = 0; i < ITERATIONS; i++) {
                 if (writer) {
-                    LootInjectionManager.reload(RegistryAccess.EMPTY, empty);
+                    InjectionRegistry.reload(RegistryAccess.EMPTY, empty);
                 } else {
-                    Set<ResourceLocation> targets = LootInjectionManager.targets();
+                    Set<ResourceLocation> targets = InjectionRegistry.targets();
                     // Snapshot is immutable and self-consistent; iterating must never throw.
                     for (ResourceLocation t : targets) {
-                        LootInjectionManager.injectionsFor(t);
+                        InjectionRegistry.injectionsFor(t);
                     }
-                    LootInjectionManager.injectionsFor(probe);
+                    InjectionRegistry.injectionsFor(probe);
                 }
             }
         });
@@ -183,7 +183,7 @@ class ThreadSafetyTest {
 
     /**
      * Alternates the volatile registry between two pre-built immutable snapshots with distinct key
-     * sets while readers call {@link LootInjectionManager#targets()}. Every observed snapshot must be
+     * sets while readers call {@link InjectionRegistry#targets()}. Every observed snapshot must be
      * complete (exactly one of the two key sets, never a partial mix) and immutable.
      */
     @Test
@@ -203,7 +203,7 @@ class ThreadSafetyTest {
                 if (writer) {
                     setRegistry((i % 2 == 0) ? snapB : snapA);
                 } else {
-                    Set<ResourceLocation> targets = LootInjectionManager.targets();
+                    Set<ResourceLocation> targets = InjectionRegistry.targets();
                     int size = targets.size();
                     if (size == 1) {
                         assertTrue(targets.contains(t1), "Snapshot A must contain t1");
@@ -219,7 +219,7 @@ class ThreadSafetyTest {
 
         // The published key set is immutable — no reader could corrupt it in place.
         assertThrows(UnsupportedOperationException.class,
-                () -> LootInjectionManager.targets().add(t1));
+                () -> InjectionRegistry.targets().add(t1));
     }
 
     // --- 3. Prosperity.config — volatile reference publish ---
@@ -321,7 +321,7 @@ class ThreadSafetyTest {
     }
 
     private static void setRegistry(Map<ResourceLocation, List<Tiered>> value) throws Exception {
-        Field f = LootInjectionManager.class.getDeclaredField("REGISTRY");
+        Field f = InjectionRegistry.class.getDeclaredField("REGISTRY");
         f.setAccessible(true);
         f.set(null, value);
     }
