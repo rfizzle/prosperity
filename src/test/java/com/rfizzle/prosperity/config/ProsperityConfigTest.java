@@ -32,6 +32,8 @@ class ProsperityConfigTest {
         assertTrue(c.enableLootNotifications);
         assertFalse(c.enableLootRefresh);
         assertEquals(7, c.lootRefreshDays);
+        assertFalse(c.evictAbsentPlayerData);
+        assertEquals(60, c.absentPlayerEvictionDays);
         assertFalse(c.enableContainerProtection);
         assertEquals(4.0f, c.protectionBreakMultiplier);
         assertFalse(c.protectionUnbreakable);
@@ -133,10 +135,12 @@ class ProsperityConfigTest {
     @Test
     void outOfRangeValuesAreClamped() {
         ProsperityConfig c = ProsperityConfig.fromJson(
-                "{\"indicatorRenderDistance\": -5, \"lootRefreshDays\": 0, \"protectionBreakMultiplier\": 0.1}");
+                "{\"indicatorRenderDistance\": -5, \"lootRefreshDays\": 0, \"protectionBreakMultiplier\": 0.1,"
+                        + " \"absentPlayerEvictionDays\": -3}");
         assertEquals(0, c.indicatorRenderDistance);
         assertEquals(1, c.lootRefreshDays);
         assertEquals(1.0f, c.protectionBreakMultiplier);
+        assertEquals(1, c.absentPlayerEvictionDays);
     }
 
     @Test

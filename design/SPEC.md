@@ -1215,6 +1215,38 @@ The draw runs at the container's *generation* tier, mirroring regular injection:
 
 ---
 
+## 20. Absent-Player Data Eviction
+
+Config-gated reclamation of residual per-player container entries left behind by players who have stopped playing.
+
+### Problem
+
+Bounding the stored inventories (a player's entry is evicted once they loot a container clean) still leaves two lightweight per-player maps growing forever on a public server: `lastGeneratedTick` (the retained "has visited" marker) and `refreshCount` (the re-roll salt, which survives every clear — including `/prosperity reset`). Each entry is tiny (~50 bytes serialized), but a high-traffic container accrues one per distinct player who ever opened it, unboundedly. Loot refresh cannot reclaim them: a refresh clear fires only on the returning player's own open, so a player who never returns is never cleared, and the salt is retained besides.
+
+### Behavior
+
+- **Off by default.** With `evictAbsentPlayerData` disabled, no container entry is ever touched — attachment behavior is unchanged from the stored-inventory bounding alone. The last-seen ledger itself is always maintained (the same pattern as `lastGeneratedTick` being recorded while refresh is off), so login history accrues before an admin ever flips the toggle and eviction applies meaningfully from day one of enabling it.
+- **Last-seen ledger.** A world-global `SavedData` (`prosperity_player_last_seen`, in the overworld's storage) maps UUID → overworld game time of the player's most recent join or disconnect. A UUID with no entry — a player who has not logged in since the ledger first existed — falls back to the ledger's creation *epoch*, so the historical players an upgraded server most wants to evict become evictable one full threshold after the ledger's creation (the first launch with this feature) and never sooner. Note the anchor is the ledger's creation, not the config flip: enabling the toggle later than that can make long-gone historical players evictable immediately.
+- **Opportunistic trigger.** When an instanced container is next touched (the generation choke points, covering block containers, double chests, and container minecarts alike), every stored player whose last-seen exceeds `absentPlayerEvictionDays` in-game days is dropped from **all three** maps — inventory, generation tick, and refresh count. No global or force-loaded world scan ever runs; an untouched container is simply never pruned, which costs nothing beyond what it already held.
+- **Online players are always present**, whatever the ledger says, so a player can never be evicted mid-session.
+- **The trade-off:** an evicted player who does return regenerates that container from scratch — any uncollected loot is forfeit and their refresh count restarts at 0. This is the same loot-loss trade a cooldown refresh already makes, applied only to players gone far longer than any cooldown.
+
+### Configuration
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `evictAbsentPlayerData` | bool | false | Toggle absent-player eviction |
+| `absentPlayerEvictionDays` | int | 60 | In-game days a player must be gone before their stored container entries are evicted |
+
+### Implementation Notes
+
+- Absence is measured in overworld game time — the same clock and day length (24,000 ticks) as `lootRefreshDays` — so thresholds are deterministic and testable; the clock only advances while the server runs, which is the conservative direction.
+- The ledger is updated on player join and disconnect. A crash can skip the disconnect stamp, under-reporting presence by at most one session; the next join re-stamps it.
+- Eviction (`InstancedLootData.evictPlayer`) removes all three entries *without* advancing any salt, unlike a refresh clear; the salt semantics for present players are untouched.
+- The prune computes the evictable set read-only first and writes (dirtying the block entity) only when someone actually qualifies.
+
+---
+
 ## Configuration
 
 All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
@@ -1237,6 +1269,8 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `enableLootRefresh` | bool | false | Toggle loot refresh |
 | `lootRefreshDays` | int | 7 | In-game days before loot refreshes per player |
 | `randomizeLootOnRefresh` | bool | false | Re-roll fresh loot on each refresh instead of repeating the same items |
+| `evictAbsentPlayerData` | bool | false | Toggle eviction of per-player container entries for long-absent players (§20) |
+| `absentPlayerEvictionDays` | int | 60 | In-game days a player must be gone before their entries are evicted |
 | `enableContainerProtection` | bool | false | Toggle container break protection |
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
 | `protectionUnbreakable` | bool | false | Make protected containers fully unbreakable in survival instead of merely slower |
@@ -1430,6 +1464,7 @@ Fast, no Minecraft runtime needed. Located in `src/test/`.
 - Blacklist pattern matching (exact match, namespace wildcard, empty blacklist)
 - Attachment Codec serialization (round-trip NBT via the attachment, empty inventory, multiple players, double chest redirect)
 - Cooldown expiration logic (boundary tick values, disabled refresh, retroactive enable)
+- Absent-player eviction (threshold boundary math, all-three-entry removal without a salt bump, last-seen ledger NBT round-trip and epoch fallback)
 - HUD priority calculation (with/without Tribulation loaded, correct stacking offset)
 
 ### Gametests (Fabric Gametest API)

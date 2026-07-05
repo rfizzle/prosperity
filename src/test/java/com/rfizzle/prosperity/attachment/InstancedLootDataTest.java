@@ -278,6 +278,50 @@ class InstancedLootDataTest {
         assertTrue(source.playerIds().contains(player), "playerIds includes a looted-clean, tick-only player");
     }
 
+    @Test
+    void trackedPlayerIds_includesSaltOnlyPlayers() {
+        UUID saltOnly = new UUID(1L, 0L);
+        UUID tickOnly = new UUID(2L, 0L);
+        InstancedLootData source = new InstancedLootData();
+        source.setLastGeneratedTick(saltOnly, 10L);
+        source.clearForPlayer(saltOnly); // leaves only the refresh count
+        source.setLastGeneratedTick(tickOnly, 10L);
+
+        assertFalse(source.playerIds().contains(saltOnly),
+                "a salt-only player is not a live instance");
+        assertTrue(source.trackedPlayerIds().contains(saltOnly),
+                "a salt-only player still holds a residual entry");
+        assertTrue(source.trackedPlayerIds().contains(tickOnly));
+    }
+
+    @Test
+    void evictPlayer_dropsAllThreeEntriesWithoutSaltBump() {
+        UUID evicted = new UUID(1L, 0L);
+        UUID kept = new UUID(2L, 0L);
+        InstancedLootData source = new InstancedLootData();
+        // Give the evicted player all three entries: an inventory, a tick, and a nonzero salt.
+        source.setLastGeneratedTick(evicted, 10L);
+        source.clearForPlayer(evicted); // salt -> 1
+        source.setLastGeneratedTick(evicted, 20L);
+        source.getOrCreateInventory(evicted, 27).set(0, new ItemStack(Items.DIAMOND));
+        source.setLastGeneratedTick(kept, 30L);
+        source.clearForPlayer(kept); // salt -> 1
+
+        source.evictPlayer(evicted);
+
+        assertFalse(source.hasGenerated(evicted), "an evicted player reads as never visited");
+        assertNull(source.getInventory(evicted));
+        assertEquals(0L, source.getRefreshCount(evicted),
+                "eviction forgets the salt — a returning player restarts at 0");
+        assertFalse(source.trackedPlayerIds().contains(evicted));
+        assertEquals(1L, source.getRefreshCount(kept), "other players' salts are untouched");
+
+        // The eviction survives serialization: no residual entry comes back for the player.
+        InstancedLootData restored = roundTrip(source);
+        assertFalse(restored.trackedPlayerIds().contains(evicted));
+        assertEquals(1L, restored.getRefreshCount(kept));
+    }
+
     private static UUID parseUuid(String s) {
         return UUID.fromString(s);
     }
