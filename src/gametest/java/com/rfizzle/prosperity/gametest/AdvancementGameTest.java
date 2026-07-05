@@ -10,7 +10,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
@@ -63,8 +62,7 @@ public class AdvancementGameTest implements FabricGameTest {
 
     private AdvancementHolder advancement(GameTestHelper helper, String name) {
         MinecraftServer server = helper.getLevel().getServer();
-        AdvancementHolder holder = server.getAdvancements().get(ResourceLocation.fromNamespaceAndPath(
-                Prosperity.MOD_ID, name));
+        AdvancementHolder holder = server.getAdvancements().get(Prosperity.id(name));
         helper.assertTrue(holder != null,
                 "advancement prosperity:" + name + " must be loaded — run ./gradlew runDatagen and commit it");
         return holder;
