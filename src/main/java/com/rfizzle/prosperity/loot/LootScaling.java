@@ -175,9 +175,23 @@ public final class LootScaling {
      */
     @Nullable
     public static ResourceLocation resolveStructure(ServerLevel level, BlockPos pos) {
+        ResolvedStart best = resolveStructureStart(level, pos);
+        return best == null ? null : best.id();
+    }
+
+    /**
+     * The resolved structure instance at {@code pos}: its registry id and live {@link StructureStart}.
+     * The selection rule is identical to {@link #resolveStructure} (most specific by bounding-box
+     * volume, ties by id) &mdash; this is the same walk, kept as the single source of truth so tier
+     * overrides (S-012) and the structure completion bonus never attribute a container differently.
+     * {@code null} when the position is inside no structure piece.
+     */
+    @Nullable
+    public static ResolvedStart resolveStructureStart(ServerLevel level, BlockPos pos) {
         StructureManager manager = level.structureManager();
         var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-        ResolvedStructure best = null;
+        ResolvedStart best = null;
+        long bestVolume = Long.MAX_VALUE;
         for (Structure structure : manager.getAllStructuresAt(pos).keySet()) {
             StructureStart start = manager.getStructureWithPieceAt(pos, structure);
             if (!start.isValid()) {
@@ -189,15 +203,17 @@ public final class LootScaling {
             }
             BoundingBox box = start.getBoundingBox();
             long volume = (long) box.getXSpan() * box.getYSpan() * box.getZSpan();
-            if (best == null || volume < best.volume()
-                    || (volume == best.volume() && id.compareTo(best.id()) < 0)) {
-                best = new ResolvedStructure(id, volume);
+            if (best == null || volume < bestVolume
+                    || (volume == bestVolume && id.compareTo(best.id()) < 0)) {
+                best = new ResolvedStart(id, start);
+                bestVolume = volume;
             }
         }
-        return best == null ? null : best.id();
+        return best;
     }
 
-    private record ResolvedStructure(ResourceLocation id, long volume) {
+    /** A structure instance resolved at a position: its registry id and live {@link StructureStart}. */
+    public record ResolvedStart(ResourceLocation id, StructureStart start) {
     }
 
     /** The configured tier with the highest {@code minDistance}, or the sentinel if none exist. */

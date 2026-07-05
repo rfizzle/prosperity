@@ -80,6 +80,8 @@ public final class LootInjectionManager {
     private static final ResourceLocation ALL_CHESTS = Prosperity.id("all_chests");
     /** Decorrelates the injection draw from the loot-roll seed so it does not mirror the rolled items. */
     private static final long INJECTION_SALT = 0x9E3779B97F4A7C15L;
+    /** Decorrelates the structure-completion draw from the per-container injection draw. */
+    private static final long COMPLETION_SALT = 0xC2B2AE3D27D4EB4FL;
     /** Log-once latch for a failing finalizer, so a persistent failure cannot warn-spam per generation. */
     private static final AtomicBoolean FINALIZER_FAILURE_LOGGED = new AtomicBoolean(false);
 
@@ -213,6 +215,39 @@ public final class LootInjectionManager {
                 return;
             }
         }
+    }
+
+    /**
+     * One extra reward for the structure completion bonus: the same weighted tier-and-dimension
+     * eligible draw as {@link #augment}, decorrelated by {@link #COMPLETION_SALT} so it never mirrors
+     * the container's regular injected item, and run through the installed finalizer. Deterministic
+     * for a given {@code (seedBase, salt, uuid, structureSeed)} tuple; {@code structureSeed}
+     * identifies the structure instance, so two structures completed by the same player draw
+     * differently even when their final containers share a table and a {@code 0} seed (every
+     * template-placed chest does). Returns {@code null} when the table is absent or has no eligible
+     * entry. Gated by {@code enableStructureCompletionBonus} at the caller, not by
+     * {@code enableLootInjection} &mdash; the completion bonus is its own feature that draws from the
+     * injection pool, not an injection.
+     */
+    @Nullable
+    public static ItemStack completionBonus(@Nullable ResourceKey<LootTable> table, DistanceTier tier,
+            ServerLevel level, long seedBase, long salt, UUID uuid, long structureSeed) {
+        if (table == null) {
+            return null;
+        }
+        long mixed = seedBase * INJECTION_SALT
+                ^ uuid.getMostSignificantBits()
+                ^ Long.rotateLeft(uuid.getLeastSignificantBits(), 32)
+                ^ Long.rotateLeft(salt * INJECTION_SALT, 29)
+                ^ Long.rotateLeft(structureSeed * COMPLETION_SALT, 17)
+                ^ COMPLETION_SALT;
+        RandomSource random = RandomSource.create(mixed == 0L ? 1L : mixed);
+        ItemStack drawn = pick(table.location(), tier, level.dimension().location(), random,
+                level.registryAccess());
+        if (drawn == null || drawn.isEmpty()) {
+            return null;
+        }
+        return finalizeInjected(level, drawn, tier, random);
     }
 
     /**

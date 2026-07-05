@@ -1169,6 +1169,48 @@ Same dimension rules as container scaling:
 
 ---
 
+## 19. Structure Completion Bonus
+
+A one-time, per-player reward for fully clearing a structure's instanced containers, paying out thorough exploration over chest-hopping.
+
+### Problem
+
+Instanced loot rewards opening individual chests, but nothing rewards fully clearing a structure. Players chest-hop the obvious containers and leave; thorough exploration of a stronghold or mansion pays no better than a smash-and-grab.
+
+### Behavior
+
+When a player generates loot for the **last remaining** instanced container inside a structure's bounds (per that player):
+
+1. **Bonus roll** — one extra reward is drawn from the tier-appropriate loot injection pool (section 5) for the final container's loot table, decorrelated from the container's regular injected item, and placed in the first empty slot of that final container's instance. A table with no eligible injection entry (or a full container) places nothing — the completion itself still stands.
+2. **Fanfare** — an action-bar message (e.g. `✦ Stronghold cleared!`), localizable with a humanized fallback and gated by `enableLootNotifications` like every other loot notification.
+3. **Ledger** — the completion is recorded per player per structure *instance* (structure id + start chunk) in a per-dimension `SavedData` ledger, so a loot refresh, `/prosperity reset|refresh`, or even breaking the awarding container can never re-arm the bonus.
+
+**What counts.** Block-entity loot containers inside the structure's *piece* bounding boxes, under the same filters as the unlooted-indicator scan: it is a loot container, it is not blacklisted (section 7), and a double chest counts once via its primary half. Container minecarts neither count toward nor trigger completion — entities in unvisited chunks cannot be enumerated deterministically, so including them would make completion silently unreliable in minecart-bearing structures (mineshafts). A container broken before being looted no longer exists to be counted, so the remaining set shrinks and completion stays reachable. Membership is geometric (inside the piece boxes), not attributive: a container belonging to an *overlapping* structure that happens to sit inside this structure's piece boxes counts toward — and can hold up — this structure's completion, even though its own generation event attributes to the more specific structure. Overlaps are rare and the per-candidate attribution walk would be disproportionate; the divergence is deliberate.
+
+**Qualification.** Only structures with more than one qualifying container award — no "completion" for a lone buried-treasure chest.
+
+**Known edge:** the trigger is loot generation, so if a player breaks the would-be-final unlooted container instead of opening it after looting everything else, there is no further generation event in the structure to fire the check; the completion is picked up by the next generation there (e.g. after a refresh re-roll).
+
+### Configuration
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enableStructureCompletionBonus` | bool | true | Toggle the structure completion bonus |
+
+The bonus draws from the injection pool but is deliberately **not** gated by `enableLootInjection` — it is its own feature that reuses the pool, not an injection.
+
+The draw runs at the container's *generation* tier, mirroring regular injection: with `enableDistanceScaling` off every generation is Local-tier, and the shipped injection defaults all gate at Frontier or above, so completions then pay the fanfare only. Ship a Local-tier (`min_tier: "local"`) injection entry via datapack to give scaling-off servers a material bonus.
+
+### Implementation Notes
+
+- The hook (`StructureCompletion.onLootGenerated`) runs at the tail of both generation paths in `InstancedLootInteraction`, after the player's instance is stored, so the just-generated container already reads as looted. Structure attribution reuses `LootScaling.resolveStructureStart` — the same most-specific-by-volume walk as structure tier overrides (section 6) — and works independently of `enableDistanceScaling`.
+- The census walks the chunks intersecting the structure's piece boxes via `ServerLevel#getChunk` (loading, and if necessary generating, each) — required for a correct total, since an ungenerated piece still contains future containers. Three bounds keep this off the common path: an already-completed player skips the census entirely; the walk visits chunks nearest the triggering container first and early-exits at the first unlooted container; and the one full sweep a completion requires caches the instance's discovered container positions in a bounded session cache, so later censuses of the same instance (another player finishing the same structure) walk just those positions instead of the span.
+- "Looted" is *has ever generated* (`hasGenerated`), not "currently unlooted": a player who looted a chest, let it refresh-expire, then looted the rest still completes.
+- The bonus draw is deterministic for a given (seed, salt, player) triple and passes through the injected-stack finalizer, exactly like a regular injection.
+- The census-and-award core takes explicit piece boxes so gametests drive it against placed containers; live `StructureStart` resolution is the same documented manual in-world check as section 6.
+
+---
+
 ## Configuration
 
 All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
@@ -1186,6 +1228,7 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `structureOverrides` | list | (see below) | Per-structure tier overrides |
 | `lootTableBlacklist` | list | [] | Loot tables excluded from instancing (exact or namespace wildcard) |
 | `enableLootInjection` | bool | true | Toggle datapack-driven loot injection |
+| `enableStructureCompletionBonus` | bool | true | Toggle the per-player bonus for fully looting a structure (§19) |
 | `enableLootNotifications` | bool | true | Toggle action bar tier notifications |
 | `enableLootRefresh` | bool | false | Toggle loot refresh |
 | `lootRefreshDays` | int | 7 | In-game days before loot refreshes per player |

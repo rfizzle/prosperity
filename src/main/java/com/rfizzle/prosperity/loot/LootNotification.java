@@ -52,6 +52,32 @@ public final class LootNotification {
     }
 
     /**
+     * Send the structure completion fanfare (e.g. {@code "✦ Stronghold cleared!"}) as an action-bar
+     * overlay, honoring {@code enableLootNotifications} like every other loot notification. Returns
+     * the message that was sent, or {@code null} when notifications are disabled.
+     */
+    @Nullable
+    public static Component sendStructureCleared(ServerPlayer player, ResourceLocation structure) {
+        if (!Prosperity.getConfig().enableLootNotifications) {
+            return null;
+        }
+        Component message = buildStructureCleared(structure);
+        player.displayClientMessage(message, true);
+        return message;
+    }
+
+    /**
+     * Assemble the completion fanfare: the structure's display name (localizable with a humanized
+     * fallback, so modded structures still read sensibly) in a {@code "✦ %s cleared!"} frame.
+     */
+    public static Component buildStructureCleared(ResourceLocation structure) {
+        Component structureName = Component.translatableWithFallback(
+                "prosperity.structure." + structure.getPath(), humanize(structure.getPath()));
+        return Component.translatableWithFallback(
+                "prosperity.notification.structure_cleared", "✦ %s cleared!", structureName);
+    }
+
+    /**
      * Assemble the notification {@link Component}: {@code "✦ <Tier>"}, plus a {@code " — Nx stacks,
      * +N quality"} clause when the values are not at their baseline defaults, plus a {@code " (Name)"}
      * suffix when {@code structure} is non-null. The tier and structure names are localizable with a

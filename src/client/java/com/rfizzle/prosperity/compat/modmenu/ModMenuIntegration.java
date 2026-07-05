@@ -117,6 +117,12 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setTooltip(tooltip("enable_loot_injection"))
                     .setSaveConsumer(v -> working.enableLootInjection = v)
                     .build());
+            content.addEntry(entry.startBooleanToggle(
+                            label("enable_structure_completion_bonus"), working.enableStructureCompletionBonus)
+                    .setDefaultValue(true)
+                    .setTooltip(tooltip("enable_structure_completion_bonus"))
+                    .setSaveConsumer(v -> working.enableStructureCompletionBonus = v)
+                    .build());
             content.addEntry(entry.startStrList(
                             label("loot_table_blacklist"), new ArrayList<>(working.lootTableBlacklist))
                     .setDefaultValue(new ArrayList<>())

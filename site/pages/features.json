@@ -123,6 +123,16 @@
       ]
     },
     {
+      "id": "completion-bonus",
+      "title": "Structure Completion Bonus",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": ["Loot <em>every</em> instanced container in a structure and the final one pays out an extra reward drawn from the tier-appropriate <a href='/features.html#loot-api' class='text-accent hover:text-accent2 underline'>injection pool</a>, with an action-bar fanfare — <code class='text-accent2'>✦ Stronghold cleared!</code> Thorough exploration beats chest-hopping. The bonus is per player and one-time per structure instance: a second player clearing the same stronghold earns their own, but loot refresh never re-arms it. Only structures with more than one instanced container qualify, blacklisted containers are excluded from the count, and a container broken before being looted simply shrinks the remaining set."]
+        }
+      ]
+    },
+    {
       "id": "loot-api",
       "title": "Loot Modifier API &amp; Injection",
       "blocks": [
