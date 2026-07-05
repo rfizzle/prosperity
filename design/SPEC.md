@@ -1041,6 +1041,8 @@ All commands use the `prosperity` root. Admin commands require **operator level 
 |---|---|---|
 | `/prosperity info` | Any player | Shows your loot scaling tier for your current position (distance, tier name, multipliers) |
 | `/prosperity info <player>` | Op level 2 | Shows another player's loot scaling tier at their position |
+| `/prosperity stats` | Any player | Shows your loot statistics: containers looted, per-tier breakdown, distinct structure types, injected rewards received |
+| `/prosperity stats <player>` | Op level 2 | Shows another player's loot statistics |
 | `/prosperity reset <pos>` | Op level 2 | Clears all instanced loot data for the container at the given position. All players' instances are removed. |
 | `/prosperity reset <pos> <player>` | Op level 2 | Clears a specific player's instanced loot at the given position |
 | `/prosperity reset around [radius] [player]` | Op level 2 | Clears instanced loot for every container in loaded chunks within `radius` blocks of the command source (default 128, max 256), optionally scoped to one player |
@@ -1052,6 +1054,7 @@ All commands use the `prosperity` root. Admin commands require **operator level 
 ### Command Feedback
 
 - `/prosperity info` output example: `"Distance: 4,521 blocks — Wilderness tier (2.0x stacks, +2 quality)"`
+- `/prosperity stats` output: a header line, the container total, one indented row per tier with a recorded count (configured ladder order), the distinct-structure count, and the injected-reward count
 - `/prosperity reset` confirms: `"Cleared instanced loot at [x, y, z] for all players (4 instances removed)"`
 - All feedback uses translation keys (`command.prosperity.*`).
 
@@ -1061,6 +1064,7 @@ All commands use the `prosperity` root. Admin commands require **operator level 
 - `/prosperity info` calculates the player's current chunk position, determines the distance tier, and formats the tier data.
 - `/prosperity reset`/`refresh` read the attachment(s) at the target position — or every loaded container within the `around` radius — clear the specified entries, and resend the affected chunks' `UnlootedContainersS2C` set to tracking clients (full per-player replace), so a container that is unlooted again re-lights rather than being dropped. The `around` form scans only loaded chunks (never force-loads) and bounds the radius at 256 blocks.
 - `/prosperity reload` re-reads `config/prosperity.json` and pushes updated values to all connected clients via a config sync packet.
+- `/prosperity stats` reads a persistent per-player attachment (`loot_stats` on the player, `copyOnDeath`) recorded once per loot *generation* — first opens and refresh re-rolls, never return visits; a double chest counts once. The injected-rewards bucket counts only actually-placed injections. Structure attribution is independent of the scaling gates: when tier resolution skipped structure detection (distance scaling off, or no overrides configured) the stats path resolves the structure itself through the same resolver. Counting starts when the feature ships; there is no backfill from existing container attachments.
 
 ---
 

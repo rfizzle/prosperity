@@ -4,6 +4,7 @@ import com.rfizzle.prosperity.Prosperity;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.Nullable;
@@ -45,6 +46,18 @@ public final class ProsperityAttachments {
                     .persistent(InstancedLootData.CODEC)
                     .initializer(InstancedLootData::new));
 
+    /**
+     * Per-player loot statistics for {@code /prosperity stats} (issue #52). Rides the player's own
+     * playerdata, so it survives relog and restart with no separate store; {@code copyOnDeath} keeps
+     * lifetime stats across respawns. Attached on demand at the first recorded generation — a player
+     * who has never opened an instanced container carries no attachment (all-zero stats).
+     */
+    public static final AttachmentType<LootStatsData> LOOT_STATS =
+            AttachmentRegistry.create(Prosperity.id("loot_stats"), builder -> builder
+                    .persistent(LootStatsData.CODEC)
+                    .copyOnDeath()
+                    .initializer(LootStatsData::new));
+
     private ProsperityAttachments() {
     }
 
@@ -84,6 +97,23 @@ public final class ProsperityAttachments {
     public static InstancedLootData update(AbstractMinecartContainer cart,
             Consumer<InstancedLootData> mutation) {
         InstancedLootData data = cart.getAttachedOrCreate(INSTANCED_MINECART_LOOT);
+        mutation.accept(data);
+        return data;
+    }
+
+    /** The loot statistics on {@code player}, or {@code null} if none have been recorded yet. */
+    @Nullable
+    public static LootStatsData stats(ServerPlayer player) {
+        return player.getAttached(LOOT_STATS);
+    }
+
+    /**
+     * Apply a mutation to the loot statistics on {@code player}, creating them if absent. A player
+     * serializes with their own playerdata on every save (like the minecart above), so no explicit
+     * dirty call is needed.
+     */
+    public static LootStatsData updateStats(ServerPlayer player, Consumer<LootStatsData> mutation) {
+        LootStatsData data = player.getAttachedOrCreate(LOOT_STATS);
         mutation.accept(data);
         return data;
     }

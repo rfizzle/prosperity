@@ -15,6 +15,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -275,7 +276,7 @@ public final class InstancedLootInteraction {
             combined.set(DoubleChestLayout.PRIMARY_SLOTS + slot, secondaryLoot.get(slot));
         }
         // One injected reward for the whole double chest, drawn against the primary half's table (S-014).
-        LootInjectionManager.augment(combined, primaryRef.key(), tier, level,
+        boolean injected = LootInjectionManager.augment(combined, primaryRef.key(), tier, level,
                 primaryRef.seed(), salt, uuid);
 
         primaryAdapter.update(data -> {
@@ -296,6 +297,9 @@ public final class InstancedLootInteraction {
         primaryAdapter.notifyGenerated(player);
         // First-generation action-bar notification (S-021), reflecting the final modifier values.
         LootNotification.send(player, level, origin, scaled, mods.stackMultiplier(), mods.luck());
+        // One stats increment for the whole double chest — the same "one generation" the salt,
+        // injection, and notification all treat it as (issue #52).
+        recordStats(player, level, origin, scaled, injected);
         // After the instance is stored: this double may have been the structure's last unlooted
         // container for the player, earning the completion bonus into the just-stored inventory.
         StructureCompletion.onLootGenerated(primaryAdapter, player, primaryRef.key(), tier,
@@ -356,7 +360,7 @@ public final class InstancedLootInteraction {
                 adapter.level(), adapter.origin(), ref.key(), ref.seed(), salt, player, adapter.size(),
                 mods.luck(), mods.stackMultiplier());
         // Add one tier-and-dimension-eligible injected reward in an empty slot (S-014).
-        LootInjectionManager.augment(generated, ref.key(), tier, adapter.level(),
+        boolean injected = LootInjectionManager.augment(generated, ref.key(), tier, adapter.level(),
                 ref.seed(), salt, uuid);
 
         adapter.update(data -> {
@@ -371,6 +375,9 @@ public final class InstancedLootInteraction {
         adapter.notifyGenerated(player);
         // First-generation action-bar notification (S-021), reflecting the final modifier values.
         LootNotification.send(player, adapter.level(), origin, scaled, mods.stackMultiplier(), mods.luck());
+        // Count this generation in the player's loot stats — first visits and refresh re-rolls both
+        // land here; return visits took the early return above and are never counted (issue #52).
+        recordStats(player, adapter.level(), origin, scaled, injected);
         // After the instance is stored: this may have been the structure's last unlooted container
         // for the player, earning the completion bonus into the just-stored inventory.
         StructureCompletion.onLootGenerated(adapter, player, ref.key(), tier, ref.seed(), salt);
@@ -423,6 +430,25 @@ public final class InstancedLootInteraction {
     }
 
     private record ModifierResult(float luck, double stackMultiplier) {
+    }
+
+    /**
+     * Count one generation in the player's persistent loot stats (issue #52): the effective tier's
+     * bucket, the structure's bucket when the container sits in one, and whether an injected reward
+     * was actually placed. Recorded on the player attachment, so it survives relog and restart.
+     *
+     * <p>Structure attribution must not depend on the scaling gates:
+     * {@link LootScaling#resolveForGeneration} skips detection when distance scaling is off or no
+     * overrides are configured, so a {@code null} structure here re-resolves through the same
+     * single-source-of-truth walk. The only redundant case is a container genuinely in no structure,
+     * which re-checks cheaply once per generation.
+     */
+    private static void recordStats(ServerPlayer player, ServerLevel level, Vec3 origin,
+            LootScaling.ScaledTier scaled, boolean injectedPlaced) {
+        ResourceLocation structure = scaled.structure() != null ? scaled.structure()
+                : LootScaling.resolveStructure(level, BlockPos.containing(origin));
+        ProsperityAttachments.updateStats(player,
+                stats -> stats.recordGeneration(scaled.tier().name(), structure, injectedPlaced));
     }
 
     /**

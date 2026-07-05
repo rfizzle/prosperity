@@ -191,12 +191,13 @@ public final class LootInjectionManager {
      * refresh count under {@code randomizeLootOnRefresh} (and {@code 0} otherwise), letting the bonus
      * re-roll on a refresh in lockstep with the main loot. The drawn stack passes through the
      * installed {@link InjectedStackFinalizer} before placement, isolated so a throwing or
-     * empty-returning finalizer falls back to the drawn stack unchanged.
+     * empty-returning finalizer falls back to the drawn stack unchanged. Returns whether an item
+     * was actually placed, so callers can count rewards received rather than attempts (loot stats).
      */
-    public static void augment(NonNullList<ItemStack> items, @Nullable ResourceKey<LootTable> table,
+    public static boolean augment(NonNullList<ItemStack> items, @Nullable ResourceKey<LootTable> table,
             DistanceTier tier, ServerLevel level, long seedBase, long salt, UUID uuid) {
         if (!Prosperity.getConfig().enableLootInjection || table == null) {
-            return;
+            return false;
         }
         long mixed = seedBase * INJECTION_SALT
                 ^ uuid.getMostSignificantBits()
@@ -206,15 +207,16 @@ public final class LootInjectionManager {
         ItemStack injected = pick(table.location(), tier, level.dimension().location(), random,
                 level.registryAccess());
         if (injected == null || injected.isEmpty()) {
-            return;
+            return false;
         }
         injected = finalizeInjected(level, injected, tier, random);
         for (int slot = 0; slot < items.size(); slot++) {
             if (items.get(slot).isEmpty()) {
                 items.set(slot, injected);
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     /**

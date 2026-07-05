@@ -8,6 +8,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
+import com.rfizzle.prosperity.attachment.LootStatsData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.loot.LootScaling;
@@ -18,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -35,8 +37,8 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The {@code /prosperity} command tree (SPEC §15). {@code info} is open to any player for
- * their own position; querying another player and every mutating verb require operator
+ * The {@code /prosperity} command tree (SPEC §15). {@code info} and {@code stats} are open to any
+ * player for themselves; querying another player and every mutating verb require operator
  * level 2. All feedback resolves through {@code command.prosperity.*} translation keys.
  *
  * <p>The core operations — {@link #resolveTier} and {@link #clearContainer} — are exposed
@@ -62,6 +64,11 @@ public final class ProsperityCommand {
                         .then(Commands.argument("player", EntityArgument.player())
                                 .requires(src -> src.hasPermission(2))
                                 .executes(ProsperityCommand::runInfoOther)))
+                .then(Commands.literal("stats")
+                        .executes(ProsperityCommand::runStatsSelf)
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .requires(src -> src.hasPermission(2))
+                                .executes(ProsperityCommand::runStatsOther)))
                 .then(Commands.literal("reset")
                         .requires(src -> src.hasPermission(2))
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
@@ -115,6 +122,66 @@ public final class ProsperityCommand {
      */
     public static DistanceTier resolveTier(ServerLevel level, double x, double z) {
         return LootScaling.resolveTier(level, x, z);
+    }
+
+    // ---- stats ----
+
+    private static int runStatsSelf(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        sendStats(ctx.getSource(), ctx.getSource().getPlayerOrException());
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int runStatsOther(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        sendStats(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Send {@code who}'s loot statistics (issue #52) to the command source: total containers, one
+     * row per tier with a recorded count, distinct structure types, and injected rewards received.
+     * A player with no recorded stats (no attachment) reads as all zeros — counting starts when the
+     * feature ships, with no backfill from existing container attachments.
+     */
+    private static void sendStats(CommandSourceStack src, ServerPlayer who) {
+        LootStatsData stats = ProsperityAttachments.stats(who);
+        long total = stats == null ? 0L : stats.containersLooted();
+        Map<String, Long> tiers = stats == null ? Map.of() : stats.tierCounts();
+        int structures = stats == null ? 0 : stats.distinctStructures();
+        long injected = stats == null ? 0L : stats.injectedRewards();
+        final String name = who.getName().getString();
+
+        src.sendSuccess(() -> Component.translatable("command.prosperity.stats.header", name), false);
+        src.sendSuccess(() -> Component.translatable("command.prosperity.stats.total", total), false);
+        for (String tierName : statsTierOrder(Prosperity.getConfig().distanceTiers, tiers.keySet())) {
+            final long count = tiers.getOrDefault(tierName, 0L);
+            final Component display = Component.translatableWithFallback(
+                    "prosperity.tier." + tierName, capitalize(tierName));
+            src.sendSuccess(() -> Component.translatable("command.prosperity.stats.tier", display, count),
+                    false);
+        }
+        src.sendSuccess(() -> Component.translatable("command.prosperity.stats.structures", structures), false);
+        src.sendSuccess(() -> Component.translatable("command.prosperity.stats.injected", injected), false);
+    }
+
+    /**
+     * The tier names to display in a stats readout: every recorded name, configured tiers first in
+     * their configured (distance-ladder) order, then any remaining recorded names alphabetically.
+     * The leftovers keep a readout complete when a recorded tier has since been renamed out of the
+     * config, or when the {@code local} sentinel was recorded under an empty tier list — the buckets
+     * always sum to the container total. Pure and exposed for unit tests.
+     */
+    static List<String> statsTierOrder(@Nullable List<DistanceTier> configTiers, Set<String> recorded) {
+        List<String> out = new ArrayList<>();
+        Set<String> remaining = new TreeSet<>(recorded);
+        if (configTiers != null) {
+            for (DistanceTier tier : configTiers) {
+                if (tier != null && remaining.remove(tier.name())) {
+                    out.add(tier.name());
+                }
+            }
+        }
+        out.addAll(remaining);
+        return out;
     }
 
     // ---- reset / refresh ----
