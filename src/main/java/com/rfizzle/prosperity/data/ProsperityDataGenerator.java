@@ -12,5 +12,9 @@ public final class ProsperityDataGenerator implements DataGeneratorEntrypoint {
         // with the trigger's field names.
         FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
         pack.addProvider(ProsperityAdvancementProvider::new);
+        // The Prospector's Compass crafting recipe (issue #84) — the one recipe the mod ships, giving
+        // the compass a deterministic path alongside its rare loot drop. Datagen'd so the recipe-book
+        // unlock advancement stays in sync with the recipe.
+        pack.addProvider(ProsperityRecipeProvider::new);
     }
 }
