@@ -130,6 +130,13 @@ repositories {
             includeGroup 'mcp.mobius.waila'
         }
     }
+    maven {
+        name = 'FTB'
+        url = 'https://maven.ftb.dev/releases'
+        content {
+            includeGroup 'dev.ftb.mods'
+        }
+    }
 }
 
 loom {
@@ -254,6 +261,18 @@ dependencies {
     // Compile-only against its xaero.pac.common.server.*.api surface behind an isModLoaded guard,
     // never bundled and with no dev runtime — with OPAC absent the mod behaves identically.
     modCompileOnly "maven.modrinth:open-parties-and-claims:${project.opac_version}"
+
+    // FTB Teams — player-managed party mod; soft dependency for party loot grouping. Compile-only
+    // against its dev.ftb.mods.ftbteams.api surface behind an isModLoaded guard, never bundled and
+    // with no dev runtime — with FTB Teams absent the mod behaves identically. FTB Library is a
+    // compile-time transitive (Color4I appears on Team/TeamManager signatures). `transitive = false`
+    // keeps FTB's own fabric-api/loader/architectury pins from shadowing the versions pinned above.
+    modCompileOnly("dev.ftb.mods:ftb-teams-fabric:${project.ftb_teams_version}") {
+        transitive = false
+    }
+    modCompileOnly("dev.ftb.mods:ftb-library-fabric:${project.ftb_library_version}") {
+        transitive = false
+    }
 
     // Tests
     testImplementation platform("org.junit:junit-bom:${project.junit_version}")
