@@ -66,6 +66,21 @@
       ]
     },
     {
+      "id": "party-group-provider",
+      "title": "Party Group Provider",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": ["When <code class='text-accent2'>partyLootMode</code> is enabled, players who resolve to the same group key share one loot instance per container. By default the group is the player's vanilla scoreboard team; a social or party mod can override that by registering a <code class='text-accent2'>PartyGroupProvider</code>, so its own parties drive the sharing. Providers are consulted server-side in registration order under error isolation — the first non-null, non-blank key wins, otherwise Prosperity falls back to the scoreboard team."]
+        },
+        {
+          "type": "code",
+          "tone": "bone",
+          "code": "import com.rfizzle.prosperity.api.ProsperityAPI;\n\nif (FabricLoader.getInstance().isModLoaded(\"prosperity\")) {\n    ProsperityAPI.registerPartyGroupProvider(player -> {\n        // return an opaque key shared by every member of the player's party,\n        // or null to defer to the next provider / the scoreboard team\n        return MyPartyMod.partyIdOf(player);  // e.g. the party's stable id\n    });\n}"
+        }
+      ]
+    },
+    {
       "id": "notes",
       "title": "Notes",
       "blocks": [

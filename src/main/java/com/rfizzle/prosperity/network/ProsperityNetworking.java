@@ -179,7 +179,7 @@ public final class ProsperityNetworking {
         ServerLevel level = player.serverLevel();
         if (ServerPlayNetworking.canSend(player, UnlootedContainersS2CPayload.TYPE)) {
             List<UnlootedContainersS2CPayload.Entry> entries =
-                    UnlootedContainers.scanChunk(level, payload.chunkPos(), player.getUUID());
+                    UnlootedContainers.scanChunk(level, payload.chunkPos(), player);
             // Reply even when empty so the client can clear any stale indicators it cached for the chunk.
             ServerPlayNetworking.send(player, new UnlootedContainersS2CPayload(payload.chunkPos(), entries));
         }
@@ -233,7 +233,7 @@ public final class ProsperityNetworking {
             return;
         }
         List<UnlootedContainersS2CPayload.Entry> entries =
-                UnlootedContainers.scanChunk(level, chunkPos, player.getUUID());
+                UnlootedContainers.scanChunk(level, chunkPos, player);
         ServerPlayNetworking.send(player, new UnlootedContainersS2CPayload(chunkPos, entries));
     }
 

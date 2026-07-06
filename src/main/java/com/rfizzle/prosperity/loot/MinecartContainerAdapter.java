@@ -3,11 +3,13 @@ package com.rfizzle.prosperity.loot;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -101,6 +103,21 @@ public final class MinecartContainerAdapter implements ContainerAdapter {
         // Minecart indicators are entity-anchored (S-038): push the looted packet keyed by the cart's
         // network id so the player's client drops its sparkle for this cart only.
         ProsperityNetworking.sendMinecartLooted(player, cart.getId());
+    }
+
+    @Override
+    public void notifyGeneratedForMembers(MinecraftServer server, Set<UUID> members) {
+        for (UUID member : members) {
+            ServerPlayer online = server.getPlayerList().getPlayer(member);
+            if (online != null) {
+                ProsperityNetworking.sendMinecartLooted(online, cart.getId());
+            }
+        }
+    }
+
+    @Override
+    public String containerId() {
+        return level.dimension().location() + "@cart:" + cart.getUUID();
     }
 
     @Override

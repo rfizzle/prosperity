@@ -122,18 +122,33 @@ public class BlockHopperInstancingGameTest implements FabricGameTest {
         ServerPlayer player = spawnPlayerAt(helper, rel);
 
         ServerLevel level = helper.getLevel();
-        ChunkPos chunk = new ChunkPos(helper.absolutePos(rel));
+        BlockPos abs = helper.absolutePos(rel);
+        ChunkPos chunk = new ChunkPos(abs);
+        // Assert per position rather than whole-chunk counts: gametest structures pack several into one
+        // chunk and run concurrently, so a neighbour's loot container can share this chunk (same pattern
+        // as UnlootedSyncGameTest).
         List<Entry> before = UnlootedContainers.scanChunk(level, chunk, player.getUUID());
-        helper.assertTrue(before.size() == 1, "an ungenerated loot hopper must show one indicator");
-        helper.assertTrue(before.get(0).slots() == 5, "the hopper indicator must be sized to 5 slots");
+        helper.assertTrue(entryAt(before, chunk, abs), "an ungenerated loot hopper must show its indicator");
+        helper.assertTrue(slotsAt(before, chunk, abs) == 5, "the hopper indicator must be sized to 5 slots");
 
         helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
                 "opening the loot hopper must be intercepted");
         List<Entry> after = UnlootedContainers.scanChunk(level, chunk, player.getUUID());
-        helper.assertTrue(after.isEmpty(), "a generated hopper must drop the player's indicator");
+        helper.assertFalse(entryAt(after, chunk, abs), "a generated hopper must drop the player's indicator");
 
         player.discard();
         helper.succeed();
+    }
+
+    /** Whether {@code entries} contains an entry at the absolute position {@code abs}. */
+    private boolean entryAt(List<Entry> entries, ChunkPos chunk, BlockPos abs) {
+        return entries.stream().anyMatch(e -> e.toBlockPos(chunk).equals(abs));
+    }
+
+    /** The reported slot count of the entry at {@code abs}, or {@code -1} if there is none. */
+    private int slotsAt(List<Entry> entries, ChunkPos chunk, BlockPos abs) {
+        return entries.stream().filter(e -> e.toBlockPos(chunk).equals(abs))
+                .findFirst().map(Entry::slots).orElse(-1);
     }
 
     /**

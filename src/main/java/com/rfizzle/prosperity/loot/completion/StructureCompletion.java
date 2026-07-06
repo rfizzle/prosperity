@@ -10,6 +10,7 @@ import com.rfizzle.prosperity.loot.DoubleChestLayout;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.LootNotification;
 import com.rfizzle.prosperity.loot.LootScaling;
+import com.rfizzle.prosperity.loot.PartyLootKeys;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -148,7 +149,11 @@ public final class StructureCompletion {
     public static boolean checkAndAward(ServerLevel level, ContainerAdapter adapter, ServerPlayer player,
             @Nullable ResourceKey<LootTable> table, DistanceTier tier, long seed, long salt,
             String structureKey, List<BoundingBox> boxes, ResourceLocation structureId) {
-        UUID uuid = player.getUUID();
+        // The loot key the just-generated instance was stored under: the player's own UUID normally, or
+        // the shared team key in party loot mode (issue #53). Keying the census, ledger, and bonus
+        // placement on it makes a team complete a structure together and share the one bonus, matching
+        // the shared inventory the container already serves.
+        UUID uuid = PartyLootKeys.resolve(player, adapter.data());
         StructureCompletionState state = StructureCompletionState.get(level);
         if (state.isCompleted(structureKey, uuid)) {
             return false;
@@ -164,10 +169,24 @@ public final class StructureCompletion {
         if (!state.markCompleted(structureKey, uuid)) {
             return false;
         }
-        // The instance key seeds the draw so two structures completed by the same player pay
+        // The instance key seeds the draw so two structures completed by the same player (or team) pay
         // different bonuses even when their final containers share a (table, seed, salt) triple.
-        placeBonus(level, adapter, player, table, tier, seed, salt, structureKey.hashCode());
+        placeBonus(level, adapter, uuid, table, tier, seed, salt, structureKey.hashCode());
         LootNotification.sendStructureCleared(player, structureId);
+        // Party loot mode (issue #53): the whole team shares this completion and its one bonus, so the
+        // fanfare reaches every online member, not only the opener (mirrors the looted-indicator broadcast).
+        if (!uuid.equals(player.getUUID())) {
+            InstancedLootData data = adapter.data();
+            if (data != null) {
+                for (UUID member : data.teamMembers(uuid)) {
+                    ServerPlayer online = member.equals(player.getUUID()) ? null
+                            : level.getServer().getPlayerList().getPlayer(member);
+                    if (online != null) {
+                        LootNotification.sendStructureCleared(online, structureId);
+                    }
+                }
+            }
+        }
         return true;
     }
 
@@ -362,16 +381,16 @@ public final class StructureCompletion {
      * in the opening screen. A full container or an empty draw (no eligible injection entry for the
      * table) places nothing &mdash; the completion itself, and its fanfare, still stand.
      */
-    private static void placeBonus(ServerLevel level, ContainerAdapter adapter, ServerPlayer player,
+    private static void placeBonus(ServerLevel level, ContainerAdapter adapter, UUID lootKey,
             @Nullable ResourceKey<LootTable> table, DistanceTier tier, long seed, long salt,
             long structureSeed) {
         ItemStack bonus = LootInjectionManager.completionBonus(table, tier, level, seed, salt,
-                player.getUUID(), structureSeed);
+                lootKey, structureSeed);
         if (bonus == null || bonus.isEmpty()) {
             return;
         }
         adapter.update(data -> {
-            NonNullList<ItemStack> inventory = data.getInventory(player.getUUID());
+            NonNullList<ItemStack> inventory = data.getInventory(lootKey);
             if (inventory == null) {
                 return;
             }

@@ -1,10 +1,12 @@
 package com.rfizzle.prosperity.loot;
 
 import com.rfizzle.prosperity.attachment.InstancedLootData;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
@@ -64,6 +66,22 @@ public interface ContainerAdapter {
      * indicator protocol cannot address, so their adapter no-ops until the entity-anchored path (S-038).
      */
     void notifyGenerated(ServerPlayer player);
+
+    /**
+     * Party loot mode (issue #53): tell every online player in {@code members} that loot was just
+     * generated for their shared team instance here, so each of their clients drops the unlooted
+     * indicator — not only the opener's. Offline members are skipped (their client will re-scan the
+     * chunk on next load and see the container as team-looted). The block/minecart split mirrors
+     * {@link #notifyGenerated}.
+     */
+    void notifyGeneratedForMembers(MinecraftServer server, Set<UUID> members);
+
+    /**
+     * A stable identifier for the underlying container, used to key the party loot mode
+     * {@linkplain SharedInstanceLocks in-use lock} (issue #53). Dimension-qualified so the same
+     * position in two dimensions never aliases.
+     */
+    String containerId();
 
     /** Play the open sound and (for blocks) animate the lid. */
     void openFeedback();

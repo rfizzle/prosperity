@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Public, read-only API for Prosperity (Concord API Standard v1).
@@ -142,6 +144,57 @@ public final class ProsperityAPI {
         tiers.sort(Comparator.comparingInt(DistanceTier::minDistance));
         return tiers;
     }
+
+    // Party group-key providers (issue #53), consulted in registration order, first non-null wins.
+    // Copy-on-write so registration (mod init) and the server-thread query never contend.
+    private static final List<PartyGroupProvider> PARTY_GROUP_PROVIDERS = new CopyOnWriteArrayList<>();
+
+    /**
+     * Register a {@link PartyGroupProvider} so a social/party mod's own grouping drives party loot mode
+     * (issue #53) in place of vanilla scoreboard teams. Providers are consulted in registration order
+     * and the first non-null, non-blank {@link PartyGroupProvider#groupKey key} wins; when every
+     * provider defers, Prosperity falls back to the player's scoreboard team. Idempotent-safe to call at
+     * mod initialization. Only consulted while {@code partyLootMode} is enabled.
+     *
+     * @param provider the group-key provider to add; must not be {@code null}
+     */
+    public static void registerPartyGroupProvider(PartyGroupProvider provider) {
+        if (provider != null) {
+            PARTY_GROUP_PROVIDERS.add(provider);
+        }
+    }
+
+    /**
+     * The overriding party group key for {@code player} from the registered {@link PartyGroupProvider}s,
+     * or {@code null} when none supplies one (so the caller falls back to the scoreboard team). The
+     * first non-null, non-blank result wins. Each provider is invoked under host-side error isolation:
+     * one that throws is logged once and skipped, never breaking loot resolution. Server-thread only.
+     *
+     * @param player the player whose group is being resolved
+     * @return the overriding group key, or {@code null} to defer to the scoreboard-team default
+     */
+    @Nullable
+    public static String partyGroupOverride(ServerPlayer player) {
+        for (PartyGroupProvider provider : PARTY_GROUP_PROVIDERS) {
+            String key;
+            try {
+                key = provider.groupKey(player);
+            } catch (Throwable t) {
+                if (PARTY_PROVIDER_FAILURE_LOGGED.compareAndSet(false, true)) {
+                    Prosperity.LOGGER.warn("A party group provider threw; ignoring it for this and any"
+                            + " further failing queries", t);
+                }
+                continue;
+            }
+            if (key != null && !key.isBlank()) {
+                return key;
+            }
+        }
+        return null;
+    }
+
+    private static final java.util.concurrent.atomic.AtomicBoolean PARTY_PROVIDER_FAILURE_LOGGED =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     // Render-thread only — resolved once on the first ENV=CLIENT call.
     private static boolean hudHandlesResolved;

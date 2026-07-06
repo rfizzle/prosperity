@@ -10,6 +10,7 @@ import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.LootNotification;
 import com.rfizzle.prosperity.loot.LootRefresh;
 import com.rfizzle.prosperity.loot.LootScaling;
+import com.rfizzle.prosperity.loot.PartyLootKeys;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
@@ -112,7 +114,11 @@ public final class LootTooltip {
             return;
         }
 
-        UUID uuid = player.getUUID();
+        // In party loot mode the status is the shared team instance's, so a container a teammate has
+        // looted reads as looted here too (issue #53); off it, this is the player's own UUID.
+        UUID uuid = player instanceof ServerPlayer serverPlayer
+                ? PartyLootKeys.resolve(serverPlayer, data)
+                : player.getUUID();
         ResourceKey<LootTable> liveTable = container.getLootTable();
         boolean blacklisted = InstancedLootInteraction.isBlacklisted(liveTable);
         boolean generated = data != null && data.hasGenerated(uuid);

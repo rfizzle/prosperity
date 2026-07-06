@@ -212,6 +212,19 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setTooltip(tooltip("enable_trial_chamber_scaling"))
                     .setSaveConsumer(v -> working.enableTrialChamberScaling = v)
                     .build());
+            extended.addEntry(entry.startBooleanToggle(
+                            label("party_loot_mode"), working.partyLootMode)
+                    .setDefaultValue(false)
+                    .setTooltip(tooltip("party_loot_mode"))
+                    .setSaveConsumer(v -> working.partyLootMode = v)
+                    .build());
+            extended.addEntry(entry.startIntField(
+                            label("team_leave_grace_minutes"), working.teamLeaveGraceMinutes)
+                    .setDefaultValue(0)
+                    .setMin(0)
+                    .setTooltip(tooltip("team_leave_grace_minutes"))
+                    .setSaveConsumer(v -> working.teamLeaveGraceMinutes = v)
+                    .build());
 
             // --- HUD (client-only) ---
             ConfigCategory hud = builder.getOrCreateCategory(

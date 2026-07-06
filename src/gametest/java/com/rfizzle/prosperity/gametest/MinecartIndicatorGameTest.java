@@ -63,8 +63,10 @@ public class MinecartIndicatorGameTest implements FabricGameTest {
         ServerPlayer playerA = spawnPlayerAt(helper, rel);
         UUID b = UUID.randomUUID();
 
+        // Assert per cart id rather than whole-chunk counts: gametest structures pack several into one
+        // chunk and run concurrently, so a neighbour's loot cart can share this chunk.
         List<Integer> beforeA = scan(helper, rel, playerA.getUUID());
-        helper.assertTrue(beforeA.size() == 1 && beforeA.contains(cart.getId()),
+        helper.assertTrue(beforeA.contains(cart.getId()),
                 "player A should see the unlooted chest cart before generating");
         helper.assertTrue(scan(helper, rel, b).contains(cart.getId()),
                 "player B should also see the unlooted chest cart");
@@ -72,7 +74,7 @@ public class MinecartIndicatorGameTest implements FabricGameTest {
         InstancedLootInteraction.generateAndStore(
                 new MinecartContainerAdapter(helper.getLevel(), cart), playerA);
 
-        helper.assertTrue(scan(helper, rel, playerA.getUUID()).isEmpty(),
+        helper.assertFalse(scan(helper, rel, playerA.getUUID()).contains(cart.getId()),
                 "player A should no longer see the cart after generating");
         helper.assertTrue(scan(helper, rel, b).contains(cart.getId()),
                 "player B's unlooted set should be unaffected by player A generating");
@@ -89,7 +91,7 @@ public class MinecartIndicatorGameTest implements FabricGameTest {
         cart.setLootTable(TABLE, SEED);
 
         List<Integer> ids = scan(helper, rel, UUID.randomUUID());
-        helper.assertTrue(ids.size() == 1 && ids.contains(cart.getId()),
+        helper.assertTrue(ids.contains(cart.getId()),
                 "an unlooted hopper cart should be reported by the scan");
         helper.succeed();
     }
@@ -98,8 +100,8 @@ public class MinecartIndicatorGameTest implements FabricGameTest {
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
     public void plainCartExcluded(GameTestHelper helper) {
         BlockPos rel = new BlockPos(1, 1, 1);
-        spawnCart(helper, rel, new MinecartChest(helper.getLevel(), 0, 0, 0));
-        helper.assertTrue(scan(helper, rel, UUID.randomUUID()).isEmpty(),
+        MinecartChest cart = spawnCart(helper, rel, new MinecartChest(helper.getLevel(), 0, 0, 0));
+        helper.assertFalse(scan(helper, rel, UUID.randomUUID()).contains(cart.getId()),
                 "a player-placed chest cart with no loot table should never show an indicator");
         helper.succeed();
     }

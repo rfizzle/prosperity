@@ -90,13 +90,24 @@ public final class AbsentPlayerEviction {
      */
     static Set<UUID> evictablePlayers(InstancedLootData data, MinecraftServer server, long now,
             int thresholdDays) {
-        Set<UUID> tracked = data.trackedPlayerIds();
-        if (tracked.isEmpty()) {
+        // Candidates are the per-player entry holders plus every team-snapshot member (party loot mode,
+        // issue #53). A pure team member's loot state lives under the synthetic team key, so they never
+        // appear in trackedPlayerIds; unioning the snapshot members in lets eviction drop a long-departed
+        // member from the snapshot too — otherwise it would grow one UUID per historical member forever.
+        Set<UUID> candidates = new HashSet<>(data.trackedPlayerIds());
+        candidates.addAll(data.allTeamMembers());
+        if (candidates.isEmpty()) {
             return Set.of();
         }
         PlayerLastSeenState ledger = PlayerLastSeenState.get(server);
         Set<UUID> evict = new HashSet<>();
-        for (UUID player : tracked) {
+        for (UUID player : candidates) {
+            // A party loot mode team key is synthetic — no player list entry and no last-seen stamp — so
+            // it would always read as absent and the shared instance would be wrongly evicted. Skip team
+            // keys; a shared instance is reclaimed only once all its members are individually evicted.
+            if (data.isTeamKey(player)) {
+                continue;
+            }
             if (server.getPlayerList().getPlayer(player) != null) {
                 continue;
             }
