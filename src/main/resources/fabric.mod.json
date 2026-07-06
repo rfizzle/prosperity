@@ -65,7 +65,8 @@
         "roughlyenoughitems": "*",
         "jei": "*",
         "tribulation": "*",
-        "openpartiesandclaims": "*"
+        "openpartiesandclaims": "*",
+        "meridian": "*"
     },
     "mixins": [
         "prosperity.mixins.json"
