@@ -75,7 +75,7 @@
         },
         { "type": "prose", "html": [
           "Run <code class='text-accent2'>/prosperity info</code> to see your current tier, distance, and multipliers. Some structures override their tier — see <a href='/features.html#structure-overrides' class='text-accent hover:text-accent2 underline'>structure overrides</a>.",
-          "Prefer a glance to a chat command? Bind <strong class='text-bone'>Peek Loot Detail</strong> under Controls → Prosperity (unbound by default) and hold it to overlay your distance, current tier and progress, the full tier ladder, and the unlooted containers around you right now — see <a href='/features.html#peek-panel' class='text-accent hover:text-accent2 underline'>Peek Loot Detail</a>."
+          "Prefer a glance to a chat command? Hold <strong class='text-bone'>Left Alt</strong> — the default <strong class='text-bone'>Peek Loot Detail</strong> bind, rebindable under Controls → Prosperity — to overlay your distance, current tier and progress, the full tier ladder, and the unlooted containers around you right now — see <a href='/features.html#peek-panel' class='text-accent hover:text-accent2 underline'>Peek Loot Detail</a>."
         ] }
       ]
     },
