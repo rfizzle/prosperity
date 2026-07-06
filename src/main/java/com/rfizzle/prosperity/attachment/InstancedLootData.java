@@ -68,12 +68,25 @@ public final class InstancedLootData {
                     BlockPos.CODEC.optionalFieldOf("redirect")
                             .forGetter(d -> Optional.ofNullable(d.redirect)),
                     PlayerEntry.CODEC.listOf().optionalFieldOf("players", List.of())
-                            .forGetter(InstancedLootData::toEntries)
+                            .forGetter(InstancedLootData::toEntries),
+                    TeamEntry.CODEC.listOf().optionalFieldOf("teamMembers", List.of())
+                            .forGetter(InstancedLootData::toTeamEntries)
             ).apply(instance, InstancedLootData::fromCodec));
 
     private final Map<UUID, NonNullList<ItemStack>> playerInventories = new HashMap<>();
     private final Map<UUID, Long> lastGeneratedTick = new HashMap<>();
     private final Map<UUID, Long> refreshCount = new HashMap<>();
+
+    /**
+     * Party loot mode membership snapshot (issue #53): team loot key &rarr; the UUIDs of players who
+     * have opened this container under that team. Populated only in party loot mode, so it is empty (and
+     * absent from NBT) for a normal per-player container. It records which shared instance a player is
+     * bound to on this container even after they leave the team, closing the "leave, re-loot the same
+     * chest" loop &mdash; resolution, not migration. The team key itself is a synthetic (type-3) UUID
+     * that also indexes the per-player maps above, holding the shared inventory/tick/refresh; the
+     * members here are the real player UUIDs that resolve to it.
+     */
+    private final Map<UUID, Set<UUID>> teamMembers = new HashMap<>();
 
     private boolean generated;
     @Nullable
@@ -174,6 +187,68 @@ public final class InstancedLootData {
         playerInventories.remove(player);
         lastGeneratedTick.remove(player);
         refreshCount.remove(player);
+        // Also forget this player's team-membership records so a fully-evicted player is not silently
+        // re-bound to an old shared instance if they return. Drops any team set that empties out.
+        teamMembers.values().forEach(members -> members.remove(player));
+        teamMembers.values().removeIf(Set::isEmpty);
+    }
+
+    /**
+     * Record (party loot mode, issue #53) that {@code member} has opened this container under the shared
+     * {@code teamKey}, so they keep {@linkplain #teamKeyForMember resolving} to that instance even after
+     * leaving the team. Idempotent.
+     */
+    public void recordTeamMember(UUID teamKey, UUID member) {
+        teamMembers.computeIfAbsent(teamKey, key -> new HashSet<>()).add(member);
+    }
+
+    /** Whether {@code member} is recorded under the shared {@code teamKey} on this container. */
+    public boolean isTeamMember(UUID teamKey, UUID member) {
+        Set<UUID> members = teamMembers.get(teamKey);
+        return members != null && members.contains(member);
+    }
+
+    /**
+     * The team loot key this container has already bound {@code member} to, or {@code null} if none.
+     * Drives the "resolution, not migration" rule: a player who opened a container with their team stays
+     * on that instance for this container regardless of later team changes.
+     */
+    @Nullable
+    public UUID teamKeyForMember(UUID member) {
+        for (Map.Entry<UUID, Set<UUID>> entry : teamMembers.entrySet()) {
+            if (entry.getValue().contains(member)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    /** The synthetic team loot keys with a membership snapshot here, as a defensive copy. */
+    public Set<UUID> teamKeys() {
+        return new HashSet<>(teamMembers.keySet());
+    }
+
+    /** Whether {@code key} is a team loot key (has a membership snapshot), not an individual player. */
+    public boolean isTeamKey(UUID key) {
+        return teamMembers.containsKey(key);
+    }
+
+    /** The member UUIDs recorded under {@code teamKey}, as a defensive copy (empty if none). */
+    public Set<UUID> teamMembers(UUID teamKey) {
+        Set<UUID> members = teamMembers.get(teamKey);
+        return members == null ? Set.of() : new HashSet<>(members);
+    }
+
+    /**
+     * Every real player UUID recorded in any team snapshot here, as a defensive copy. A team member's
+     * loot state lives under the synthetic team key, so members never appear in {@link #trackedPlayerIds}
+     * — absent-player eviction (issue #43) unions this in so a long-departed member is dropped from the
+     * snapshot too, keeping it bounded (the "bound every persisted collection" invariant).
+     */
+    public Set<UUID> allTeamMembers() {
+        Set<UUID> members = new HashSet<>();
+        teamMembers.values().forEach(members::addAll);
+        return members;
     }
 
     /** The player's inventory, creating an empty one sized to {@code size} if absent. */
@@ -309,10 +384,23 @@ public final class InstancedLootData {
         return entries;
     }
 
+    /** The team-membership snapshot as a list of entries, sorted by team key for deterministic NBT. */
+    private List<TeamEntry> toTeamEntries() {
+        Set<UUID> keys = new TreeSet<>(teamMembers.keySet());
+        List<TeamEntry> entries = new ArrayList<>(keys.size());
+        for (UUID teamKey : keys) {
+            Set<UUID> members = teamMembers.get(teamKey);
+            if (members != null && !members.isEmpty()) {
+                entries.add(new TeamEntry(teamKey, new ArrayList<>(new TreeSet<>(members))));
+            }
+        }
+        return entries;
+    }
+
     private static InstancedLootData fromCodec(boolean generated,
             Optional<ResourceKey<LootTable>> originalLootTable, long originalSeed,
             Optional<String> tierName, Optional<ResourceLocation> structure,
-            Optional<BlockPos> redirect, List<PlayerEntry> players) {
+            Optional<BlockPos> redirect, List<PlayerEntry> players, List<TeamEntry> teamMembers) {
         InstancedLootData data = new InstancedLootData();
         data.generated = generated;
         data.originalLootTable = originalLootTable.orElse(null);
@@ -320,6 +408,11 @@ public final class InstancedLootData {
         data.tierName = tierName.orElse(null);
         data.structure = structure.orElse(null);
         data.redirect = redirect.orElse(null);
+        for (TeamEntry entry : teamMembers) {
+            if (!entry.members().isEmpty()) {
+                data.teamMembers.put(entry.teamKey(), new HashSet<>(entry.members()));
+            }
+        }
         for (PlayerEntry entry : players) {
             if (!entry.items().isEmpty()) {
                 NonNullList<ItemStack> inv = NonNullList.withSize(entry.items().size(), ItemStack.EMPTY);
@@ -352,5 +445,20 @@ public final class InstancedLootData {
                         Codec.LONG.optionalFieldOf("lastTick").forGetter(PlayerEntry::lastTick),
                         Codec.LONG.optionalFieldOf("refreshCount", 0L).forGetter(PlayerEntry::refreshCount)
                 ).apply(instance, PlayerEntry::new));
+    }
+
+    /**
+     * One shared instance's membership: the synthetic team loot key and the real player UUIDs bound to
+     * it on this container (party loot mode, issue #53). Serialized only when non-empty, so a normal
+     * per-player container adds nothing to NBT.
+     */
+    private record TeamEntry(UUID teamKey, List<UUID> members) {
+
+        private static final Codec<TeamEntry> CODEC = RecordCodecBuilder.create(instance ->
+                instance.group(
+                        UUIDUtil.STRING_CODEC.fieldOf("teamKey").forGetter(TeamEntry::teamKey),
+                        UUIDUtil.STRING_CODEC.listOf().optionalFieldOf("members", List.of())
+                                .forGetter(TeamEntry::members)
+                ).apply(instance, TeamEntry::new));
     }
 }

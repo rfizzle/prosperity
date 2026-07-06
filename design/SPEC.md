@@ -1317,6 +1317,38 @@ Icons are vanilla items (the root uses the mod's Prospector's Compass); titles a
 
 ---
 
+## 22. Party Loot Mode
+
+### Problem
+
+Instanced loot gives every player their own roll, but co-op groups exploring together often want the opposite: one shared discovery per group, so opening a chest together is a shared event rather than four parallel ones. The sweet spot is public/community servers — strangers still cannot strip a dungeon before your group arrives (the mod's core value), while within your party loot stays a shared pot like vanilla. Reduced group loot volume is a side effect, not the goal; this is opt-in cooperation, not economy enforcement.
+
+### Behavior
+
+- Config-gated by `partyLootMode` (default off). With it enabled, players on the same vanilla scoreboard team resolve to one shared **loot key** per container instead of their own UUID, so a single instance backs the whole team's inventory, generation, and refresh cooldown for that container.
+- The first team member to open a container generates the loot — their luck, entity context, and the container position seed the roll. Teammates opening later see the same shared inventory; what one takes is gone for the others.
+- Teamless players fall back to individual instancing while the mode is on. Leaving or joining a team affects only future generations — it never migrates existing instances.
+- **Membership snapshot** — a team instance records the member UUIDs that have opened it. Those players keep resolving to that instance for that container even after leaving the team (resolution, not migration), closing the "leave, re-loot the same chest" loop. The snapshot rides the container's persistent attachment.
+- **Leave grace** — optional `teamLeaveGraceMinutes` (default 0 = off): a player who recently resolved into a team keeps generating *new* instances against that former team's key for N real minutes, making leave/loot/rejoin cycling more hassle than it is worth. This memory is in-memory only (a deterrent, not enforcement) and does not survive a server restart.
+- **v1 concurrency** — a second teammate opening a shared instance already open by a teammate is refused with an action-bar message and a "no" cue (`prosperity.party.container_in_use`), rather than served a copy that a last-close-wins write would clobber. The in-use lock releases when the first member closes the screen. Live simultaneous access is a v2 candidate.
+- The unlooted indicator and Jade/WTHIT status reflect the shared state: a container looted by any teammate reads as looted for the whole team, and the refresh sweep re-lights it once for the team. Newly-bound teammates converge via the passive per-chunk scan.
+
+### API
+
+`ProsperityAPI.registerPartyGroupProvider(PartyGroupProvider)` lets a social/party mod supply the group key for a player in place of scoreboard teams. Providers are consulted in registration order under host-side error isolation; the first non-null, non-blank key wins, otherwise Prosperity falls back to the scoreboard team. Consulted only while `partyLootMode` is on.
+
+### Gaming and abuse (accepted by design)
+
+The obvious exploit is leave-team → open (fresh individual roll) → rejoin. In vanilla `/team` needs permission level 2, so players cannot self-serve membership; the exploit only becomes player-accessible when a free-join party mod supplies the group key via the API hook, at which point membership churn is that mod's policy surface. The snapshot and grace window raise the cost of cycling; airtight anti-abuse is a non-goal (players can always coordinate out-of-band). Likewise accepted: a team may send its highest-luck member to open first.
+
+### Implementation Notes
+
+- `PartyLootKeys.resolve(player, data)` is the single seam, side-effect-free: existing team-instance binding → existing individual instance → API/scoreboard current group → grace window → own UUID. The two "existing instance" short-circuits are both *resolution, not migration*: a player who opened a container with their team keeps that team instance even after leaving (closes leave-and-re-loot), and a player who looted a container solo keeps their individual instance even after joining a team (closes join-and-re-roll). Team keys are deterministic name-based (type-3) UUIDs (`teamKey`), which never collide with players' type-4 UUIDs, so a team key safely shares the per-player `InstancedLootData` maps. The resolved key is threaded in place of the player UUID at every read/write site (generation, refresh cooldown, indicator scan, Jade/WTHIT status, structure completion), so per-team sharing follows from the one keying change. The double-chest serve path resolves the key once and threads it into generation, the lock, and the close-time persist so the three cannot diverge. Read paths (scan, tooltip, sweep) resolve the current group once per pass and never stamp the grace memory; only the open path stamps it.
+- The membership snapshot lives on `InstancedLootData` (`teamMembers`, serialized in the CODEC). Absent-player eviction (§20) skips team keys so a shared instance is never wrongly evicted as an "absent player".
+- The in-use lock (`SharedInstanceLocks`) and the leave-grace memory (`PartyGraceTracker`) are transient, server-thread state cleared on server stop by `PartyLootMode`.
+
+---
+
 ## Configuration
 
 All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
@@ -1344,6 +1376,8 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `enableContainerProtection` | bool | false | Toggle container break protection |
 | `protectionBreakMultiplier` | float | 4.0 | Mining speed multiplier for protected containers |
 | `protectionUnbreakable` | bool | false | Make protected containers fully unbreakable in survival instead of merely slower |
+| `partyLootMode` | bool | false | Players on the same scoreboard team share one loot instance per container (§22) |
+| `teamLeaveGraceMinutes` | int | 0 | Minutes a player who left a team keeps generating new instances against the former team's key (0 = off) |
 | `enableMobLootScaling` | bool | true | Toggle distance scaling for mob drops |
 | `enableFishingLootScaling` | bool | true | Toggle distance scaling for fishing catches |
 | `enableTrialChamberScaling` | bool | true | Toggle distance scaling for trial chamber vault and spawner rewards |
@@ -1572,7 +1606,6 @@ Features that require visual/UI verification:
 
 - **Shared HUD library** — Extract the overhaul suite HUD convention into a standalone library mod that handles layout, stacking, and toggle. Each overhaul mod registers its badge; the library renders them.
 - **Loot history** — Track what a player has received from instanced containers across all sessions. Surface as a GUI or command.
-- **Party loot mode** — Players in a party (via a social mod) share a single loot instance instead of each getting their own.
 - **Trapped chest behavior** — Instanced trapped chests could trigger redstone only on first open per player.
 - **Container locking** — Players can lock their instanced inventory to prevent accidental item removal, with a distinct visual indicator.
 - **Loot preview** — Sneak-click to peek at partial loot without committing to generation.

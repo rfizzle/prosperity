@@ -87,8 +87,10 @@ public final class LootRefreshSweep {
 
     private static void sweepPlayer(ServerLevel level, ServerPlayer player, long cooldown,
             int viewDistance, long previous, long now) {
-        UUID uuid = player.getUUID();
         ChunkPos origin = player.chunkPosition();
+        // Resolve the player's current group (and any API provider) once for the whole sweep; the
+        // per-container resolve below only adds the snapshot/individual short-circuit.
+        UUID currentGroupKey = PartyLootKeys.currentGroupKey(player);
         for (int dx = -viewDistance; dx <= viewDistance; dx++) {
             for (int dz = -viewDistance; dz <= viewDistance; dz++) {
                 int cx = origin.x + dx;
@@ -97,7 +99,7 @@ public final class LootRefreshSweep {
                 if (chunk == null) {
                     continue;
                 }
-                if (chunkCrossedExpiry(chunk, uuid, cooldown, previous, now)) {
+                if (chunkCrossedExpiry(chunk, player, currentGroupKey, cooldown, previous, now)) {
                     ProsperityNetworking.sendUnlootedChunk(player, level, new ChunkPos(cx, cz));
                 }
             }
@@ -106,13 +108,14 @@ public final class LootRefreshSweep {
 
     /**
      * Whether any container in {@code chunk} holds loot for {@code player} whose cooldown elapsed in
-     * {@code (previous, now]}. A player's {@code lastGeneratedTick} exists once they have generated here
-     * and survives until a refresh clears it (it outlives an inventory evicted by looting), so this is
-     * precise enough to gate the resend; the resend itself runs the full per-player scan that filters
-     * blacklist/redirect cases.
+     * {@code (previous, now]}. Each container's instance key is resolved through {@link PartyLootKeys},
+     * so a shared team instance's per-team cooldown re-lights the indicator for every member (issue
+     * #53). A key's {@code lastGeneratedTick} exists once it has generated here and survives until a
+     * refresh clears it (it outlives an inventory evicted by looting), so this is precise enough to gate
+     * the resend; the resend itself runs the full party-aware scan that filters blacklist/redirect cases.
      */
-    private static boolean chunkCrossedExpiry(LevelChunk chunk, UUID player, long cooldown,
-            long previous, long now) {
+    private static boolean chunkCrossedExpiry(LevelChunk chunk, ServerPlayer player,
+            UUID currentGroupKey, long cooldown, long previous, long now) {
         for (BlockEntity be : chunk.getBlockEntities().values()) {
             if (!(be instanceof RandomizableContainerBlockEntity container)) {
                 continue;
@@ -121,7 +124,8 @@ public final class LootRefreshSweep {
             if (data == null) {
                 continue;
             }
-            if (LootRefresh.crossedExpiry(data.getLastGeneratedTick(player), cooldown, previous, now)) {
+            UUID key = PartyLootKeys.resolve(player, data, currentGroupKey);
+            if (LootRefresh.crossedExpiry(data.getLastGeneratedTick(key), cooldown, previous, now)) {
                 return true;
             }
         }

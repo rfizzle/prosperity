@@ -102,6 +102,18 @@ public class ProsperityConfig {
     public boolean enableContainerProtection = false;
     public float protectionBreakMultiplier = 4.0f;
     public boolean protectionUnbreakable = false;
+    /**
+     * Party loot mode (issue #53): when enabled, players on the same vanilla scoreboard team share a
+     * single loot instance per container (one inventory, one generation, one refresh cooldown) instead
+     * of each getting their own. Teamless players still get individual instances. Off by default.
+     */
+    public boolean partyLootMode = false;
+    /**
+     * Grace window, in real minutes, during which a player who just left a team keeps generating
+     * <em>new</em> shared instances against their former team's key (issue #53). {@code 0} (the default)
+     * disables the grace window; only meaningful while {@link #partyLootMode} is on.
+     */
+    public int teamLeaveGraceMinutes = 0;
     public boolean enableMobLootScaling = true;
     public boolean enableFishingLootScaling = true;
     public boolean enableTrialChamberScaling = true;
@@ -192,6 +204,7 @@ public class ProsperityConfig {
         lootRefreshDays = clampInt("lootRefreshDays", lootRefreshDays, 1, Integer.MAX_VALUE);
         absentPlayerEvictionDays = clampInt("absentPlayerEvictionDays", absentPlayerEvictionDays, 1, Integer.MAX_VALUE);
         protectionBreakMultiplier = clampFloat("protectionBreakMultiplier", protectionBreakMultiplier, 1.0f, 100.0f);
+        teamLeaveGraceMinutes = clampInt("teamLeaveGraceMinutes", teamLeaveGraceMinutes, 0, Integer.MAX_VALUE);
 
         if (distanceTiers == null) {
             distanceTiers = defaultDistanceTiers();

@@ -11,6 +11,8 @@ import com.rfizzle.prosperity.loot.completion.StructureCompletion;
 import com.rfizzle.prosperity.loot.eviction.AbsentPlayerEviction;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
+import java.util.OptionalInt;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
@@ -208,23 +210,48 @@ public final class InstancedLootInteraction {
     private static void serveDoubleInstance(ServerLevel level, BlockPos primaryPos,
             ChestBlockEntity primary, BlockPos secondaryPos, ChestBlockEntity secondary,
             ServerPlayer player) {
-        UUID uuid = player.getUUID();
-        NonNullList<ItemStack> stored =
-                generateAndStoreDouble(level, primaryPos, primary, secondaryPos, secondary, player);
-
-        SimpleContainer screenInventory = new SimpleContainer(DoubleChestLayout.TOTAL_SLOTS);
-        for (int slot = 0; slot < DoubleChestLayout.TOTAL_SLOTS; slot++) {
-            screenInventory.setItem(slot, stored.get(slot).copy());
+        // Keep the leave-grace memory fresh with the player's live group on this real open.
+        PartyLootKeys.stampGrace(player);
+        // The combined instance lives on the primary half, so resolve and lock against it (issue #53).
+        // Resolve exactly once here and thread the key into generation, the lock, and the close-time
+        // persist, so the three can never diverge (e.g. a non-deterministic API provider returning a
+        // different key on a second call would otherwise store under one key and persist under another).
+        UUID lootKey = PartyLootKeys.resolve(player, ProsperityAttachments.get(primary));
+        boolean shared = !lootKey.equals(player.getUUID());
+        String lockId = blockContainerId(level, primaryPos);
+        if (shared && !SharedInstanceLocks.tryAcquire(lootKey, lockId)) {
+            PartyLootKeys.refuseInUse(player, level, primaryPos.getCenter());
+            return;
         }
+        boolean lockHandedOff = false;
+        try {
+            NonNullList<ItemStack> stored =
+                    generateAndStoreDouble(level, primaryPos, primary, secondaryPos, secondary, player, lootKey);
 
-        Component title = Component.translatable("container.chestDouble");
-        player.openMenu(new SimpleMenuProvider(
-                (syncId, inventory, opener) -> InstancedLootMenu.createFor(syncId, inventory, screenInventory,
-                        () -> onCloseDouble(level, primaryPos, secondaryPos, uuid, screenInventory)),
-                title));
-        ContainerFeedback.playSound(level, primaryPos, SoundEvents.CHEST_OPEN);
-        ContainerFeedback.animate(level, primaryPos, primary, true);
-        ContainerFeedback.animate(level, secondaryPos, secondary, true);
+            SimpleContainer screenInventory = new SimpleContainer(DoubleChestLayout.TOTAL_SLOTS);
+            for (int slot = 0; slot < DoubleChestLayout.TOTAL_SLOTS; slot++) {
+                screenInventory.setItem(slot, stored.get(slot).copy());
+            }
+
+            Component title = Component.translatable("container.chestDouble");
+            OptionalInt opened = player.openMenu(new SimpleMenuProvider(
+                    (syncId, inventory, opener) -> InstancedLootMenu.createFor(syncId, inventory, screenInventory,
+                            () -> {
+                                onCloseDouble(level, primaryPos, secondaryPos, lootKey, screenInventory);
+                                if (shared) {
+                                    SharedInstanceLocks.release(lootKey, lockId);
+                                }
+                            }),
+                    title));
+            lockHandedOff = opened.isPresent();
+            ContainerFeedback.playSound(level, primaryPos, SoundEvents.CHEST_OPEN);
+            ContainerFeedback.animate(level, primaryPos, primary, true);
+            ContainerFeedback.animate(level, secondaryPos, secondary, true);
+        } finally {
+            if (shared && !lockHandedOff) {
+                SharedInstanceLocks.release(lootKey, lockId);
+            }
+        }
     }
 
     /**
@@ -236,33 +263,47 @@ public final class InstancedLootInteraction {
     public static NonNullList<ItemStack> generateAndStoreDouble(ServerLevel level, BlockPos primaryPos,
             ChestBlockEntity primary, BlockPos secondaryPos, ChestBlockEntity secondary,
             ServerPlayer player) {
-        UUID uuid = player.getUUID();
+        return generateAndStoreDouble(level, primaryPos, primary, secondaryPos, secondary, player,
+                PartyLootKeys.resolve(player, ProsperityAttachments.get(primary)));
+    }
+
+    /**
+     * {@link #generateAndStoreDouble} keyed on an already-resolved {@code lootKey}, so the serve path can
+     * resolve once and share the same key with the lock and the close-time persist (issue #53). The
+     * combined instance lives on the primary half, so all state is read/written under {@code lootKey}
+     * there.
+     */
+    public static NonNullList<ItemStack> generateAndStoreDouble(ServerLevel level, BlockPos primaryPos,
+            ChestBlockEntity primary, BlockPos secondaryPos, ChestBlockEntity secondary,
+            ServerPlayer player, UUID lootKey) {
         ContainerAdapter primaryAdapter = new BlockEntityContainerAdapter(level, primaryPos, primary);
         ContainerAdapter secondaryAdapter = new BlockEntityContainerAdapter(level, secondaryPos, secondary);
+        boolean shared = !lootKey.equals(player.getUUID());
+        recordMember(primaryAdapter, player, lootKey, shared);
         // Opportunistic absent-player eviction (issue #43) before any state is read: the combined
         // instance lives on the primary half, but the secondary can carry residual entries of its own
         // (e.g. from its earlier life as a single chest).
         AbsentPlayerEviction.prune(primaryAdapter);
         AbsentPlayerEviction.prune(secondaryAdapter);
         InstancedLootData primaryData = ProsperityAttachments.get(primary);
-        if (primaryData != null && primaryData.hasGenerated(uuid)) {
-            if (!LootRefresh.isExpired(primaryData, uuid, level.getGameTime())) {
+        if (primaryData != null && primaryData.hasGenerated(lootKey)) {
+            if (!LootRefresh.isExpired(primaryData, lootKey, level.getGameTime())) {
                 // Return visit: serve the stored combined inventory, or an empty 54-slot one when it
                 // was evicted after being looted clean — never re-roll fresh loot (S-016).
-                NonNullList<ItemStack> stored = primaryData.getInventory(uuid);
+                NonNullList<ItemStack> stored = primaryData.getInventory(lootKey);
                 return stored != null ? stored
                         : NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
             }
-            // Cooldown elapsed: clear the player's combined instance from the primary half, where
-            // the inventory and tick both live, so it re-rolls below (S-016).
-            ProsperityAttachments.update(primary, data -> data.clearForPlayer(uuid));
+            // Cooldown elapsed: clear the combined instance from the primary half, where the inventory
+            // and tick both live, so it re-rolls below (S-016).
+            ProsperityAttachments.update(primary, data -> data.clearForPlayer(lootKey));
         }
 
         LootRef primaryRef = resolveTable(primaryAdapter);
         LootRef secondaryRef = resolveTable(secondaryAdapter);
         // The combined instance and its refresh count both live on the primary half, so the salt for
         // both halves is read there (after any cooldown clear above has advanced it).
-        long salt = refreshSalt(primaryAdapter.data(), uuid);
+        long salt = refreshSalt(primaryAdapter.data(), lootKey);
         // The two halves are adjacent, so one tier (and structure) resolved at the primary applies to
         // both, and the loot-modifier event fires once for the whole double chest.
         Vec3 origin = primaryAdapter.origin();
@@ -285,12 +326,12 @@ public final class InstancedLootInteraction {
         }
         // One injected reward for the whole double chest, drawn against the primary half's table (S-014).
         boolean injected = LootInjectionManager.augment(combined, primaryRef.key(), tier, level,
-                primaryRef.seed(), salt, uuid);
+                primaryRef.seed(), salt, lootKey);
 
         primaryAdapter.update(data -> {
             data.markGenerated(primaryRef.key(), primaryRef.seed());
-            data.setInventory(uuid, combined);
-            data.setLastGeneratedTick(uuid, level.getGameTime());
+            data.setInventory(lootKey, combined);
+            data.setLastGeneratedTick(lootKey, level.getGameTime());
             data.setTierName(tier.name());
             data.setStructure(scaled.structure());
         });
@@ -301,8 +342,9 @@ public final class InstancedLootInteraction {
         primaryAdapter.clearLootTable();
         secondaryAdapter.clearLootTable();
         // The double chest's single indicator is anchored at the primary half (the scan emits only
-        // there), so drop that one for this player on first generation.
-        primaryAdapter.notifyGenerated(player);
+        // there), so drop that one on first generation — for the opener, and for every online teammate
+        // sharing this instance in party loot mode (issue #53).
+        notifyGenerated(primaryAdapter, player, lootKey, shared);
         // First-generation action-bar notification (S-021), reflecting the final modifier values.
         LootNotification.send(player, level, origin, scaled, mods.stackMultiplier(), mods.luck());
         // One stats increment for the whole double chest — the same "one generation" the salt,
@@ -315,54 +357,105 @@ public final class InstancedLootInteraction {
         return combined;
     }
 
-    /** Generate-or-retrieve the player's inventory, then open the matching vanilla screen. */
+    /**
+     * Generate-or-retrieve the player's inventory, then open the matching vanilla screen. In party loot
+     * mode (issue #53) the instance is keyed on the player's resolved team ({@link PartyLootKeys}); a
+     * shared instance already open by a teammate is refused with feedback rather than served a desynced
+     * copy, and the {@linkplain SharedInstanceLocks in-use lock} is released when the screen closes.
+     */
     public static void serveInstance(ContainerAdapter adapter, ServerPlayer player) {
-        UUID uuid = player.getUUID();
-        int size = adapter.size();
-        NonNullList<ItemStack> stored = generateAndStore(adapter, player);
-
-        SimpleContainer screenInventory = new SimpleContainer(size);
-        for (int slot = 0; slot < size; slot++) {
-            screenInventory.setItem(slot, stored.get(slot).copy());
+        // Keep the leave-grace memory fresh with the player's live group on this real open (read paths
+        // never stamp it, so a tooltip or scan cannot extend the window).
+        PartyLootKeys.stampGrace(player);
+        UUID lootKey = PartyLootKeys.resolve(player, adapter.data());
+        boolean shared = !lootKey.equals(player.getUUID());
+        String lockId = adapter.containerId();
+        if (shared && !SharedInstanceLocks.tryAcquire(lootKey, lockId)) {
+            // v1 concurrency: a second teammate opening a shared instance already in use is refused, not
+            // shown a copy that last-close-wins would clobber.
+            PartyLootKeys.refuseInUse(player, adapter.level(), adapter.origin());
+            return;
         }
+        boolean lockHandedOff = false;
+        try {
+            int size = adapter.size();
+            NonNullList<ItemStack> stored = generateAndStore(adapter, player, lootKey);
 
-        player.openMenu(new SimpleMenuProvider(
-                (syncId, inventory, opener) -> InstancedLootMenu.createFor(syncId, inventory, screenInventory,
-                        () -> {
-                            adapter.persist(uuid, screenInventory);
-                            adapter.closeFeedback();
-                        }),
-                adapter.displayName()));
-        adapter.openFeedback();
+            SimpleContainer screenInventory = new SimpleContainer(size);
+            for (int slot = 0; slot < size; slot++) {
+                screenInventory.setItem(slot, stored.get(slot).copy());
+            }
+
+            OptionalInt opened = player.openMenu(new SimpleMenuProvider(
+                    (syncId, inventory, opener) -> InstancedLootMenu.createFor(syncId, inventory, screenInventory,
+                            () -> {
+                                adapter.persist(lootKey, screenInventory);
+                                adapter.closeFeedback();
+                                if (shared) {
+                                    SharedInstanceLocks.release(lootKey, lockId);
+                                }
+                            }),
+                    adapter.displayName()));
+            // The lock is released by the menu-close hook only if the menu actually opened; if openMenu
+            // declined (no connection, player removed), the hook never fires, so the finally frees it.
+            lockHandedOff = opened.isPresent();
+            adapter.openFeedback();
+        } finally {
+            if (shared && !lockHandedOff) {
+                SharedInstanceLocks.release(lootKey, lockId);
+            }
+        }
     }
 
     /**
-     * Return the player's stored inventory, generating and persisting it on first visit. Records the
-     * generation tick, preserves the original loot table/seed in the attachment, and nulls the vanilla
-     * loot table on the source so a hopper or comparator cannot trigger vanilla's unpack and drain the
-     * global loot (S-006).
+     * Return the opener's stored inventory, generating and persisting it on first visit. Keyed on the
+     * player's own UUID; the party loot mode overload resolves the shared team key first.
      */
     public static NonNullList<ItemStack> generateAndStore(ContainerAdapter adapter, ServerPlayer player) {
-        UUID uuid = player.getUUID();
+        return generateAndStore(adapter, player, PartyLootKeys.resolve(player, adapter.data()));
+    }
+
+    /**
+     * Return the stored inventory for {@code lootKey}, generating and persisting it on first visit.
+     * Records the generation tick, preserves the original loot table/seed in the attachment, and nulls
+     * the vanilla loot table on the source so a hopper or comparator cannot trigger vanilla's unpack and
+     * drain the global loot (S-006).
+     *
+     * <p>{@code lootKey} is the instance key: the player's own UUID normally, or the shared team key in
+     * party loot mode (issue #53), so a team reads and writes one inventory, tick, and refresh count.
+     * The generation <em>context</em> stays the opening {@code player} — their luck, entity, and the
+     * container position seed the roll — matching "the first team member to open generates the loot". The
+     * base-loot roll seed therefore keys on the opener's UUID while the refresh salt and injection key on
+     * {@code lootKey}; this only affects <em>which</em> items a re-roll draws, never correctness, since a
+     * generated instance is always persisted and served back verbatim, never re-derived.
+     */
+    public static NonNullList<ItemStack> generateAndStore(ContainerAdapter adapter, ServerPlayer player,
+            UUID lootKey) {
+        boolean shared = !lootKey.equals(player.getUUID());
+        // Bind the opener to the shared instance (on first open and every return), so they keep
+        // resolving to it for this container after leaving the team, and the looted broadcast reaches
+        // them. Recorded before the read below so the snapshot already includes the opener.
+        recordMember(adapter, player, lootKey, shared);
         // Opportunistic absent-player eviction (issue #43) before any state is read, so an evicted
         // returning player falls through to a from-scratch generation below.
         AbsentPlayerEviction.prune(adapter);
         InstancedLootData existing = adapter.data();
-        if (existing != null && existing.hasGenerated(uuid)) {
-            if (!LootRefresh.isExpired(existing, uuid, adapter.level().getGameTime())) {
-                // A return visit before the cooldown: serve their stored inventory, or an empty one
-                // when it was evicted after they looted it clean — never re-roll fresh loot (S-016).
-                NonNullList<ItemStack> stored = existing.getInventory(uuid);
+        if (existing != null && existing.hasGenerated(lootKey)) {
+            if (!LootRefresh.isExpired(existing, lootKey, adapter.level().getGameTime())) {
+                // A return visit before the cooldown: serve the stored inventory, or an empty one
+                // when it was evicted after being looted clean — never re-roll fresh loot (S-016). For a
+                // team key this is a teammate seeing the shared pot exactly as the last one left it.
+                NonNullList<ItemStack> stored = existing.getInventory(lootKey);
                 return stored != null ? stored : NonNullList.withSize(adapter.size(), ItemStack.EMPTY);
             }
-            // Cooldown elapsed: drop the player's instance so a fresh one is rolled below (S-016).
-            // The preserved original loot table stays, so generation re-rolls from it.
-            adapter.update(data -> data.clearForPlayer(uuid));
+            // Cooldown elapsed: drop the instance so a fresh one is rolled below (S-016). The preserved
+            // original loot table stays, so generation re-rolls from it. Per-team when keyed on a team.
+            adapter.update(data -> data.clearForPlayer(lootKey));
         }
 
         LootRef ref = resolveTable(adapter);
         // Read after any cooldown clear above has advanced the refresh count, so a refresh re-rolls.
-        long salt = refreshSalt(adapter.data(), uuid);
+        long salt = refreshSalt(adapter.data(), lootKey);
         Vec3 origin = adapter.origin();
         LootScaling.ScaledTier scaled = LootScaling.resolveForGeneration(adapter.level(), origin);
         DistanceTier tier = scaled.tier();
@@ -372,27 +465,70 @@ public final class InstancedLootInteraction {
                 mods.luck(), mods.stackMultiplier());
         // Add one tier-and-dimension-eligible injected reward in an empty slot (S-014).
         boolean injected = LootInjectionManager.augment(generated, ref.key(), tier, adapter.level(),
-                ref.seed(), salt, uuid);
+                ref.seed(), salt, lootKey);
 
         adapter.update(data -> {
             data.markGenerated(ref.key(), ref.seed());
-            data.setInventory(uuid, generated);
-            data.setLastGeneratedTick(uuid, adapter.level().getGameTime());
+            data.setInventory(lootKey, generated);
+            data.setLastGeneratedTick(lootKey, adapter.level().getGameTime());
             data.setTierName(tier.name());
             data.setStructure(scaled.structure());
         });
         adapter.clearLootTable();
-        // First generation only (return visits returned above): drop this player's unlooted indicator.
-        adapter.notifyGenerated(player);
+        // First generation only (return visits returned above): drop the unlooted indicator for the
+        // opener, and for every online teammate sharing this instance (issue #53).
+        notifyGenerated(adapter, player, lootKey, shared);
         // First-generation action-bar notification (S-021), reflecting the final modifier values.
         LootNotification.send(player, adapter.level(), origin, scaled, mods.stackMultiplier(), mods.luck());
-        // Count this generation in the player's loot stats — first visits and refresh re-rolls both
+        // Count this generation in the opener's loot stats — first visits and refresh re-rolls both
         // land here; return visits took the early return above and are never counted (issue #52).
         recordStats(player, adapter.level(), origin, scaled, injected);
         // After the instance is stored: this may have been the structure's last unlooted container
-        // for the player, earning the completion bonus into the just-stored inventory.
+        // for the player (or team), earning the completion bonus into the just-stored inventory.
         StructureCompletion.onLootGenerated(adapter, player, ref.key(), tier, ref.seed(), salt);
         return generated;
+    }
+
+    /**
+     * Bind {@code player} to the shared instance keyed by {@code lootKey} on this container (party loot
+     * mode, issue #53), writing only when the snapshot does not already record them so a return visit
+     * does not needlessly re-dirty the block entity. No-op for an individual (non-shared) key.
+     */
+    private static void recordMember(ContainerAdapter adapter, ServerPlayer player, UUID lootKey,
+            boolean shared) {
+        if (!shared) {
+            return;
+        }
+        UUID member = player.getUUID();
+        InstancedLootData data = adapter.data();
+        if (data == null || !data.isTeamMember(lootKey, member)) {
+            adapter.update(d -> d.recordTeamMember(lootKey, member));
+        }
+    }
+
+    /**
+     * Drop the unlooted indicator on first generation: for an individual key, just the opener; for a
+     * shared team key, every online member recorded on this container (issue #53), so a teammate looking
+     * at the chest sees it go dark the moment the first opener generates.
+     */
+    private static void notifyGenerated(ContainerAdapter adapter, ServerPlayer player, UUID lootKey,
+            boolean shared) {
+        if (!shared) {
+            adapter.notifyGenerated(player);
+            return;
+        }
+        InstancedLootData data = adapter.data();
+        Set<UUID> members = data != null ? data.teamMembers(lootKey) : Set.of();
+        if (members.isEmpty()) {
+            adapter.notifyGenerated(player);
+        } else {
+            adapter.notifyGeneratedForMembers(player.getServer(), members);
+        }
+    }
+
+    /** A stable, dimension-qualified id for the block container at {@code pos} (in-use lock key). */
+    static String blockContainerId(ServerLevel level, BlockPos pos) {
+        return level.dimension().location() + "@" + pos.asLong();
     }
 
     /**
@@ -484,9 +620,9 @@ public final class InstancedLootInteraction {
 
     /** Persist the combined inventory back to the primary half and close-animate both halves. */
     private static void onCloseDouble(ServerLevel level, BlockPos primaryPos, BlockPos secondaryPos,
-            UUID uuid, Container screenInventory) {
+            UUID lootKey, Container screenInventory) {
         if (level.getBlockEntity(primaryPos) instanceof RandomizableContainerBlockEntity primary) {
-            persist(primary, uuid, screenInventory);
+            persist(primary, lootKey, screenInventory);
         }
         ContainerFeedback.playSound(level, primaryPos, SoundEvents.CHEST_CLOSE);
         if (level.getBlockEntity(primaryPos) instanceof ChestBlockEntity primary) {

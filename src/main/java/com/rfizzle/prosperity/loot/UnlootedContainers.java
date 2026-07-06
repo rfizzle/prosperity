@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -42,15 +43,38 @@ public final class UnlootedContainers {
     }
 
     /**
-     * The unlooted loot containers in {@code chunkPos} for {@code player}, or an empty list when the
-     * chunk is not loaded (the request is never allowed to force-load or generate a chunk).
+     * The unlooted loot containers in {@code chunkPos} for {@code player}, resolving party loot mode
+     * shared instances so a container looted by any teammate reads as looted for the whole team (issue
+     * #53). The party-aware entry point; production indicator sync uses this overload.
      */
-    public static List<Entry> scanChunk(ServerLevel level, ChunkPos chunkPos, UUID player) {
+    public static List<Entry> scanChunk(ServerLevel level, ChunkPos chunkPos, ServerPlayer player) {
+        return scanChunk(level, chunkPos, player.getUUID(), player);
+    }
+
+    /**
+     * The unlooted loot containers in {@code chunkPos} for the player with {@code playerId}, keyed on
+     * that UUID directly (no party resolution). Retained for callers that hold only a UUID; equivalent
+     * to the {@link ServerPlayer} overload when party loot mode is off.
+     */
+    public static List<Entry> scanChunk(ServerLevel level, ChunkPos chunkPos, UUID playerId) {
+        return scanChunk(level, chunkPos, playerId, null);
+    }
+
+    /**
+     * Core scan. {@code fallbackKey} is the instance key when {@code resolver} is {@code null}; when a
+     * {@code resolver} (the live player) is supplied, each container's key is resolved through
+     * {@link PartyLootKeys} so shared team instances report team-looted status.
+     */
+    private static List<Entry> scanChunk(ServerLevel level, ChunkPos chunkPos, UUID fallbackKey,
+            ServerPlayer resolver) {
         LevelChunk chunk = level.getChunkSource().getChunkNow(chunkPos.x, chunkPos.z);
         if (chunk == null) {
             return List.of();
         }
 
+        // Resolve the player's current group (and any API provider) once for the whole chunk; the
+        // per-container resolve below only adds the snapshot/individual short-circuit.
+        UUID currentGroupKey = resolver != null ? PartyLootKeys.currentGroupKey(resolver) : null;
         List<Entry> entries = new ArrayList<>();
         for (Map.Entry<BlockPos, BlockEntity> be : chunk.getBlockEntities().entrySet()) {
             if (!(be.getValue() instanceof RandomizableContainerBlockEntity container)) {
@@ -58,6 +82,9 @@ public final class UnlootedContainers {
             }
             BlockPos pos = be.getKey();
             InstancedLootData data = ProsperityAttachments.get(container);
+            UUID player = resolver != null
+                    ? PartyLootKeys.resolve(resolver, data, currentGroupKey)
+                    : fallbackKey;
             if (!InstancedLootInteraction.isLootContainer(container, data)) {
                 continue;
             }

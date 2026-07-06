@@ -47,6 +47,7 @@
             "com.rfizzle.prosperity.gametest.LootTableInspectorGameTest",
             "com.rfizzle.prosperity.gametest.MinecartIndicatorGameTest",
             "com.rfizzle.prosperity.gametest.MinecartInstancingGameTest",
+            "com.rfizzle.prosperity.gametest.PartyLootGameTest",
             "com.rfizzle.prosperity.gametest.MobLootScalingGameTest",
             "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest",
             "com.rfizzle.prosperity.gametest.StructureCompletionGameTest",
