@@ -72,6 +72,11 @@ public class ProsperityConfig {
         public Anchor hudAnchor = Anchor.TOP_LEFT;
         public int hudOffsetX = 4;
         public int hudOffsetY = 4;
+        /**
+         * Set once the player first opens the peek loot detail panel (S-082). Until then the tier badge
+         * shows a one-time hint chip naming the bound key; after the first peek the chip never returns.
+         */
+        public boolean peekHintDismissed = false;
     }
 
     // --- Server Config (SPEC §Configuration "Server Config") ---
