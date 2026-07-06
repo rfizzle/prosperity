@@ -1609,4 +1609,3 @@ Features that require visual/UI verification:
 - **Trapped chest behavior** — Instanced trapped chests could trigger redstone only on first open per player.
 - **Container locking** — Players can lock their instanced inventory to prevent accidental item removal, with a distinct visual indicator.
 - **Loot preview** — Sneak-click to peek at partial loot without committing to generation.
-- **Fishing loot scaling** — Extend distance tier scaling to fishing loot tables.
