@@ -3,6 +3,7 @@ package com.rfizzle.prosperity;
 import com.rfizzle.prosperity.advancement.ProsperityCriteria;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
+import com.rfizzle.prosperity.compat.ftbteams.FtbTeamsPartyCompat;
 import com.rfizzle.prosperity.compat.meridian.MeridianCompat;
 import com.rfizzle.prosperity.compat.opac.OpacPartyCompat;
 import com.rfizzle.prosperity.compat.tribulation.TribulationCompat;
@@ -58,6 +59,14 @@ public class Prosperity implements ModInitializer {
         // provider consumed by party loot mode; a no-op unless partyLootMode is enabled.
         if (FabricLoader.getInstance().isModLoaded("openpartiesandclaims")) {
             OpacPartyCompat.register();
+        }
+        // FtbTeamsPartyCompat is only class-loaded behind this guard. Like the OPAC adapter it
+        // registers a party group-key provider consumed by party loot mode; a no-op unless
+        // partyLootMode is enabled. Providers are consulted in registration order and the first
+        // non-null key wins, so with both party mods present OPAC (registered above) takes
+        // precedence — deterministic and harmless, since a player rarely runs both party systems.
+        if (FabricLoader.getInstance().isModLoaded("ftbteams")) {
+            FtbTeamsPartyCompat.register();
         }
         LootInjectionManager.init();
         LootIndexDataSource.init();
