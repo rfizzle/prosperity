@@ -60,6 +60,14 @@ class LootNotificationTest {
     }
 
     @Test
+    void firstOpenMessageMatchesLangFallback() {
+        // The fallback text must match the en_us.json value so headless renders read identically to a
+        // localized client (issue #86).
+        assertEquals("This loot was rolled just for you — other players get their own.",
+                LootNotification.buildFirstOpen().getString());
+    }
+
+    @Test
     void structureSuffixOnlyWhenOverrideChangedTier() {
         ResourceLocation monument = ResourceLocation.parse("minecraft:monument");
         // Structure present and the tier was raised/replaced → show the suffix.

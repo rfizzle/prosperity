@@ -584,7 +584,9 @@ public final class InstancedLootInteraction {
      * bucket, the structure's bucket when the container sits in one, and whether an injected reward
      * was actually placed. Recorded on the player attachment, so it survives relog and restart. Then
      * fire the milestone advancement criteria (issue #50) off the just-updated running totals, so the
-     * tab is driven from the same single generation choke point and inherits its gating.
+     * tab is driven from the same single generation choke point and inherits its gating. The player's
+     * very first generation — the {@code 0 → 1} transition of the lifetime count — also frames the
+     * instanced-loot promise once in chat (issue #86), from this same choke point.
      *
      * <p>Structure attribution must not depend on the scaling gates:
      * {@link LootScaling#resolveForGeneration} skips detection when distance scaling is off or no
@@ -598,6 +600,12 @@ public final class InstancedLootInteraction {
                 : LootScaling.resolveStructure(level, BlockPos.containing(origin));
         LootStatsData stats = ProsperityAttachments.updateStats(player,
                 data -> data.recordGeneration(scaled.tier().name(), structure, injectedPlaced));
+        // On the player's very first generation ever, frame the instanced-loot promise once (issue #86).
+        // The 0 → 1 transition of the lifetime container count is exactly that first moment, so this
+        // rides the same choke point and never re-fires on refreshes, return visits, or after relog.
+        if (stats.containersLooted() == 1) {
+            LootNotification.sendFirstOpen(player);
+        }
         // Fire milestone advancement criteria off the just-updated running totals (issue #50). Sharing
         // this choke point means the criteria inherit its return-visit / blacklist / passthrough gating.
         ProsperityCriteria.INSTANCED_LOOT.trigger(player, scaled.tier().name(),

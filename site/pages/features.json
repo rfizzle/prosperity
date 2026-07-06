@@ -168,6 +168,11 @@
               "html": ["Opening an instanced container shows an action-bar message with the loot tier and active modifiers, so the risk-versus-reward loop of exploration is visible."]
             },
             {
+              "id": "first-open-message",
+              "title": "First-Open Welcome",
+              "html": ["The very first instanced container a player ever opens also drops a one-time chat line — <code class='text-accent2'>This loot was rolled just for you — other players get their own.</code> — so newcomers understand up front why an already-looted dungeon still pays out for them. It fires once per player for their lifetime, never on return visits or later containers, and rides the same <code class='text-accent2'>enableLootNotifications</code> toggle as the tier message."]
+            },
+            {
               "id": "tier-hud",
               "title": "Tier HUD Badge",
               "html": ["A compact badge in the shared rfizzle HUD strip (slot 3) shows your current distance loot tier — a treasure-chest glyph and the tier name, drawn in the tier's color, updating live as you travel. Crossing a tier boundary briefly flashes the label gold. It stacks below Tribulation and Mercantile when installed, honors a configurable corner and offset, and is independently togglable."]

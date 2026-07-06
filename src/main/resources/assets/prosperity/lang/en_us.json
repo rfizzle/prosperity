@@ -123,6 +123,7 @@
     "command.prosperity.stats.tier": "  %s: %s",
     "command.prosperity.stats.structures": "Distinct structure types looted: %s",
     "command.prosperity.stats.injected": "Injected rewards received: %s",
+    "prosperity.notification.first_open": "This loot was rolled just for you — other players get their own.",
     "prosperity.notification.loot_generated": "✦ %s",
     "prosperity.notification.modifiers": " — %sx stacks, +%s quality",
     "prosperity.notification.structure": " (%s)",
