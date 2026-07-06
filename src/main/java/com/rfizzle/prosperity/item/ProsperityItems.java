@@ -19,7 +19,7 @@ import net.minecraft.world.item.Rarity;
 public final class ProsperityItems {
 
     public static final Item PROSPECTORS_COMPASS =
-            new Item(new Item.Properties().stacksTo(1).rarity(Rarity.UNCOMMON));
+            new ProspectorsCompassItem(new Item.Properties().stacksTo(1).rarity(Rarity.UNCOMMON));
 
     private static boolean registered = false;
 
