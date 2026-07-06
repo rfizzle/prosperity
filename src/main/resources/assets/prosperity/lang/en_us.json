@@ -76,6 +76,7 @@
     "prosperity.item.prospectors_compass.tooltip.spins": "Spins when nothing remains nearby",
     "key.categories.prosperity": "Prosperity",
     "key.prosperity.peek_loot_detail": "Peek Loot Detail",
+    "chat.prosperity.peek_hint": "✦ Hold %s to peek loot detail — the tier ladder, progress to the next tier, and nearby unlooted containers.",
     "hud.prosperity.loot_detail.title": "Loot Detail",
     "hud.prosperity.loot_detail.distance": "Distance: %s blocks",
     "hud.prosperity.loot_detail.next": "Next: %s at %s",

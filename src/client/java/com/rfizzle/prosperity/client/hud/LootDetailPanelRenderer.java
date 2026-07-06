@@ -113,10 +113,13 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
     @Override
     public void onHudRender(GuiGraphics graphics, DeltaTracker delta) {
         // Same visibility rules as the badge (F1, open screen, spectator, death, HUD enabled), plus
-        // the hold-to-peek gate. The keymapping is unbound by default, so isDown() stays false until
-        // the player binds it.
+        // the hold-to-peek gate. The keymapping defaults to Left Alt (S-082); a player who cleared the
+        // binding leaves isDown() false and never sees the panel.
         if (!ProsperityHudOverlay.isHudVisible()) return;
         if (ProsperityClient.KEY_PEEK_LOOT_DETAIL == null || !ProsperityClient.KEY_PEEK_LOOT_DETAIL.isDown()) return;
+
+        // First peek retires the one-time join-time discovery hint for good, persisted client-side (S-082).
+        dismissPeekHintOnce();
 
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
@@ -336,6 +339,21 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
             graphics.pose().popPose();
         }
         graphics.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /**
+     * Retire the one-time peek discovery hint the first time the panel opens (S-082): flip the
+     * client-side flag and persist it so the join-time chat hint never returns across sessions.
+     * Idempotent — the guard keeps the per-frame render path from re-saving on every held frame, so
+     * the synchronous {@code save()} on the render thread is a deliberate one-shot (one write per
+     * install), not a per-frame cost.
+     */
+    private static void dismissPeekHintOnce() {
+        ProsperityConfig.ClientConfig client = Prosperity.getConfig().client;
+        if (!client.peekHintDismissed) {
+            client.peekHintDismissed = true;
+            Prosperity.getConfig().save();
+        }
     }
 
     /**

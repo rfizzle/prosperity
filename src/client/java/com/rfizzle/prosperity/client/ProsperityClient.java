@@ -17,9 +17,11 @@ import org.lwjgl.glfw.GLFW;
 public class ProsperityClient implements ClientModInitializer {
 
     /**
-     * Hold-to-peek keybind for the loot detail panel (S-035). Unbound by default
-     * ({@link GLFW#GLFW_KEY_UNKNOWN}) so it never collides with another mod's binding — the player
-     * assigns it under Controls → Prosperity.
+     * Hold-to-peek keybind for the loot detail panel (S-035). Bound to Left Alt by default — the panel
+     * never captures the mouse or opens a {@link net.minecraft.client.gui.screens.Screen}, so the
+     * conflict risk of a real default is low, and it makes the mod's richest feedback surface
+     * discoverable without a Controls-menu visit. A player who has already assigned their own key keeps
+     * it: Fabric only applies the registered default for a binding absent from {@code options.txt}.
      */
     public static KeyMapping KEY_PEEK_LOOT_DETAIL;
 
@@ -28,13 +30,14 @@ public class ProsperityClient implements ClientModInitializer {
         KEY_PEEK_LOOT_DETAIL = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.prosperity.peek_loot_detail",
                 InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                GLFW.GLFW_KEY_LEFT_ALT,
                 "key.categories.prosperity"));
 
         ProsperityClientNetworking.init();
         ProspectorsCompassClient.register();
         UnlootedOverlayRenderer.register();
         ProsperityHudOverlay.register();
+        PeekHintMessage.register();
         HudRenderCallback.EVENT.register(new LootDetailPanelRenderer());
         // Let the common break-protection mixin read the client's queried multiplier (S-017).
         ContainerProtection.setClientView(ClientProtectionState.get());

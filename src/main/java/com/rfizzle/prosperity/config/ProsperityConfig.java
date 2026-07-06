@@ -72,6 +72,18 @@ public class ProsperityConfig {
         public Anchor hudAnchor = Anchor.TOP_LEFT;
         public int hudOffsetX = 4;
         public int hudOffsetY = 4;
+        /**
+         * Set once the player first opens the peek loot detail panel (S-082). Until then a chat hint
+         * naming the bound key is posted every fifth eligible world join; after the first peek it never
+         * returns.
+         */
+        public boolean peekHintDismissed = false;
+        /**
+         * Count of eligible world joins (hint pending, key bound) seen so far (S-082) — drives the
+         * "once per five sessions" cadence of the peek discovery hint. Frozen once
+         * {@link #peekHintDismissed} is set.
+         */
+        public int peekHintJoins = 0;
     }
 
     // --- Server Config (SPEC §Configuration "Server Config") ---
@@ -232,6 +244,7 @@ public class ProsperityConfig {
         }
         client.hudOffsetX = Math.clamp(client.hudOffsetX, 0, 10_000);
         client.hudOffsetY = Math.clamp(client.hudOffsetY, 0, 10_000);
+        client.peekHintJoins = Math.max(0, client.peekHintJoins);
     }
 
     /**
