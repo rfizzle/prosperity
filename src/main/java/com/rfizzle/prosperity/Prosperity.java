@@ -4,6 +4,7 @@ import com.rfizzle.prosperity.advancement.ProsperityCriteria;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
 import com.rfizzle.prosperity.compat.meridian.MeridianCompat;
+import com.rfizzle.prosperity.compat.opac.OpacPartyCompat;
 import com.rfizzle.prosperity.compat.tribulation.TribulationCompat;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.item.ProsperityItems;
@@ -52,6 +53,11 @@ public class Prosperity implements ModInitializer {
         // MeridianCompat is only class-loaded behind this guard.
         if (FabricLoader.getInstance().isModLoaded("meridian")) {
             MeridianCompat.register();
+        }
+        // OpacPartyCompat is only class-loaded behind this guard. It registers a party group-key
+        // provider consumed by party loot mode; a no-op unless partyLootMode is enabled.
+        if (FabricLoader.getInstance().isModLoaded("openpartiesandclaims")) {
+            OpacPartyCompat.register();
         }
         LootInjectionManager.init();
         LootIndexDataSource.init();

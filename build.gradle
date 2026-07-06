@@ -250,6 +250,11 @@ dependencies {
     // Modrinth project is not publicly resolvable; swap to maven.modrinth once it is.
     modCompileOnly "rfizzle:meridian:${project.meridian_version}"
 
+    // Open Parties and Claims — player-managed party mod; soft dependency for party loot grouping.
+    // Compile-only against its xaero.pac.common.server.*.api surface behind an isModLoaded guard,
+    // never bundled and with no dev runtime — with OPAC absent the mod behaves identically.
+    modCompileOnly "maven.modrinth:open-parties-and-claims:${project.opac_version}"
+
     // Tests
     testImplementation platform("org.junit:junit-bom:${project.junit_version}")
     testImplementation "org.junit.jupiter:junit-jupiter"
