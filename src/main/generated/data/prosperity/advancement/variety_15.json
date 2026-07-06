@@ -1,0 +1,30 @@
+{
+  "parent": "prosperity:variety_8",
+  "criteria": {
+    "distinct_structures": {
+      "conditions": {
+        "min_structures": 15
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "advancements.prosperity.variety_15.description"
+    },
+    "frame": "challenge",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:echo_shard"
+    },
+    "title": {
+      "translate": "advancements.prosperity.variety_15.title"
+    }
+  },
+  "requirements": [
+    [
+      "distinct_structures"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

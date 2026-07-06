@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity;
 
+import com.rfizzle.prosperity.advancement.ProsperityCriteria;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.command.ProsperityCommand;
 import com.rfizzle.prosperity.compat.meridian.MeridianCompat;
@@ -33,6 +34,7 @@ public class Prosperity implements ModInitializer {
         config = ProsperityConfig.load();
         ProsperityItems.register();
         ProsperityAttachments.init();
+        ProsperityCriteria.register();
         ProsperityNetworking.register();
         InstancedLootInteraction.register();
         MinecartLootInteraction.register();

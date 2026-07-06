@@ -1,8 +1,10 @@
 package com.rfizzle.prosperity.loot;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.advancement.ProsperityCriteria;
 import com.rfizzle.prosperity.api.LootModifierContext;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
+import com.rfizzle.prosperity.attachment.LootStatsData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.loot.completion.StructureCompletion;
@@ -444,7 +446,9 @@ public final class InstancedLootInteraction {
     /**
      * Count one generation in the player's persistent loot stats (issue #52): the effective tier's
      * bucket, the structure's bucket when the container sits in one, and whether an injected reward
-     * was actually placed. Recorded on the player attachment, so it survives relog and restart.
+     * was actually placed. Recorded on the player attachment, so it survives relog and restart. Then
+     * fire the milestone advancement criteria (issue #50) off the just-updated running totals, so the
+     * tab is driven from the same single generation choke point and inherits its gating.
      *
      * <p>Structure attribution must not depend on the scaling gates:
      * {@link LootScaling#resolveForGeneration} skips detection when distance scaling is off or no
@@ -456,8 +460,12 @@ public final class InstancedLootInteraction {
             LootScaling.ScaledTier scaled, boolean injectedPlaced) {
         ResourceLocation structure = scaled.structure() != null ? scaled.structure()
                 : LootScaling.resolveStructure(level, BlockPos.containing(origin));
-        ProsperityAttachments.updateStats(player,
-                stats -> stats.recordGeneration(scaled.tier().name(), structure, injectedPlaced));
+        LootStatsData stats = ProsperityAttachments.updateStats(player,
+                data -> data.recordGeneration(scaled.tier().name(), structure, injectedPlaced));
+        // Fire milestone advancement criteria off the just-updated running totals (issue #50). Sharing
+        // this choke point means the criteria inherit its return-visit / blacklist / passthrough gating.
+        ProsperityCriteria.INSTANCED_LOOT.trigger(player, scaled.tier().name(),
+                stats.containersLooted(), stats.distinctStructures());
     }
 
     /**

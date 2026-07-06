@@ -1,0 +1,30 @@
+{
+  "parent": "prosperity:volume_10",
+  "criteria": {
+    "looted_containers": {
+      "conditions": {
+        "min_containers": 50
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "advancements.prosperity.volume_50.description"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:gold_ingot"
+    },
+    "title": {
+      "translate": "advancements.prosperity.volume_50.title"
+    }
+  },
+  "requirements": [
+    [
+      "looted_containers"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

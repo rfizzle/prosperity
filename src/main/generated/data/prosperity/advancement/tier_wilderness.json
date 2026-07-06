@@ -1,0 +1,30 @@
+{
+  "parent": "prosperity:tier_frontier",
+  "criteria": {
+    "reached_tier": {
+      "conditions": {
+        "tier": "wilderness"
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "advancements.prosperity.tier_wilderness.description"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:compass"
+    },
+    "title": {
+      "translate": "advancements.prosperity.tier_wilderness.title"
+    }
+  },
+  "requirements": [
+    [
+      "reached_tier"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

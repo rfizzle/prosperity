@@ -1,0 +1,30 @@
+{
+  "parent": "prosperity:variety_3",
+  "criteria": {
+    "distinct_structures": {
+      "conditions": {
+        "min_structures": 8
+      },
+      "trigger": "prosperity:instanced_loot"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "advancements.prosperity.variety_8.description"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:filled_map"
+    },
+    "title": {
+      "translate": "advancements.prosperity.variety_8.title"
+    }
+  },
+  "requirements": [
+    [
+      "distinct_structures"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

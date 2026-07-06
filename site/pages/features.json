@@ -187,6 +187,39 @@
       ]
     },
     {
+      "id": "advancements",
+      "title": "Milestone Advancements",
+      "blocks": [
+        {
+          "type": "prose",
+          "html": [
+            "A Prosperity advancement tab turns the exploration and looting loops into concrete goals. Every milestone is granted server-side the moment loot is generated, so it counts only real instanced generations &mdash; return visits, blacklisted containers, and vanilla-passthrough opens never move the needle &mdash; and progress rides your player data across relogs and restarts. The tab hangs three chains off a Prospector's Compass root, with the deepest rung of each as a challenge."
+          ]
+        },
+        {
+          "type": "cards",
+          "mdColumns": 3,
+          "items": [
+            {
+              "id": "tier-milestones",
+              "title": "Tier Milestones",
+              "html": ["The first instanced container you loot in each distance tier — Frontier, Wilderness, Outlands, and the far Depths — in a linear chain that follows you outward from spawn. Requires distance scaling to be enabled."]
+            },
+            {
+              "id": "volume-milestones",
+              "title": "Volume Milestones",
+              "html": ["Loot 10, then 50, then 250 instanced containers over your lifetime. A double chest counts once; a refreshed container you re-loot counts again."]
+            },
+            {
+              "id": "variety-milestones",
+              "title": "Variety Milestones",
+              "html": ["Loot containers across 3, 8, then 15 distinct structure types, rewarding breadth of exploration over grinding a single ruin."]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "protection",
       "title": "Container Protection",
       "blocks": [

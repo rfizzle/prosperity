@@ -1291,6 +1291,32 @@ Bounding the stored inventories (a player's entry is evicted once they loot a co
 
 ---
 
+## 21. Milestone Advancements
+
+A Prosperity advancement tab that gives the exploration and looting loops the goals and milestones vanilla communicates through advancements.
+
+### Problem
+
+Distance tiers and instanced looting have no progression feedback. Crossing into Wilderness or looting a hundredth chest goes unacknowledged, so the exploration loop lacks the concrete goalposts advancements otherwise provide.
+
+### Behavior
+
+Three milestone families hang off a root advancement (icon: Prospector's Compass), each granted server-side at loot-generation time:
+
+- **Tier** — the first instanced container looted in each distance tier, as a linear chain in geographic order: Frontier → Wilderness → Outlands → Depths (Depths is a challenge). The Local baseline tier has no milestone.
+- **Volume** — lifetime count of instanced containers looted: 10 / 50 / 250 (250 is a challenge).
+- **Variety** — distinct structure types a container has been looted in: 3 / 8 / 15 (15 is a challenge).
+
+Icons are vanilla items (the root uses the mod's Prospector's Compass); titles and descriptions are `advancements.prosperity.*` translation keys.
+
+### Implementation Notes
+
+- **One criterion trigger backs the whole tab.** `prosperity:instanced_loot` (a `SimpleCriterionTrigger`, registered into `BuiltInRegistries.TRIGGER_TYPES` by `ProsperityCriteria`) fires once per generation. Its instance predicate carries three optional fields — `tier` (exact match), `min_containers`, `min_structures` — and each advancement sets only the one it needs; an unset field never gates. Because an advancement grants only once, "first container in tier X" needs no extra bookkeeping.
+- **Fired from the single generation choke point.** `InstancedLootInteraction.recordStats` — the same place per-player loot stats (§15) are recorded — fires the trigger off the just-updated running totals. Both container paths reach it only after their return-visit / blacklist / vanilla-passthrough early returns, so the criteria inherit that gating: return visits, blacklisted containers, and vanilla opens never count, and the counters ride the persistent `LootStatsData` attachment, surviving relog and restart.
+- **Datagen'd, not hand-written.** `ProsperityAdvancementProvider` (the mod's first `FabricDataGenerator.Pack` provider) emits every advancement JSON, keeping the predicates in lockstep with the trigger's field names. The tier milestones only fire while distance scaling is enabled (a disabled scaler resolves every container to Local); volume and variety fire regardless.
+
+---
+
 ## Configuration
 
 All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
