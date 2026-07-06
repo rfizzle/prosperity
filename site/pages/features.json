@@ -64,7 +64,7 @@
           "type": "prose",
           "html": [
             "A gold-cased compass whose needle points at the nearest container <em>you</em> have not looted yet — the same per-player unlooted set the sparkle indicators show, so blacklisted containers are never targeted and a refreshed container becomes a target again. Loot the target and the needle swings to the next nearest candidate; with nothing unlooted in loaded range the needle spins idly, like a vanilla compass in the Nether.",
-            "Each player's compass points somewhere different, because each player's loot history is different. Found in injected chest loot at the Frontier tier and beyond — the deeper you explore, the sooner you find the tool that keeps you exploring."
+            "Each player's compass points somewhere different, because each player's loot history is different. The lucky way to find one is in injected chest loot at the Frontier tier and beyond — the deeper you explore, the sooner it turns up. The deliberate way is to craft one: a vanilla compass framed in a gold casing with an end rod for the needle and a netherite ingot at the crown. The recipe is intentionally late-game, because a tool that reveals the bearing and distance to your nearest unlooted container is one you should earn."
           ]
         }
       ]

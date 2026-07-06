@@ -42,6 +42,10 @@
               "a": "Yes. Prosperity exposes a Fabric-style <code class='text-accent2'>LootModifierCallback</code> event and a datapack loot-injection system. See the <a href='/api.html' class='text-accent hover:text-accent2 underline'>API page</a>."
             },
             {
+              "q": "How do I get a Prospector's Compass?",
+              "a": "Two ways. It turns up rarely in injected chest loot at the Frontier tier and beyond — the lucky early find. Or you can craft one deliberately: a vanilla compass ringed by gold ingots with an end rod below it and a netherite ingot above. The recipe is intentionally late-game, since the compass reveals the bearing and distance to your nearest unlooted container. Because it's a normal crafting recipe, it shows up in EMI, REI, and JEI once those viewers are installed."
+            },
+            {
               "q": "Which Minecraft and Fabric versions are supported?",
               "a": "Minecraft <strong class='text-bone'>1.21.1</strong> on the Fabric loader (0.16.10+), with Fabric API and Java 21. There's no Forge/NeoForge build. Watch the <a href='https://github.com/rfizzle/prosperity/releases' rel='noopener noreferrer' target='_blank' class='text-accent hover:text-accent2 underline'>releases page</a> for version bumps."
             }

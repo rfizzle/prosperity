@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "C": {
+      "item": "minecraft:compass"
+    },
+    "E": {
+      "item": "minecraft:end_rod"
+    },
+    "G": {
+      "item": "minecraft:gold_ingot"
+    },
+    "N": {
+      "item": "minecraft:netherite_ingot"
+    }
+  },
+  "pattern": [
+    "GNG",
+    "GCG",
+    "GEG"
+  ],
+  "result": {
+    "count": 1,
+    "id": "prosperity:prospectors_compass"
+  }
+}
