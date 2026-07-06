@@ -118,7 +118,7 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
         if (!ProsperityHudOverlay.isHudVisible()) return;
         if (ProsperityClient.KEY_PEEK_LOOT_DETAIL == null || !ProsperityClient.KEY_PEEK_LOOT_DETAIL.isDown()) return;
 
-        // First peek retires the one-time badge hint chip for good, persisted client-side (S-082).
+        // First peek retires the one-time join-time discovery hint for good, persisted client-side (S-082).
         dismissPeekHintOnce();
 
         Minecraft mc = Minecraft.getInstance();
@@ -342,10 +342,11 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
     }
 
     /**
-     * Retire the one-time peek hint chip the first time the panel opens (S-082): flip the client-side
-     * flag and persist it so the chip never returns across sessions. Idempotent — the guard keeps the
-     * per-frame render path from re-saving on every held frame, so the synchronous {@code save()} on
-     * the render thread is a deliberate one-shot (one write per install), not a per-frame cost.
+     * Retire the one-time peek discovery hint the first time the panel opens (S-082): flip the
+     * client-side flag and persist it so the join-time chat hint never returns across sessions.
+     * Idempotent — the guard keeps the per-frame render path from re-saving on every held frame, so
+     * the synchronous {@code save()} on the render thread is a deliberate one-shot (one write per
+     * install), not a per-frame cost.
      */
     private static void dismissPeekHintOnce() {
         ProsperityConfig.ClientConfig client = Prosperity.getConfig().client;

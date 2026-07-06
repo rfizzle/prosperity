@@ -37,6 +37,7 @@ public class ProsperityClient implements ClientModInitializer {
         ProspectorsCompassClient.register();
         UnlootedOverlayRenderer.register();
         ProsperityHudOverlay.register();
+        PeekHintMessage.register();
         HudRenderCallback.EVENT.register(new LootDetailPanelRenderer());
         // Let the common break-protection mixin read the client's queried multiplier (S-017).
         ContainerProtection.setClientView(ClientProtectionState.get());

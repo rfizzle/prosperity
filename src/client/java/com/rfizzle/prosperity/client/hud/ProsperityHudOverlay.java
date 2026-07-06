@@ -1,7 +1,6 @@
 package com.rfizzle.prosperity.client.hud;
 
 import com.rfizzle.prosperity.Prosperity;
-import com.rfizzle.prosperity.client.ProsperityClient;
 import com.rfizzle.prosperity.client.network.ClientProsperityData;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
@@ -49,10 +48,6 @@ public final class ProsperityHudOverlay {
     private static final int ICON_TEXT_GAP = 3;
     /** Semi-transparent dark badge background (SPEC §14). */
     private static final int BG_COLOR = 0x80000000;
-    /** Subtle box behind the one-time peek hint chip (S-082). */
-    private static final int HINT_CHIP_BG = 0x66000000;
-    /** Soft gold text for the peek hint chip — catches the eye without shouting (S-082). */
-    private static final int HINT_CHIP_COLOR = 0xFFFFE080;
 
     /**
      * This element's height contribution for sibling HUD coordination (HUD-STANDARD §3/§6): the
@@ -103,28 +98,10 @@ public final class ProsperityHudOverlay {
                 "prosperity.tier." + tierName, HudMath.displayName(tierName));
         int textW = font.width(label);
 
-        ProsperityConfig.ClientConfig client = Prosperity.getConfig().client;
-
-        // One-time peek hint chip (S-082): a [key] chip beside the label naming the bound peek key,
-        // shown until the player peeks once (and only while the key is actually bound). It sits to the
-        // right of the label — included in badgeW so a right-anchored badge stays on-screen, but never
-        // adding to badgeH so it can't disturb sibling HUD stacking.
-        boolean keyUnbound = ProsperityClient.KEY_PEEK_LOOT_DETAIL == null
-                || ProsperityClient.KEY_PEEK_LOOT_DETAIL.isUnbound();
-        boolean showHint = PeekHintMath.shouldShowHint(client.peekHintDismissed, keyUnbound);
-        Component hint = null;
-        int hintTextW = 0;
-        int chipExtra = 0;
-        if (showHint) {
-            hint = Component.translatable("hud.prosperity.peek_hint",
-                    ProsperityClient.KEY_PEEK_LOOT_DETAIL.getTranslatedKeyMessage());
-            hintTextW = font.width(hint);
-            chipExtra = PeekHintMath.chipWidth(hintTextW);
-        }
-
-        int badgeW = PAD_H + ICON_SIZE + ICON_TEXT_GAP + textW + PAD_H + chipExtra;
+        int badgeW = PAD_H + ICON_SIZE + ICON_TEXT_GAP + textW + PAD_H;
         int badgeH = ICON_SIZE + PAD_V * 2;
 
+        ProsperityConfig.ClientConfig client = Prosperity.getConfig().client;
         ProsperityConfig.Anchor anchor = client.hudAnchor != null ? client.hudAnchor : ProsperityConfig.Anchor.TOP_LEFT;
         int stackOffset = HudMath.stackOffsetFor(anchor, TRIBULATION.current() + MERCANTILE.current());
         int x = HudMath.computeOriginX(anchor, graphics.guiWidth(), client.hudOffsetX, badgeW);
@@ -144,15 +121,6 @@ public final class ProsperityHudOverlay {
         int textX = iconX + ICON_SIZE + ICON_TEXT_GAP;
         int textY = y + (badgeH - font.lineHeight) / 2 + 1;
         graphics.drawString(font, label, textX, textY, color, true);
-
-        // Peek hint chip, drawn to the right of the tier label.
-        if (showHint) {
-            int chipX = textX + textW + PeekHintMath.CHIP_GAP;
-            int chipW = PeekHintMath.CHIP_PAD_H + hintTextW + PeekHintMath.CHIP_PAD_H;
-            // -1 drops the box a pixel off the glyph tops so the text sits optically centered in it.
-            graphics.fill(chipX, textY - PAD_V, chipX + chipW, textY + font.lineHeight - 1 + PAD_V, HINT_CHIP_BG);
-            graphics.drawString(font, hint, chipX + PeekHintMath.CHIP_PAD_H, textY, HINT_CHIP_COLOR, true);
-        }
     }
 
     private static boolean shouldRender(Minecraft mc) {
