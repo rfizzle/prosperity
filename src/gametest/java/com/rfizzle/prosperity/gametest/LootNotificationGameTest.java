@@ -49,6 +49,38 @@ public class LootNotificationGameTest implements FabricGameTest {
         helper.succeed();
     }
 
+    /**
+     * The first-open framing (issue #86) renders its plain chat sentence and honors the config gate,
+     * mirroring the tier notification. The once-per-player semantics ride the lifetime container
+     * count's 0 → 1 transition, exercised end-to-end in {@code LootStatsGameTest}.
+     */
+    @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void firstOpenMessageHonorsConfigToggle(GameTestHelper helper) {
+        helper.assertTrue(
+                LootNotification.buildFirstOpen().getString()
+                        .equals("This loot was rolled just for you — other players get their own."),
+                "the first-open message must render its plain chat sentence");
+
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        boolean saved = Prosperity.getConfig().enableLootNotifications;
+        try {
+            Prosperity.getConfig().enableLootNotifications = false;
+            helper.assertTrue(LootNotification.sendFirstOpen(player) == null,
+                    "a disabled toggle must suppress the first-open message");
+
+            Prosperity.getConfig().enableLootNotifications = true;
+            Component sent = LootNotification.sendFirstOpen(player);
+            helper.assertTrue(sent != null && sent.getString()
+                            .equals("This loot was rolled just for you — other players get their own."),
+                    "an enabled toggle must send the first-open message");
+        } finally {
+            Prosperity.getConfig().enableLootNotifications = saved;
+        }
+        player.discard();
+        helper.succeed();
+    }
+
     /** {@code send} returns null (and shows nothing) when notifications are off, the message when on. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
     @SuppressWarnings("removal")

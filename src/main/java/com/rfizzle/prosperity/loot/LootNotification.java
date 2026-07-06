@@ -67,6 +67,33 @@ public final class LootNotification {
     }
 
     /**
+     * Send the one-time first-open framing (issue #86) as a chat line the first time a player has
+     * instanced loot generated, honoring {@code enableLootNotifications} like every other loot
+     * notification. Sent to chat, not the action bar, so it coexists with the tier toast that fires
+     * the same tick. The caller gates the once-per-player semantics off the {@code 0 → 1} transition
+     * of the player's lifetime container count, so this method only shapes and gates the send.
+     * Returns the message that was sent, or {@code null} when notifications are disabled.
+     */
+    @Nullable
+    public static Component sendFirstOpen(ServerPlayer player) {
+        if (!Prosperity.getConfig().enableLootNotifications) {
+            return null;
+        }
+        Component message = buildFirstOpen();
+        player.displayClientMessage(message, false);
+        return message;
+    }
+
+    /**
+     * Assemble the first-open framing: a plain chat sentence explaining that instanced loot is rolled
+     * per player. Localizable with a fallback so it renders deterministically on a headless server.
+     */
+    public static Component buildFirstOpen() {
+        return Component.translatableWithFallback("prosperity.notification.first_open",
+                "This loot was rolled just for you — other players get their own.");
+    }
+
+    /**
      * Assemble the completion fanfare: the structure's display name (localizable with a humanized
      * fallback, so modded structures still read sensibly) in a {@code "✦ %s cleared!"} frame.
      */
