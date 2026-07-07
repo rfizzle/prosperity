@@ -228,7 +228,7 @@ A mod conforms to the Concord API Standard when:
 - [ ] Events are Fabric `Event`s named `<Mod><Thing>Callback` with every trigger
       documented.
 - [ ] README has a developer/API section with the gradle + guard example.
-- [ ] `AGENTS.md` declares "conforms to Concord API Standard v1".
+- [ ] `AGENTS.md` declares "conforms to Concord API Standard".
 
 ## Guardrails
 

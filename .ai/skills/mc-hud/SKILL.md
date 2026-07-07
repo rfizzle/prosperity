@@ -236,7 +236,7 @@ player list). Reference: Tribulation's `TierDetailPanelRenderer`, Mercantile's
       non-capturing (not a `Screen`), the badge's four visibility rules reused, no
       slot/accessors, paged (not scrolled) overflow, figures from the server's own
       source, and no recipe-viewer/tooltip duplication.
-- [ ] `AGENTS.md` declares "conforms to Concord HUD Standard v1".
+- [ ] `AGENTS.md` declares "conforms to Concord HUD Standard".
 
 ## Guardrails
 
