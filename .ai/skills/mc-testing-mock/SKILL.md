@@ -1,6 +1,6 @@
 ---
 name: mc-testing-mock
-description: Mock player helpers in Fabric Gametest (makeMockServerPlayerInLevel, makeMockPlayer). TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, or player.discard() in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test.
+description: Mock player helpers in Fabric Gametest (makeMockServerPlayerInLevel, makeMockPlayer). TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, or player.discard() in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test, or when writing production code that must distinguish real players from fake/automation players (FakePlayer guards).
 ---
 
 The user is writing or reviewing Fabric gametest code that needs a mock player. Apply this guidance to avoid repeated lookups of how `makeMockServerPlayerInLevel` and `makeMockPlayer` work.
@@ -126,6 +126,45 @@ player.discard();
 helper.succeed();
 ```
 
+## Fake-player guard in production code
+
+Automation mods (block breakers, deployers, container openers) act through a synthetic `ServerPlayer` — Fabric API's `net.fabricmc.fabric.api.entity.FakePlayer` or a mod's own stand-in. Production code that grants player-facing behavior (first-visit rewards, progression, one-shot messages) must classify these as non-players, or a hopper-with-a-face farms player-only behavior.
+
+**No single check suffices.** The reliable predicate is the union of three, each catching a different fake-player flavor:
+
+```java
+public static boolean isFakePlayer(ServerPlayer player) {
+    if (player instanceof FakePlayer) {
+        return true;  // Fabric's fake player has a non-null synthetic connection — the next check misses it
+    }
+    if (player.connection == null) {
+        return true;  // fake players from other implementations (and direct new ServerPlayer(...)) have no network handler
+    }
+    MinecraftServer server = player.getServer();
+    return server == null || !server.getPlayerList().getPlayers().contains(player);
+    // the universal catch: a genuine player is always in the player list; a fake never is,
+    // even when it borrows a real player's profile — identity comparison, not UUID lookup
+}
+```
+
+Centralise this in one utility (see `FakePlayers.isFakePlayer` in prosperity's `loot` package) and gate **every** player-facing gameplay grant on it. Ad-hoc single checks (`player instanceof FakePlayer` alone, as in meridian's `BlockDropsMixin`) miss the other two flavors.
+
+**Gametest coverage** — the guard needs two behavioral proofs, not just a predicate unit check:
+
+1. A fake interaction is **inert**: no grant, no state mutation, vanilla behavior passes through untouched.
+2. A **subsequent real** interaction still receives first-visit behavior — the fake must not burn the one-shot.
+
+```java
+FakePlayer fake = FakePlayer.get(helper.getLevel());   // real Fabric fake player, not a mock
+fake.teleportTo(...);                                   // then drive the real event/callback path
+// assert PASS-through + no state, discard, then repeat with makeMockServerPlayerInLevel()
+// and assert the real player still triggers first-visit behavior
+```
+
+See prosperity's `FakePlayerGuardGameTest` for the full pattern, driven through `UseBlockCallback.EVENT.invoker()` exactly as a live interaction fires.
+
+**Interaction with the mock factories above:** `makeMockPlayer(...)` and directly constructed `ServerPlayer` instances trip this guard (no connection, not in the player list). Only `makeMockServerPlayerInLevel()` yields a connected, player-list-registered player that classifies as real. Any test exercising player-gated behavior MUST use it for the "real player" role.
+
 ## Reflection for private methods
 
 When tests need to call private methods (e.g., `tickProximity`, `startTrading`), use reflection with proper error handling:
@@ -164,3 +203,5 @@ Always provide a diagnostic message referencing the method name so signature cha
 | Inventory-only (bulk trade menus) | `makeMockPlayer(GameType.SURVIVAL)` |
 | MerchantMenu construction | `makeMockPlayer(GameType.SURVIVAL)` |
 | Lightweight, no network needed | Direct `new ServerPlayer(...)` |
+| Real-player role vs a fake-player guard | `makeMockServerPlayerInLevel()` |
+| Fake-player role vs a fake-player guard | `FakePlayer.get(level)` |

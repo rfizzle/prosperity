@@ -1,6 +1,6 @@
 ---
 name: mc-public-api
-description: Build and consume a Concord mod's public API the suite way (the Concord API Standard) — one stable com.rfizzle.<mod>.api package with a read-only static facade, reflection-backed client accessors with sentinels, provider/callback mutation under host-side error isolation, array-backed Fabric events, and soft-dependency consumption guarded by isModLoaded. TRIGGER when creating or editing any class under an api/ package, an @Stable-marked type, a *Callback.java event, a provider interface, a compat/<modid>/ integration consuming a sibling mod, or when the user mentions exposing/consuming a mod API or integrating two mods.
+description: Build and consume a Concord mod's public API the suite way (the Concord API Standard) — one stable com.rfizzle.<mod>.api package with a read-only static facade, reflection-backed client accessors with sentinels, provider/callback mutation under host-side error isolation, array-backed Fabric events, and classload-isolated soft-dependency consumption (isModLoaded guards, fail-open reflective probes, catch-Throwable degradation, c: convention tags). TRIGGER when creating or editing any class under an api/ package, an @Stable-marked type, a *Callback.java event, a provider interface, a compat/<modid>/ integration consuming a sibling mod, a c: convention tag, or when the user mentions exposing/consuming a mod API or integrating two mods.
 ---
 
 The user is exposing functionality to other mods, or consuming a sibling's. The
@@ -180,14 +180,33 @@ public interface IEnchantingStatProvider {
 
 ## Consuming a sibling — soft dependency only
 
+Sibling Concord jars resolve straight from their GitHub release jars — the
+Modrinth projects are not publicly resolvable, so `maven.modrinth:<sibling>`
+coordinates won't resolve. Declare an **artifact-only ivy repository** over
+GitHub Releases, scoped so it never shadows a real Maven group (the full
+repository-hygiene recipe lives in the `mc-gradle-builds` skill):
+
 ```gradle
-modCompileOnly "maven.modrinth:tribulation:<version>"   // never `depends` in fabric.mod.json
+repositories {
+    ivy {
+        name = 'GitHubReleases'
+        url = 'https://github.com'
+        patternLayout {
+            artifact '/[organisation]/[module]/releases/download/v[revision]/[module]-[revision].jar'
+        }
+        metadataSources { artifact() }        // artifact-only: no POM exists
+        content { includeGroup 'rfizzle' }    // never shadows a real Maven group
+    }
+}
+
+dependencies {
+    modCompileOnly "rfizzle:tribulation:${project.tribulation_version}"   // never `depends` in fabric.mod.json
+}
 ```
 
 ```java
 if (FabricLoader.getInstance().isModLoaded("tribulation")) {
-    // ONLY here may com.rfizzle.tribulation.api.* be referenced
-    int level = TribulationAPI.getLevel(serverPlayer);
+    TribulationCompat.register();   // adapter only class-loaded behind this guard
 }
 ```
 
@@ -198,11 +217,168 @@ if (FabricLoader.getInstance().isModLoaded("tribulation")) {
 - Conditional **data** (recipes, trade entries, loot that references a sibling's
   items) uses Fabric resource conditions keyed on the sibling's mod id.
 
-For the hardest case — consuming a sibling's API by **reflection** with graceful
-degradation across versions (the sibling may be present but predate the method) —
-see the cross-mod HUD offset worked example in the `mc-hud` skill: resolve once,
-cache the handle, and fall back to a documented default when the class/method is
-absent or throws.
+### Classload isolation
+
+The JVM must never be asked to resolve a sibling's classes unless the guard has
+already passed. Two sanctioned shapes:
+
+- **Adapter class:** every foreign reference lives in a `compat/<modid>/` class
+  whose `register()` is only reached behind the `isModLoaded` guard (the shape
+  above). Nothing outside the guard may even *name* the class in a way that
+  forces resolution of the sibling's types.
+- **Nested `Api` holder:** when the compat entry point itself must be callable
+  with the sibling absent (it returns the un-integrated defaults), confine the
+  foreign references to a nested static holder class. The outer class loads
+  freely; the holder — and with it the sibling's classes — only resolves once
+  the guard passed.
+
+```java
+public final class TribulationCompat {
+    public static EffectivePylonLimits effectiveLimits(ServerLevel level, BlockPos pos, MercantileConfig config) {
+        EffectivePylonLimits base = new EffectivePylonLimits(config.pylonMaxGolems, config.pylonDetectionRadius);
+        if (!FabricLoader.getInstance().isModLoaded("tribulation")) return base;
+        try {
+            ServerPlayer nearest = nearestSurvivalPlayer(level, pos, config);   // no sibling types yet
+            if (nearest == null) return base;
+            return scaledLimits(tierFor(Api.effectiveLevel(nearest), Api.tierThresholds()), config);
+        } catch (Throwable t) {
+            if (LOGGED.compareAndSet(false, true)) LOGGER.warn("Tribulation API call failed; using configured defaults", t);
+            return base;
+        }
+    }
+
+    /** The ONLY class that touches TribulationAPI. Kept nested so the JVM never resolves
+     *  the sibling's classes unless the isModLoaded guard above has already passed. */
+    private static final class Api {
+        static int effectiveLevel(ServerPlayer p) { return TribulationAPI.getEffectiveLevel(p); }
+        static int[] tierThresholds()             { return TribulationAPI.getTierThresholds(); }
+    }
+}
+```
+
+### Catch `Throwable`, degrade to vanilla
+
+Wrap the **whole integration body** in `catch (Throwable)`, not `Exception`: an
+older sibling jar that predates a method surfaces the miss as a `LinkageError`,
+which must degrade the host to its un-integrated behavior — never crash it. Log
+once via `AtomicBoolean.compareAndSet` and return the default on every failure
+path. Both code paths above and the probe below follow this posture.
+
+### The fail-open reflective probe
+
+For optional **behavioral** queries — "does the sibling currently own this
+behavior?" — where the sibling may be present but predate the accessor, skip the
+compile-time reference entirely and probe with `MethodHandles.publicLookup()
+.findStatic` against the sibling's stable `api` package. The probe **fails
+open**: absent mod, absent class/method, or a throwing call all mean "the
+sibling does not own this — handle it yourself."
+
+```java
+/** The sibling's config is hot-reloadable, so re-query per death — never cache the answer. */
+public static boolean isSoulInventoryActive() {
+    if (!FabricLoader.getInstance().isModLoaded("tribulation")) return false;   // fail open
+    MethodHandle h = resolve();          // findStatic against com.rfizzle.tribulation.api.TribulationAPI,
+    if (h == null) return false;         // memoized like the client accessor above; null = older jar, fail open
+    try {
+        return (boolean) h.invokeExact();
+    } catch (Throwable t) {
+        if (LOGGED.compareAndSet(false, true)) LOGGER.warn("{}.{} threw; handling locally", API_CLASS, API_METHOD, t);
+        return false;                    // fail open
+    }
+}
+```
+
+Resolve the *handle* once (same memoized double-checked pattern as the client
+accessor); never cache the *answer* — the sibling's config can change between
+events. The cross-mod HUD offset worked example in the `mc-hud` skill is this
+same pattern applied to render coordination.
+
+### Pure cores: keep the mapping math sibling-free
+
+The tier mapping, key derivation, and scaling math that a compat adapter feeds
+sibling data into live in **pure static methods (or a dedicated `*Keys` class)
+with zero third-party imports**, so they unit-test without the sibling jar on
+the classpath. The glue class holds the foreign references; the core holds the
+logic.
+
+```java
+/** Pure — no FTB import, so it unit-tests without the FTB Teams jar on the classpath. */
+@Nullable
+public static String keyFor(@Nullable UUID teamId, boolean partyTeam) {
+    return (teamId == null || !partyTeam) ? null : "ftbteams:" + teamId;
+}
+```
+
+Two invariants for the math:
+
+- **The un-integrated config is the floor.** Scaling clamps so integration can
+  only add on top of the configured base, never shrink below it (e.g.
+  `Math.clamp(base + tier * bonus, base, cap)` with the cap itself healed to
+  `max(base, cap)`).
+- **Defaults on every failure path** — absent sibling, no data in range, a
+  throwing call: all return the configured base values.
+
+### Provider chains: when several siblings can answer
+
+When more than one sibling can answer the same question (e.g. two party mods
+each know the player's group), the host holds a **`CopyOnWriteArrayList` of
+providers** instead of a single slot — registration at mod init and the
+server-thread query never contend. First non-null (and non-blank) answer wins;
+each provider is invoked under `try/catch (Throwable)` with once-only logging,
+so one broken adapter never breaks the chain.
+
+```java
+private static final List<PartyGroupProvider> PROVIDERS = new CopyOnWriteArrayList<>();
+
+@Nullable
+public static String partyGroupOverride(ServerPlayer player) {
+    for (PartyGroupProvider provider : PROVIDERS) {     // registration order
+        String key;
+        try {
+            key = provider.groupKey(player);
+        } catch (Throwable t) {
+            if (FAILURE_LOGGED.compareAndSet(false, true)) LOGGER.warn("Party group provider threw; skipping", t);
+            continue;
+        }
+        if (key != null && !key.isBlank()) return key;  // first non-null, non-blank wins
+    }
+    return null;                                        // caller falls back to its default
+}
+```
+
+Precedence is **deterministic by registration order in `onInitialize`** — the
+guards run top to bottom, so whichever adapter registers first wins — and that
+ordering is documented right there at the registration site (e.g. "with both
+party mods present OPAC, registered above, takes precedence").
+
+### Convention tags: `c:` interop with zero code
+
+For behaviors that several mods implement independently, a shared tag in the
+`c:` namespace is the interop channel — no mod references another's ids at all.
+Every mod with behavior X contributes its own entry to the tag; every mod
+honors the tag. Example: the keep-on-death contract is `#c:soulbound` — Meridian
+adds `meridian:tether`, Tribulation adds `tribulation:soulbound`, and each mod's
+death handling keys off the tag, so a sibling's enchant is honored without ever
+naming it:
+
+```java
+/** The c: convention tag for the keep-on-death contract. */
+public static final TagKey<Enchantment> SOULBOUND = TagKey.create(
+        Registries.ENCHANTMENT, ResourceLocation.fromNamespaceAndPath("c", "soulbound"));
+```
+
+When both mods would act on the same item, one **ownership rule** arbitrates
+(the fail-open probe above: Tribulation owns the death when its soul-inventory
+is active; Meridian stands down) so the player never receives the item twice.
+
+### Test the integration
+
+- **Unit-test the pure core** exhaustively — tier mapping inclusivity, clamps,
+  the floor invariant — with no sibling jar on the test classpath.
+- **Gametest the compat entry point** in a live world. With the sibling absent
+  from the gametest classpath, assert the fallback yields exactly the configured
+  defaults and nothing throws; when the sibling is on the gametest classpath,
+  gametest the integrated path too.
 
 ## Versioning
 
@@ -222,7 +398,11 @@ A mod conforms to the Concord API Standard when:
 - [ ] Every provider/callback invocation is wrapped in host-side error isolation
       (catch throws; reject non-finite returns; fall back to default).
 - [ ] The mod's own sibling integrations use `modCompileOnly` + `isModLoaded`
-      guards in `compat/<modid>/` packages.
+      guards in `compat/<modid>/` packages, with foreign references classload-
+      isolated (adapter class or nested `Api` holder) and whole integration
+      bodies catching `Throwable`.
+- [ ] Compat mapping/scaling cores are pure (zero sibling imports) and
+      unit-tested without the sibling jar on the classpath.
 - [ ] Client-reading accessors callable from common code are reflection-backed
       with documented sentinels.
 - [ ] Events are Fabric `Event`s named `<Mod><Thing>Callback` with every trigger
@@ -241,6 +421,10 @@ A mod conforms to the Concord API Standard when:
   catch and fall back to the default. A guest must not be able to crash the host.
 - **Never** reference a sibling's `api.*` outside an `isModLoaded` guard or a
   class only loaded behind one; **never** declare a sibling under `depends`.
+- **Never** catch only `Exception` around a sibling call — an older sibling jar
+  surfaces a missing method as `LinkageError`; catch `Throwable` and fall back.
+- **Never** cache a fail-open probe's answer — the sibling's config may be
+  hot-reloadable; resolve the handle once, re-query the answer per event.
 - **Never** reference a client-only class from a common-code API accessor — go
   through a reflection-backed handle with a sentinel.
 - **Always** make API reads server-authoritative; client accessors exist for

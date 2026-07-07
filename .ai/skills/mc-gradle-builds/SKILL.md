@@ -1,6 +1,6 @@
 ---
 name: mc-gradle-builds
-description: Best practices for running Gradle builds, tests, and gametests in Fabric Minecraft mods. Prevents wasted reruns from partial output capture. TRIGGER when running any Gradle command (build, test, runGametest, runDatagen, assemble, check), or when inspecting build output/reports.
+description: Best practices for running Gradle builds, tests, and gametests in Fabric Minecraft mods. Prevents wasted reruns from partial output capture. TRIGGER when running any Gradle command (build, test, runGametest, runDatagen, assemble, check), when inspecting build output/reports, or when editing repositories/dependencies in build.gradle.
 ---
 
 The user is running a Gradle build, test, or gametest in a Fabric mod. Follow these rules to avoid losing output and forcing expensive reruns.
@@ -164,6 +164,74 @@ Pattern for optional compat:
 modCompileOnly "dev.emi:emi-fabric:${project.emi_version}:api"
 modLocalRuntime "dev.emi:emi-fabric:${project.emi_version}"
 ```
+
+## Dependency-repository hygiene
+
+### Scope every third-party repository
+
+Every repository beyond `mavenCentral()` gets a `content { includeGroup ... }` block. Without it, Gradle probes every repo for every artifact — resolution is slower and non-deterministic, and any repo can answer for (and shadow) a group it doesn't own:
+
+```groovy
+repositories {
+    mavenCentral()
+    maven {
+        name = 'TerraformersMC'
+        url = 'https://maven.terraformersmc.com/'
+        content { includeGroup 'dev.emi' }
+    }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+}
+```
+
+One repo per block, one `includeGroup` per group it actually serves. A repo with no content filter is a review flag.
+
+### Suite siblings from GitHub release jars
+
+Concord sibling mods that aren't publicly resolvable on a Maven repo resolve straight from their GitHub release jars via an artifact-only ivy repository. `metadataSources { artifact() }` skips POM/ivy metadata (there is none), and the content filter pins it to the owner group so it can never shadow a real Maven group:
+
+```groovy
+ivy {
+    name = 'GitHubReleases'
+    url = 'https://github.com'
+    patternLayout {
+        artifact '/[organisation]/[module]/releases/download/v[revision]/[module]-[revision].jar'
+    }
+    metadataSources { artifact() }
+    content { includeGroup '<owner>' }
+}
+```
+
+Then consume the sibling as `<owner>:<repo>:<version>`:
+
+```groovy
+// Sibling Concord mod — soft dependency, compile-only against its api package behind
+// isModLoaded guards, never bundled. Swap to maven.modrinth once publicly resolvable.
+modCompileOnly "<owner>:sibling-mod:${project.sibling_mod_version}"
+```
+
+### `transitive = false` — always with the reason next to it
+
+Disable transitives per-dependency, never globally, and say why on the line:
+
+```groovy
+// JEI — the `fabric` runtime jar shades in all `common-api` classes, so `transitive = false`
+// prevents Loom remap from seeing the same classes twice ("duplicate input class" warnings).
+modCompileOnly "mezz.jei:jei-${mc}-fabric-api:${project.jei_version}"
+modLocalRuntime("mezz.jei:jei-${mc}-fabric:${project.jei_version}") { transitive = false }
+
+// FTB Teams / FTB Library — `transitive = false` keeps FTB's own fabric-api/loader/
+// architectury pins from shadowing the versions pinned above.
+modCompileOnly("dev.ftb.mods:ftb-teams-fabric:${project.ftb_teams_version}") { transitive = false }
+modCompileOnly("dev.ftb.mods:ftb-library-fabric:${project.ftb_library_version}") { transitive = false }
+```
+
+### The soft-dep rule
+
+The compile surface of a soft dep is its **API artifact** via `modCompileOnly`; the full jar appears only as `modLocalRuntime` (and only when you need it in the dev client — a pure server-side soft dep needs no dev runtime at all). Nothing optional is ever `modImplementation` or `include`d. Document WHY next to each non-obvious dependency line — what integration it serves, why the scope, why any `transitive = false`. See the mc-compat skill for the recipe-viewer (EMI/REI/JEI) instances of this pattern.
 
 ## Version management
 
