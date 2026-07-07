@@ -19,7 +19,7 @@ help:
 	@echo "  release      Tag v<version> and push it to trigger the release (usage: make release VERSION=X.Y.Z [NO_PUSH=1])"
 	@echo "  site         Build the website from site/ with the shared concord template"
 	@echo "  site-serve   Build and serve the website locally with live reload"
-	@echo "  sync         Refresh .ai/skills + .ai/commands from the concord checkout (CONCORD_DIR=../concord)"
+	@echo "  sync         Refresh .ai/skills + .ai/commands + .ai/agents from the concord checkout (CONCORD_DIR=../concord)"
 
 build:
 	$(GRADLE) build
@@ -69,5 +69,6 @@ sync:
 	@test -d $(CONCORD_DIR)/.ai/skills || { echo "concord checkout not found at $(CONCORD_DIR) (set CONCORD_DIR=...)"; exit 1; }
 	rsync -a --delete $(CONCORD_DIR)/.ai/skills/ .ai/skills/
 	rsync -a --delete $(CONCORD_DIR)/.ai/commands/ .ai/commands/
+	rsync -a --delete $(CONCORD_DIR)/.ai/agents/ .ai/agents/
 	@git -C $(CONCORD_DIR) rev-parse HEAD > .ai/skills/.concord-rev
-	@echo "synced .ai/skills + .ai/commands from concord @ $$(git -C $(CONCORD_DIR) rev-parse --short HEAD)"
+	@echo "synced .ai/skills + .ai/commands + .ai/agents from concord @ $$(git -C $(CONCORD_DIR) rev-parse --short HEAD)"
