@@ -57,6 +57,30 @@ public final class TribulationHudOverlay implements HudRenderCallback {
 HudRenderCallback.EVENT.register(new TribulationHudOverlay());
 ```
 
+## Commit the draw batch
+
+Both HUD surfaces draw through `GuiGraphics` (`blit`/`fill`/`drawString`) — the
+batchable path — and **end every render pass with `graphics.flush()`**. The flush
+commits the batch immediately (`GuiGraphics.flush()` → `endBatch()`), so a batching
+optimizer (ImmediatelyFast) or a framebuffer-reading effect (Blur+, a screen
+background, a post shader) can't fold in, drop, or capture GUI geometry you left
+unflushed. Skip it and sprites and text intermittently vanish under those mods.
+
+```java
+@Override public void onHudRender(GuiGraphics graphics, DeltaTracker delta) {
+    if (!isHudVisible()) return;
+    // ... blit / fill / drawString ...
+    graphics.flush();   // commit before anything can batch or read the framebuffer
+}
+```
+
+- Draw **only** through `GuiGraphics` — never raw `RenderSystem.setShaderTexture` +
+  `Tessellator`/`BufferBuilder` quads; that manual path is exactly what a batching
+  mod drops.
+- Don't stash GL state (bound texture, `enableBlend`) across the render expecting it
+  to survive to a deferred draw. Set color/state through `GuiGraphics` per draw, and
+  reset it (`setColor(1, 1, 1, 1)`) before the flush.
+
 ## The four visibility rules
 
 Hidden during **all** of: F1/`hideGui`, any open screen, spectator mode, and the
@@ -236,6 +260,8 @@ player list). Reference: Tribulation's `TierDetailPanelRenderer`, Mercantile's
       non-capturing (not a `Screen`), the badge's four visibility rules reused, no
       slot/accessors, paged (not scrolled) overflow, figures from the server's own
       source, and no recipe-viewer/tooltip duplication.
+- [ ] Every HUD render pass ends with `graphics.flush()` and draws only through
+      `GuiGraphics` (ImmediatelyFast / Blur+ compatibility).
 - [ ] `AGENTS.md` declares "conforms to Concord HUD Standard".
 
 ## Guardrails
@@ -252,6 +278,10 @@ player list). Reference: Tribulation's `TierDetailPanelRenderer`, Mercantile's
   coordination accessors, and pages its overflow rather than scrolling.
 - **Never** have a peek panel restate what a recipe viewer or tooltip already catalogs —
   it shows live, contextual state, not a static "what could appear" index.
+- **Never** leave a HUD render pass unflushed or draw with raw
+  `RenderSystem`/`BufferBuilder` quads — end with `graphics.flush()` and draw only
+  through `GuiGraphics`, or a batching optimizer (ImmediatelyFast) and
+  framebuffer-reading effects (Blur+, post shaders) drop or capture your geometry.
 - **Always** reserve sibling height only at the default anchor; moving to another
   corner opts out of stacking.
 - **Always** resolve sibling accessors once and cache the handles; degrade to 0
