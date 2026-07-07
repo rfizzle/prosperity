@@ -35,15 +35,17 @@ Ground rules for the whole run:
 
 Sub-agents do the parallelizable breadth work; you keep the context-heavy
 spine (profiling, planning, implementing, synthesizing). Launch each Task with
-the model below — checklist breadth goes to `sonnet`, judgment goes to `opus`.
-If the harness can't set a per-agent model, launch anyway on the default.
+the `subagent_type` below — the agent definition in `.ai/agents/` (symlinked
+into `.claude/agents/`) pins its model, so you don't set one per call:
+checklist breadth runs on `sonnet`, judgment on `opus`. If a `subagent_type`
+can't be resolved, launch a default agent with the same charge on `opus`.
 
-| Agent | Model | Phase | Charge |
+| `subagent_type` | Model | Phase | Charge |
 |---|---|---|---|
-| Recon | `sonnet` | Step 2 | Verify the issue's claims against the real code; map the change surface |
-| Domain & player-experience reviewer | `opus` | Step 6 | Judge the diff as a player and as a steward of the mod's silo |
-| Standards & skills reviewer | `sonnet` | Step 6 | Judge the diff against the triggered `mc-*` skills and project conventions |
-| Performance & stability reviewer | `opus` | Step 6 | Hunt tick-budget, threading, and degradation problems in the diff |
+| `recon` | `sonnet` | Step 2 | Verify the issue's claims against the real code; map the change surface |
+| `domain-reviewer` | `opus` | Step 6 | Judge the diff as a player and as a steward of the mod's silo |
+| `standards-reviewer` | `sonnet` | Step 6 | Judge the diff against the triggered `mc-*` skills and project conventions |
+| `performance-reviewer` | `opus` | Step 6 | Hunt tick-budget, threading, and degradation problems in the diff |
 
 Implementation itself is **not** delegated: you carry the approved plan, the
 gate feedback, and the issue nuance, so you write the code.
@@ -122,9 +124,9 @@ manufacture questions to look thorough.
 
 ## Step 2 — Codebase reconnaissance
 
-Spawn the **Recon agent** (`sonnet`; two in parallel only when the work has
-genuinely separable surfaces, e.g. a server system plus a client renderer).
-Give it the mod profile, the issue + spec, and this charge — return:
+Spawn the **`recon`** agent (two in parallel only when the work has genuinely
+separable surfaces, e.g. a server system plus a client renderer). Give it the
+mod profile, the issue + spec, and this charge — return:
 
 1. **Claim verification** — every factual statement the issue/spec makes
    about the code (paths, class names, current behavior), each confirmed or
@@ -217,7 +219,7 @@ the CI review's `review-criteria.yml`) or **optional** (polish), every finding
 with `file:line` and a concrete proposed fix, plus a one-line verdict for its
 dimension.
 
-**Domain & player experience** (`opus`). Judge the diff as a player and as
+**Domain & player experience** (`domain-reviewer`). Judge the diff as a player and as
 the suite's steward: the as-built change still fits the silo, the suite
 vision, and the promises in the mod's `design/VISION.md` when present (no
 scope creep past the approved plan); in-game text is vanilla-toned (short,
@@ -228,7 +230,7 @@ matching defaults; `site/` and README now tell the truth about shipped
 behavior; and the absence check — every paired surface a change of this kind
 owes actually exists.
 
-**Standards & skills conformance** (`sonnet`). Re-read each triggered
+**Standards & skills conformance** (`standards-reviewer`). Re-read each triggered
 `SKILL.md` and judge the diff against it. Then the conventions: Mojang
 mappings, ResourceLocations via the mod's `id()` helper, correct source-set
 placement, registry/event/codec idiom per `mc-registration`; correctness
@@ -238,7 +240,7 @@ diff touches mixins; `api`-package conformance per `mc-public-api` when it
 touches `api/` or compat; test coverage at the right tier per
 `mc-mod-testing`; commit-message hygiene.
 
-**Performance & stability** (`opus`). The 20Hz tick budget: per-tick
+**Performance & stability** (`performance-reviewer`). The 20Hz tick budget: per-tick
 allocations in hot paths, O(n²) loops over entity lists, unbounded caches,
 synchronous I/O on the server thread; new mixins on hot vanilla methods;
 in-world/particle rendering without culling, LOD, or a spawn budget per
