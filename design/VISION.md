@@ -71,10 +71,11 @@ emptied months ago are worth the return trip.
 ### The Prospector's Compass
 - **What it is** — A gold-cased compass whose needle points to the nearest
   container *you* personally haven't looted.
-- **How you use it** — Find one in the loot of Frontier-and-beyond chests (about a
-  1-in-100 find) — there's no recipe, it's a treasure in its own right. Hold it and
-  follow the needle; loot the target and it swings to the next. With nothing
-  unlooted nearby it spins freely, like a compass in the Nether.
+- **How you use it** — Find one as a lucky drop in the loot of Frontier-and-beyond
+  chests (about a 1-in-100 find), or earn one in the late game by crafting it: a
+  vanilla compass cased in gold, topped with a netherite ingot and tipped with an
+  end rod. Hold it and follow the needle; loot the target and it swings to the next.
+  With nothing unlooted nearby it spins freely, like a compass in the Nether.
 - **What changes for you** — Treasure-hunting gains a direction. You can sweep a
   structure or a stretch of wilderness without backtracking or guessing.
 

@@ -18,14 +18,13 @@ Prosperity solves multiplayer loot fairness by giving every player their own ins
 
 **Full Logo (`art/logo.png`):** An open wooden treasure chest overflowing with gold coins and a diamond-cyan gem sits within a golden circular medallion frame wrapped with bronze-gold vines bearing golden berries. An ornate golden key crowns the top of the frame. The emblem is flanked by smaller treasure chests, a golden compass, and trinkets, with a pile of gold coins below. The background is dark stone brickwork with hieroglyph-like carvings, showered in falling coins and gems. Warm amber glow emanates from the central chest. Below, "PROSPERITY" in a blocky pixel font on a winged stone tablet, with "MINECRAFT LOOT OVERHAUL" subtitle.
 
-**Icon (`art/icon.png`):** The open wooden treasure chest isolated — warm brown planks with ornate gold trim and corner bands, overflowing with gold coins and a large diamond-cyan gem. Warm golden/amber glow radiating outward against a dark/transparent background. Reads cleanly down to 128×128.
+**Icon (`art/icon-128.png`):** The open wooden treasure chest isolated — warm brown planks with ornate gold trim and corner bands, overflowing with gold coins and a large diamond-cyan gem. Warm golden/amber glow radiating outward against a dark/transparent background. Reads cleanly down to 128×128.
 
-> **Note:** Final assets shipped 2026-06-13. The motif is a **treasure chest** (not the
-> earlier chalice concept), and the palette is warm gold with diamond-cyan gem accents —
-> deliberately avoiding the emerald green of the original draft so Prosperity reads as
+> **Motif rationale:** The motif is a **treasure chest** and the palette is warm gold
+> with diamond-cyan gem accents — kept clear of emerald green so Prosperity reads as
 > distinct from Mercantile across the mod suite.
 
-**In-Game HUD Icon (`art/hud-icon-16.png`):** A small pixel-art treasure chest — warm brown wood with gold trim, slightly open to suggest contents within.
+**In-Game HUD Icon (`art/glyphs/hud_icon.glyph`):** A small pixel-art treasure chest — warm brown wood with gold trim, slightly open to suggest contents within.
 
 ### Color Palette
 
@@ -155,7 +154,7 @@ Colors: Progression from wood brown through gold (#DAA520) to bright
         gold (#FFD700) with increasing diamond cyan (#4EEAED) gem accents
 ```
 
-**In-Game Mod Icon:** (shipped — `art/icon.png` → `assets/prosperity/icon.png`)
+**In-Game Mod Icon:** (shipped — `art/icon-128.png` → `assets/prosperity/icon.png`)
 ```
 Theme: Treasure abundance
 Subject: Open wooden treasure chest overflowing with gold coins
@@ -196,12 +195,12 @@ Prosperity holds **slot 3** in the Concord HUD stack: a 16×16 treasure-chest gl
 
 | Image | Reference Source | Notes |
 |-------|----------------|-------|
-| Chest motif | `art/icon.png` | Open wooden treasure chest, gold trim, overflowing with coins + diamond-cyan gem |
+| Chest motif | `art/icon-128.png` | Open wooden treasure chest, gold trim, overflowing with coins + diamond-cyan gem |
 | Golden frame | `art/logo.png` medallion | Vine-wrapped gold ring with bronze-gold berries |
 | Key symbol | `art/logo.png` top | Ornate golden key with diamond-cyan gem — basis for the recipe-browser icon |
 | Treasure variety | `art/logo.png` contents | Multi-colored gems, coins, small chests, trinkets |
 | Background texture | `art/logo.png` background | Dark stone brickwork with hieroglyph carvings |
-| HUD pixel density | `art/hud-icon-16.png` | Small treasure-chest glyph for the HUD strip |
+| HUD pixel density | `art/glyphs/hud_icon.glyph` | Small treasure-chest glyph for the HUD strip |
 | Companion icon density | Meridian `assets/meridian/icon.png`, Tribulation `assets/tribulation/icon.png` | Match pixel density and style |
 
 ---
@@ -211,9 +210,9 @@ Prosperity holds **slot 3** in the Concord HUD stack: a 16×16 treasure-chest gl
 ### Domain & Hosting
 
 - **Domain:** `prosperity.rfizzle.com`
-- **Hosting:** GitHub Pages via Actions — `site.yml` renders the `site/` content with the shared Concord Eleventy template and deploys it (the legacy `docs/` directory is retired per Concord REPO-LAYOUT)
+- **Hosting:** GitHub Pages via Actions — `site.yml` renders the `site/` content with the shared Concord Eleventy template and deploys it. Site content lives under `site/` per Concord REPO-LAYOUT.
 - **CNAME:** `prosperity.rfizzle.com` (set in `site.json` / handled by the deploy workflow)
-- **Status:** Structured content scaffolded under `site/` (stub pages); copy to be filled in
+- **Content:** Authored under `site/` — `site.json` plus `pages/*.json` (home, features, config, commands, guide, api, faq) — rendered and deployed by the shared template
 
 ### Pages to Create
 

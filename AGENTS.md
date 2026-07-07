@@ -109,8 +109,10 @@ Compat classes live under `com.rfizzle.prosperity.compat.<modid>`.
 | Path | Purpose |
 |---|---|
 | `README.md` | Project overview and feature summary. |
+| `design/VISION.md` | Product vision — the player-facing promise, the arc of a world, and design pillars. |
 | `design/SPEC.md` | Full feature spec — behavior, container handling, API surface, config knobs. |
 | `design/DESIGN.md` | Brand identity, asset inventory, HUD standard, website spec. |
+| `design/ASSETS.md` | Asset manifest — where every committed asset lives (`art/` source → shipped file). |
 | GitHub Issues | Active work — feature requests, bugs, in-flight specs. |
 | `.ai/skills/` | Domain skills — read these before working in their subject area. |
 | `.github/workflows/` | Thin trigger stubs — workflow logic, default CI prompts, and [review criteria](https://github.com/rfizzle/concord/blob/master/.ai/review-criteria.yml) live in [rfizzle/concord](https://github.com/rfizzle/concord). |

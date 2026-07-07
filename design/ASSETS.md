@@ -22,7 +22,7 @@
 
 | Asset | `.glyph` source | Final asset |
 |---|---|---|
-| Unlooted container overlay | `art/glyphs/unlooted-sparkle.glyph` | `assets/prosperity/textures/overlay/unlooted.png` |
+| Unlooted container overlay (4-frame sparkle) | `art/glyphs/unlooted-sparkle.glyph` | `assets/prosperity/textures/overlay/unlooted_0.png` … `_3.png` (standalone frames, cycled in-code) |
 | HUD loot-tier icon (treasure chest) | `art/glyphs/hud_icon.glyph` (self-contained; renders the 32px chest) | `assets/prosperity/textures/gui/hud_icon.png` |
 | Loot detail panel frame | `art/glyphs/panel-frame-64.glyph` | `assets/prosperity/textures/gui/loot_detail_panel.png` |
 | Prospector's compass (32-frame animation) | `MISSING` | `assets/prosperity/textures/item/prospectors_compass_00.png` … `_31.png` |
