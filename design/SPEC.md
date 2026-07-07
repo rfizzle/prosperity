@@ -999,9 +999,9 @@ Same dimension rules as container scaling:
 
 ---
 
-## 14. Tier HUD Badge
+## 14. Tier HUD Badge & Peek Loot Detail Panel
 
-Persistent on-screen HUD element showing the player's current distance tier.
+A persistent on-screen badge showing the player's current distance tier, and an on-demand full-screen panel — held open on a keybind — that expands it into the complete loot picture. The two form one HUD surface: the badge is the always-on glance (§2–§7 of the HUD standard), the panel its optional hold-to-peek companion (§8 of the HUD standard).
 
 ### Problem
 
@@ -1038,8 +1038,8 @@ When the player crosses a tier boundary, the badge briefly flashes:
 The badge follows a shared visual convention so that multiple overhaul mods' HUD elements look cohesive when installed together:
 
 - **Anchor:** Configurable corner (default: top-left). All overhaul mods should default to the same corner.
-- **Stacking order:** Each mod has a priority index that determines its vertical position. Stacking order from top: Tribulation (priority 0), Prosperity (priority 1), Mercantile (priority 2), Meridian (priority 3).
-- **Offset calculation:** Each badge renders at `anchorY + (badgeHeight + spacing) * priority`. Badge height is the HUD-STANDARD 20px slot (16px icon + 2px vertical padding top and bottom), spacing is 2px.
+- **Stacking order:** Each mod occupies a fixed slot in the shared HUD strip (concord `HUD-STANDARD.md`). Stacking order from top: Tribulation (slot 1), Mercantile (slot 2), Prosperity (slot 3); Meridian takes no slot by design. Prosperity therefore renders below both Tribulation and Mercantile whenever they are present.
+- **Offset calculation:** Prosperity offsets past the sum of the HUD heights that each higher-priority sibling (Tribulation, then Mercantile) reports through its HUD coordination accessors, plus the 2px inter-element spacing — a running sum of the siblings actually loaded and showing a badge, not a fixed multiple, so it stays correct as a sibling's badge height changes. Its own slot is the HUD-STANDARD 20px box (16px icon + 2px vertical padding top and bottom).
 - **Badge dimensions:** Icon (16×16 rendered, from a 32×32 texture) + 3px gap + text + 4px horizontal padding on each side, 2px vertical padding.
 - **Background:** `0x80000000` (50% opacity black) — same as Tribulation's current background.
 - **Font:** Minecraft's default font with shadow.
@@ -1047,7 +1047,7 @@ The badge follows a shared visual convention so that multiple overhaul mods' HUD
 
 ### Priority Detection
 
-Each mod checks for the presence of other overhaul mods at client init (via `FabricLoader.getInstance().isModLoaded()`) and calculates its offset accordingly. If Tribulation isn't installed, Prosperity renders at priority 0 (top position). The priority list is hardcoded per mod — no runtime negotiation needed.
+Each mod detects the higher-priority overhaul mods present at client init (via `FabricLoader.getInstance().isModLoaded()`) and offsets past those that are loaded and showing a badge. Prosperity's higher-priority siblings are Tribulation and Mercantile; with neither installed it renders at the top of the anchor, and it shifts up to fill the gap whenever a higher-priority sibling is absent or its HUD is disabled. The slot order is fixed by the standard — no runtime negotiation needed.
 
 ### Dimension Handling
 
@@ -1071,7 +1071,49 @@ Each mod checks for the presence of other overhaul mods at client init (via `Fab
 - Tier config (tier boundaries) is synced from server to client on join (same config sync mechanism used for other features).
 - Icon texture: `assets/prosperity/textures/gui/hud_icon.png` (32×32, blitted down to 16×16), authored through the `/glyph` pipeline with its `.glyph` source at `art/glyphs/hud_icon.glyph`.
 - Transition animation: store `lastTierChangeTime` and current/previous tier. On each render, if `currentTime - lastTierChangeTime < 1500ms`, lerp text color from gold to tier color.
-- Priority offset: `int priority = 0; if (FabricLoader.getInstance().isModLoaded("tribulation")) priority++;` — Prosperity always renders below Tribulation if present.
+- Priority offset: Prosperity reads each higher-priority sibling's reported HUD height (Tribulation, then Mercantile) through that sibling's HUD coordination accessors and offsets past the sum, so it always renders below them and tracks their live badge heights rather than a hardcoded reserve.
+
+### Peek Loot Detail Panel
+
+The badge says *roughly* where the player stands; the peek panel says *exactly*. Holding the **Peek Loot Detail** key overlays a framed panel that expands the badge into the full loot picture, then dismisses the instant the key is released — the mod's richest feedback surface, on demand and out of the way.
+
+#### Behavior
+
+While the key is held (and the badge's normal visibility rules pass), a centered panel shows three stacked pillars:
+
+- **Current tier & progress** — the tier the player is standing in, their exact distance from world origin, and a progress bar toward the next tier's boundary (the top tier reads as maxed).
+- **The tier ladder** — every configured distance tier in order with its boundary, stack multiplier, and quality bonus, the current tier highlighted, so the whole reward curve is legible at a glance.
+- **Nearby unlooted containers** — the instanced containers the player has not yet looted within range, grouped by container type with a count per group, drawn from the same unlooted set that feeds the sparkle indicators (§2) and the Prospector's Compass (§17), and extended over loot minecarts. When the player is carrying a Prospector's Compass, a `Nearest: <blocks> <bearing>` line names the rounded distance and 8-way cardinal bearing to the single nearest target, suffixed with that target's tier in its tier color; without a compass, or with no candidates in range, the line is absent and only the grouped rows show.
+
+The panel is a transient overlay, not a screen: like vanilla's hold-Tab player list it never captures the mouse, pauses the game, or blocks movement. Because a non-focused HUD layer cannot scroll, the nearby list is a fixed comfortable size — everything that fits shows at once, and any overflow pages on a timed cross-fade with page dots while the header, progress, and ladder stay static.
+
+#### Visibility
+
+The panel obeys the badge's four standard visibility rules (hidden by F1/hideGui, an open screen, spectator mode, and death) plus the `enableTierHud` toggle, and additionally requires the peek key to be held. It has no dedicated on/off config: disabling the tier HUD hides it with the badge, and clearing the keybind disables the hold entirely.
+
+#### Discovery Hint
+
+Because the panel lives behind a keybind a player might never think to press, a one-line chat hint names the bound key on world join — on the player's first eligible join and every fifth eligible join thereafter — until they open the panel once, after which it never shows again. The hint is skipped entirely while the keybind is unbound (a hint naming no key is meaningless, and that join does not count toward the cadence). The "seen once" flag and the eligible-join tally persist in the client config so the cadence survives restarts.
+
+#### Keybind
+
+- Translation key `key.prosperity.peek_loot_detail`, category `key.categories.prosperity`, default **Left Alt**. The default is safe because the panel never opens a screen or captures the mouse, so it does not conflict with normal play, and it makes the feature discoverable without a Controls-menu visit.
+- Fully rebindable and clearable under Controls → Prosperity. A player who has already assigned their own key keeps it; clearing the binding disables the panel.
+
+#### Configuration
+
+The panel adds no feature toggle of its own. Two client fields carry only the discovery-hint state:
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `peekHintDismissed` | bool | false | Set true the first time the panel is opened; suppresses the discovery hint thereafter |
+| `peekHintJoins` | int | 0 | Running tally of eligible world joins, driving the once-every-fifth hint cadence |
+
+#### Implementation Notes
+
+- Client-side only, rendered via `HudRenderCallback` (`LootDetailPanelRenderer`). Every figure derives from data already on the client — the tier pillars resolve against the synced config through the same tier lookup the badge and `/prosperity info` use, so the panel can never disagree with server generation; the nearby pillar reads the existing unlooted-indicator caches on a tick interval rather than per frame, so it adds no scan.
+- The panel deliberately does **not** enumerate a container's *possible* or *injected* loot — that browsing surface stays in the EMI/REI/JEI loot index (§11). The panel is about *where you are and what is unlooted around you*, not what a table can roll.
+- Distance/bearing math (`LootDetailPanelMath`, including the 8-way `bearing8`) and the hint's eligibility/cadence rules (`PeekHint`) are kept free of Minecraft imports and covered by pure JUnit.
 
 ---
 
@@ -1156,13 +1198,14 @@ A held compass item whose needle points at the nearest container the holder has 
 - **Per-player** — two players holding the compass at the same spot see different needles, because each client's cache reflects its own loot history.
 - **Retargeting** — looting or breaking the target evicts it from the cache (existing `ContainerLootedS2C`/`ContainerRemovedS2C` flow) and the needle swings to the next nearest candidate. The current target is sticky within a 2-block hysteresis so the needle does not flicker between near-equidistant containers.
 - **No candidates** — the needle spins randomly, exactly like a vanilla compass outside its dimension (vanilla `CompassItemPropertyFunction` behavior).
-- **Obtainability** — injected into chest loot via the bundled `loot_injections/prospectors_compass.json` at `min_tier: frontier`, `chance: 0.01` (its own gate roll, independent of the other bundled groups — about 1 in 100 chests), weight 8. No crafting recipe. Uncommon rarity, stack size 1.
+- **Obtainability** — two paths. The lucky find: injected into chest loot via the bundled `loot_injections/prospectors_compass.json` at `min_tier: frontier`, `chance: 0.01` (its own gate roll, independent of the other bundled groups — about 1 in 100 chests), weight 8. The deliberate craft: a shaped recipe framing a vanilla compass in a gold-ingot casing (`GNG` / `GCG` / `GEG`) with an end rod for the needle and a netherite ingot at the crown — deliberately late-game, since the compass reveals the bearing and distance to the holder's nearest unlooted container. Uncommon rarity, stack size 1.
 - **Peek-panel readout** — carrying a compass anywhere in the inventory adds a `Nearest: <blocks> <bearing>` line to the peek panel's "Nearby unlooted" pillar: the rounded distance and 8-way cardinal bearing to the same plain-nearest target the needle selects (extended over loot minecarts, which the pillar also lists), with the target's tier suffixed in its tier color. The line is absent with no compass or no candidates in range; the pillar's empty state is unchanged. Bearing math (`LootDetailPanelMath.bearing8`) is pure and under JUnit.
 - **Out of scope** — pointing at ungenerated structures, GUIs/waypoints/maps, and loot minecart targets.
 
 ### Implementation Notes
 
 - `ProsperityItems.PROSPECTORS_COMPASS` is the mod's only registered item (a plain `Item` — no server-side behavior), placed in the Tools & Utilities creative tab after the vanilla compass.
+- The crafting recipe and its recipe-book unlock advancement are datagen-emitted by `ProsperityRecipeProvider` (generating rather than hand-authoring keeps the unlock advancement in lockstep with the recipe) — the mod's only shipped recipe.
 - Needle rotation is the vanilla `angle` item property: `ProspectorsCompassClient.register()` installs a `CompassItemPropertyFunction` whose `CompassTarget` reads the indicator cache, reusing vanilla's wobble and random-spin logic wholesale. Target selection (`selectTarget`) is a pure static function under JUnit.
 - The model mirrors the vanilla compass's 32-frame `angle` override ladder; the textures are the vanilla frames with the casing remapped to the design-system gold ramp (dial face, outline, and red needle stay vanilla) so the item reads instantly as "a compass, but for loot".
 
@@ -1422,6 +1465,8 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 | `hudAnchor` | enum | TOP_LEFT | HUD corner: TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT |
 | `hudOffsetX` | int | 4 | Horizontal offset from anchor in pixels |
 | `hudOffsetY` | int | 4 | Vertical offset from anchor in pixels |
+| `peekHintDismissed` | bool | false | Set true on first peek-panel open; suppresses the discovery hint thereafter (§14) |
+| `peekHintJoins` | int | 0 | Eligible-join tally driving the peek-hint cadence (§14) |
 
 ---
 
@@ -1532,6 +1577,8 @@ All user-facing text uses translation keys in `assets/prosperity/lang/en_us.json
 | `prosperity.config.*` | `prosperity.config.enable_distance_scaling` | Cloth Config screen labels |
 | `prosperity.config.*.tooltip` | `prosperity.config.enable_distance_scaling.tooltip` | Cloth Config field descriptions |
 | `command.prosperity.*` | `command.prosperity.info` | Command feedback messages (incl. `/prosperity info` output) |
+| `key.categories.prosperity` / `key.prosperity.*` | `key.prosperity.peek_loot_detail` | Controls-menu keybind category and binding names |
+| `chat.prosperity.*` | `chat.prosperity.peek_hint` | Chat hints (the peek-panel discovery line naming the bound key) |
 | `prosperity.jade.*` | `prosperity.jade.status.looted` | Jade/WTHIT tooltip lines (status, tier, override, refresh timer) |
 | `prosperity.loot_index.*` | `prosperity.loot_index.injected` | EMI/REI/JEI loot index UI |
 | `category.prosperity.*` / `emi.category.prosperity.*` | `category.prosperity.loot_tables` | Recipe-viewer category title |

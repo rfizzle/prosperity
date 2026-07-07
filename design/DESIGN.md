@@ -18,14 +18,13 @@ Prosperity solves multiplayer loot fairness by giving every player their own ins
 
 **Full Logo (`art/logo.png`):** An open wooden treasure chest overflowing with gold coins and a diamond-cyan gem sits within a golden circular medallion frame wrapped with bronze-gold vines bearing golden berries. An ornate golden key crowns the top of the frame. The emblem is flanked by smaller treasure chests, a golden compass, and trinkets, with a pile of gold coins below. The background is dark stone brickwork with hieroglyph-like carvings, showered in falling coins and gems. Warm amber glow emanates from the central chest. Below, "PROSPERITY" in a blocky pixel font on a winged stone tablet, with "MINECRAFT LOOT OVERHAUL" subtitle.
 
-**Icon (`art/icon.png`):** The open wooden treasure chest isolated — warm brown planks with ornate gold trim and corner bands, overflowing with gold coins and a large diamond-cyan gem. Warm golden/amber glow radiating outward against a dark/transparent background. Reads cleanly down to 128×128.
+**Icon (`art/icon-128.png`):** The open wooden treasure chest isolated — warm brown planks with ornate gold trim and corner bands, overflowing with gold coins and a large diamond-cyan gem. Warm golden/amber glow radiating outward against a dark/transparent background. Reads cleanly down to 128×128.
 
-> **Note:** Final assets shipped 2026-06-13. The motif is a **treasure chest** (not the
-> earlier chalice concept), and the palette is warm gold with diamond-cyan gem accents —
-> deliberately avoiding the emerald green of the original draft so Prosperity reads as
+> **Motif rationale:** The motif is a **treasure chest** and the palette is warm gold
+> with diamond-cyan gem accents — kept clear of emerald green so Prosperity reads as
 > distinct from Mercantile across the mod suite.
 
-**In-Game HUD Icon (`art/hud-icon-16.png`):** A small pixel-art treasure chest — warm brown wood with gold trim, slightly open to suggest contents within.
+**In-Game HUD Icon (`art/glyphs/hud_icon.glyph`):** A small pixel-art treasure chest — warm brown wood with gold trim, slightly open to suggest contents within.
 
 ### Color Palette
 
@@ -155,7 +154,7 @@ Colors: Progression from wood brown through gold (#DAA520) to bright
         gold (#FFD700) with increasing diamond cyan (#4EEAED) gem accents
 ```
 
-**In-Game Mod Icon:** (shipped — `art/icon.png` → `assets/prosperity/icon.png`)
+**In-Game Mod Icon:** (shipped — `art/icon-128.png` → `assets/prosperity/icon.png`)
 ```
 Theme: Treasure abundance
 Subject: Open wooden treasure chest overflowing with gold coins
@@ -196,113 +195,61 @@ Prosperity holds **slot 3** in the Concord HUD stack: a 16×16 treasure-chest gl
 
 | Image | Reference Source | Notes |
 |-------|----------------|-------|
-| Chest motif | `art/icon.png` | Open wooden treasure chest, gold trim, overflowing with coins + diamond-cyan gem |
+| Chest motif | `art/icon-128.png` | Open wooden treasure chest, gold trim, overflowing with coins + diamond-cyan gem |
 | Golden frame | `art/logo.png` medallion | Vine-wrapped gold ring with bronze-gold berries |
 | Key symbol | `art/logo.png` top | Ornate golden key with diamond-cyan gem — basis for the recipe-browser icon |
 | Treasure variety | `art/logo.png` contents | Multi-colored gems, coins, small chests, trinkets |
 | Background texture | `art/logo.png` background | Dark stone brickwork with hieroglyph carvings |
-| HUD pixel density | `art/hud-icon-16.png` | Small treasure-chest glyph for the HUD strip |
+| HUD pixel density | `art/glyphs/hud_icon.glyph` | Small treasure-chest glyph for the HUD strip |
 | Companion icon density | Meridian `assets/meridian/icon.png`, Tribulation `assets/tribulation/icon.png` | Match pixel density and style |
 
 ---
 
-## 5. Website Specification
+## 5. Website & Listing Brand Notes
 
-### Domain & Hosting
+How the brand lands on Prosperity's public surfaces. The content itself lives
+elsewhere — page copy under `site/`, store copy in `site/listing-*.md` — so this
+section carries only the brand direction, not the copy.
 
-- **Domain:** `prosperity.rfizzle.com`
-- **Hosting:** GitHub Pages via Actions — `site.yml` renders the `site/` content with the shared Concord Eleventy template and deploys it (the legacy `docs/` directory is retired per Concord REPO-LAYOUT)
-- **CNAME:** `prosperity.rfizzle.com` (set in `site.json` / handled by the deploy workflow)
-- **Status:** Structured content scaffolded under `site/` (stub pages); copy to be filled in
+### Where the content lives
 
-### Pages to Create
+- **Website** — `site/site.json` (identity, nav order, theme accents) plus one
+  `site/pages/<slug>.json` per page (home, features, config, commands, guide,
+  api, faq, changelog), rendered and deployed by the shared Concord Eleventy
+  template at `prosperity.rfizzle.com`. The template owns surfaces, neutrals,
+  the SEO/OG scaffolding, and the cross-mod footer; the mod supplies only its
+  content and accent colors.
+- **Store listings** — `site/listing-curseforge.md` and
+  `site/listing-modrinth.md`, authored per the `mc-listing` skill.
+- **README badges** — maintained in `README.md`.
+- **Release notes** — `changelogs/<version>.md` when curated, otherwise
+  generated from the merged PRs (the `mc-changelog` skill).
 
-| Page | File | Content |
-|------|------|---------|
-| Home | `index.html` | Hero with logo, feature overview (instanced loot, indicators, distance scaling), download links |
-| Features | `features.html` | Detailed breakdown — instanced loot, visual indicators, distance tiers, loot modifier API, loot injection |
-| Config | `config.html` | Configuration reference |
-| Commands | `commands.html` | Command reference |
-| Getting Started | `guide.html` | Installation, how instanced loot works, understanding distance tiers |
-| API | `api.html` | Loot Modifier API documentation for mod developers |
-| FAQ | `faq.html` | Compatibility (Lootr migration), performance, hopper behavior |
-| Changelog | `changelog.html` | Version history |
+### Accent usage
 
-### Website Design Tokens (Tailwind)
+The two signature accents — gold (`#DAA520` → bright `#FFD700`) and diamond-cyan
+(`#4EEAED`) — carry every branded moment: hero glow, headings, links, and card
+borders. Base surfaces and body text stay on the shared Concord neutrals
+(bone/ash/smoke over ink/card/elevated). The accents are declared once in
+`site.json`'s `theme` block; the full token set lives in
+`design/DESIGN-SYSTEM.md`.
 
-```javascript
-colors: {
-    base: '#0a0a0a',
-    card: '#1a1a1a',
-    elevated: '#222222',
-    gold: { DEFAULT: '#DAA520', dark: '#8B6914' },
-    amber: { DEFAULT: '#F0C040', bright: '#FFD700' },
-    diamond: { DEFAULT: '#4EEAED', dark: '#00BCD4' },
-    bone: '#e8e0d4',
-    ash: '#a89f93',
-    smoke: '#6b6359',
-}
-```
+### Hero & gallery art direction
 
-### SEO & Social
+The hero leads with the full logo over the dark stone-brick field. Suggested
+gallery shots (1920×1080, vanilla or a light shader for clarity): unlooted
+sparkle indicators above containers in a structure; two players opening the same
+chest to different loot; a local-vs-frontier loot comparison; loot quality at
+extreme distance; Nether/End container loot.
 
-- **Title pattern:** `{Page} — Prosperity | Loot Overhaul for Minecraft`
-- **og:image:** Absolute URL (`https://prosperity.rfizzle.com/logo.png`)
-- **twitter:card:** `summary_large_image`
-- **Favicon:** `<link rel="icon" type="image/png" href="icon.png">`
-- **Apple Touch:** `<link rel="apple-touch-icon" href="apple-touch-icon.png">`
+### OG image
 
-### Cross-Mod Navigation
-
-Footer section linking to all companion mods:
-```
-Part of the rfizzle mod suite:
-[Meridian] [Mercantile] [Tribulation] [Prosperity]
-```
+The full logo on the dark field, served from an absolute URL; social cards use
+the large-summary format.
 
 ---
 
-## 6. Distribution Listings
-
-### CurseForge / Modrinth
-
-**Description Template:**
-1. Logo image (centered)
-2. One-paragraph summary
-3. Feature list with headers (Instanced Loot, Visual Indicators, Distance Scaling, Loot Modifier API, Loot Injection)
-4. Screenshot gallery (3–5 images)
-5. Requirements section (Fabric Loader, Fabric API)
-6. Optional dependencies (EMI/REI/JEI, Jade/WTHIT)
-7. Links to companion mods
-
-**Screenshot Standards:**
-- Resolution: 1920×1080
-- Shader: Complementary Shaders (or vanilla for clarity)
-- Subjects: (1) Unlooted indicator sprites above containers in a structure, (2) Two players opening the same chest showing different loot, (3) Distance tier comparison — local vs. frontier loot, (4) Loot quality at extreme distance, (5) Nether/End container loot
-
-**Changelog Format:**
-```markdown
-## [0.1.0] — 2025-XX-XX
-### Added
-- Feature description
-### Changed
-- Change description
-### Fixed
-- Fix description
-```
-
-### README Badges
-
-```markdown
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green)
-![Fabric](https://img.shields.io/badge/Loader-Fabric-blue)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-![GitHub](https://img.shields.io/github/v/release/rfizzle/prosperity)
-```
-
----
-
-## 7. Companion Mod Context
+## 6. Companion Mod Context
 
 Prosperity is part of a four-mod suite. Each mod overhauls a different Minecraft system:
 
