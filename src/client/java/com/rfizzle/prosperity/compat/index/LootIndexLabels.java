@@ -28,19 +28,19 @@ public final class LootIndexLabels {
     /** The on-screen tier badge: {@code "Frontier+"} for an injected entry, "Any tier" for vanilla. */
     public static Component tierBadge(LootIndexEntry entry) {
         return entry.minTier()
-                .map(name -> Component.translatable("prosperity.loot_index.tier", tierName(name)))
-                .orElseGet(() -> Component.translatable("prosperity.loot_index.any_tier"));
+                .map(name -> Component.translatable("loot_index.prosperity.tier", tierName(name)))
+                .orElseGet(() -> Component.translatable("loot_index.prosperity.any_tier"));
     }
 
     /** The output slot's appended tooltip line: the injection note for injected rows, else the source. */
     public static Component sourceTooltip(LootIndexEntry entry) {
         if (entry.origin() == LootIndexEntry.Origin.INJECTED) {
-            return Component.translatable("prosperity.loot_index.injected", tierBadge(entry)).withStyle(ChatFormatting.GOLD);
+            return Component.translatable("loot_index.prosperity.injected", tierBadge(entry)).withStyle(ChatFormatting.GOLD);
         }
-        return Component.translatable("prosperity.loot_index.source.vanilla").withStyle(ChatFormatting.GRAY);
+        return Component.translatable("loot_index.prosperity.source.vanilla").withStyle(ChatFormatting.GRAY);
     }
 
     private static Component tierName(String name) {
-        return Component.translatableWithFallback("prosperity.tier." + name, LootIndexFormat.titleCase(name));
+        return Component.translatableWithFallback("tier.prosperity." + name, LootIndexFormat.titleCase(name));
     }
 }

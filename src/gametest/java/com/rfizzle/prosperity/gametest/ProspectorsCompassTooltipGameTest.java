@@ -21,8 +21,8 @@ import net.minecraft.world.item.TooltipFlag;
  */
 public class ProspectorsCompassTooltipGameTest implements FabricGameTest {
 
-    private static final String POINTS_KEY = "prosperity.item.prospectors_compass.tooltip.points";
-    private static final String SPINS_KEY = "prosperity.item.prospectors_compass.tooltip.spins";
+    private static final String POINTS_KEY = "tooltip.prosperity.prospectors_compass.points";
+    private static final String SPINS_KEY = "tooltip.prosperity.prospectors_compass.spins";
 
     /** The index of the first tooltip line carrying the given key, or {@code -1} if absent. */
     private static int indexOfKey(List<Component> lines, String key) {

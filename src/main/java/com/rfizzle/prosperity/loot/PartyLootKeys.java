@@ -163,7 +163,7 @@ public final class PartyLootKeys {
      * screen opens; the player simply keeps their place until the teammate closes.
      */
     public static void refuseInUse(ServerPlayer player, ServerLevel level, Vec3 origin) {
-        player.displayClientMessage(Component.translatable("prosperity.party.container_in_use"), true);
+        player.displayClientMessage(Component.translatable("party.prosperity.container_in_use"), true);
         ContainerFeedback.playSound(level, origin, SoundEvents.VILLAGER_NO);
     }
 }
