@@ -141,48 +141,48 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
         double remaining = LootDetailPanelMath.distanceToNext(ladder, currentIndex, distance);
 
         // ---- Header / pillar-1 strings ----
-        Component title = Component.translatable("hud.prosperity.loot_detail.title");
+        Component title = Component.translatable("hud.prosperity.detail.title");
         Component currentName = tierName(current.name());
-        Component distanceText = Component.translatable("hud.prosperity.loot_detail.distance", fmtInt(distance));
+        Component distanceText = Component.translatable("hud.prosperity.detail.distance", fmtInt(distance));
 
         DistanceTier next = maxTier || currentIndex < 0 ? null : ladder.get(currentIndex + 1);
         Component nextText;
         if (endMax) {
-            nextText = Component.translatable("hud.prosperity.loot_detail.end_max");
+            nextText = Component.translatable("hud.prosperity.detail.end_max");
         } else if (next == null) {
-            nextText = Component.translatable("hud.prosperity.loot_detail.max");
+            nextText = Component.translatable("hud.prosperity.detail.max");
         } else {
-            nextText = Component.translatable("hud.prosperity.loot_detail.next",
+            nextText = Component.translatable("hud.prosperity.detail.next",
                     tierName(next.name()), fmtInt(next.minDistance()));
         }
 
         int percent = Math.round(fraction * 100f);
         Component remainingText = next == null
-                ? Component.translatable("hud.prosperity.loot_detail.at_peak")
-                : Component.translatable("hud.prosperity.loot_detail.remaining", fmtInt(remaining), tierName(next.name()));
-        Component percentText = Component.translatable("hud.prosperity.loot_detail.percent", percent);
-        Component effectText = Component.translatable("hud.prosperity.loot_detail.effect",
+                ? Component.translatable("hud.prosperity.detail.at_peak")
+                : Component.translatable("hud.prosperity.detail.remaining", fmtInt(remaining), tierName(next.name()));
+        Component percentText = Component.translatable("hud.prosperity.detail.percent", percent);
+        Component effectText = Component.translatable("hud.prosperity.detail.effect",
                 fmtMult(current.stackMultiplier()), current.qualityModifier());
 
         // ---- Pillar 2: full tier ladder (static block) ----
-        Component ladderHeading = Component.translatable("hud.prosperity.loot_detail.ladder_heading");
+        Component ladderHeading = Component.translatable("hud.prosperity.detail.ladder_heading");
 
         // ---- Pillar 3: nearby unlooted containers (the only paged section) ----
         refreshNearbyIfStale(mc, cfg, isEnd);
         List<NearbyGroup> groups = new ArrayList<>(nearbyGroups);
         boolean hasNearby = !groups.isEmpty();
-        Component nearbyHeading = Component.translatable("hud.prosperity.loot_detail.nearby_heading");
-        Component noNearby = Component.translatable("hud.prosperity.loot_detail.no_nearby");
+        Component nearbyHeading = Component.translatable("hud.prosperity.detail.nearby_heading");
+        Component noNearby = Component.translatable("hud.prosperity.detail.no_nearby");
 
         // Nearest-unlooted line (#62): distance + 8-way bearing to the compass's nearest target,
         // shown only while the player carries a Prospector's Compass and something is in range.
         boolean showNearest = hasNearby && nearestTierName != null;
         Component nearestText = showNearest
-                ? Component.translatable("hud.prosperity.loot_detail.nearest", fmtInt(nearestDistance),
+                ? Component.translatable("hud.prosperity.detail.nearest", fmtInt(nearestDistance),
                         Component.translatable("hud.prosperity.bearing." + nearestBearing))
                 : null;
         Component nearestTierText = showNearest
-                ? Component.translatable("hud.prosperity.loot_detail.nearby_tier", tierName(nearestTierName))
+                ? Component.translatable("hud.prosperity.detail.nearby_tier", tierName(nearestTierName))
                 : null;
 
         // Fixed-height "chrome": everything above the paged nearby list.
@@ -445,7 +445,7 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
     }
 
     private static Component ladderFigures(DistanceTier tier) {
-        return Component.translatable("hud.prosperity.loot_detail.ladder_row",
+        return Component.translatable("hud.prosperity.detail.ladder_row",
                 fmtInt(tier.minDistance()), fmtMult(tier.stackMultiplier()), tier.qualityModifier());
     }
 
@@ -461,12 +461,12 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
     private Component nearbyLabelPart(NearbyGroup group) {
         Component label = nearbyLabels.getOrDefault(group.typeKey(), Component.literal(group.typeKey()));
         return Component.literal(BULLET)
-                .append(Component.translatable("hud.prosperity.loot_detail.nearby_row", label, group.count()));
+                .append(Component.translatable("hud.prosperity.detail.nearby_row", label, group.count()));
     }
 
     /** The tier-colored suffix of a nearby row, e.g. {@code "— Wilderness"}. */
     private static Component nearbyTierPart(NearbyGroup group) {
-        return Component.translatable("hud.prosperity.loot_detail.nearby_tier", tierName(group.tierName()));
+        return Component.translatable("hud.prosperity.detail.nearby_tier", tierName(group.tierName()));
     }
 
     /** A block distance as a grouped integer, e.g. {@code 4521.7 -> "4,521"} — matches {@code /prosperity info}. */

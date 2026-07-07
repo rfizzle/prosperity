@@ -45,12 +45,12 @@ public class ModMenuIntegration implements ModMenuApi {
 
             ConfigBuilder builder = ConfigBuilder.create()
                     .setParentScreen(parent)
-                    .setTitle(Component.translatable("prosperity.config.title"));
+                    .setTitle(Component.translatable("config.prosperity.title"));
             ConfigEntryBuilder entry = builder.entryBuilder();
 
             // --- General ---
             ConfigCategory general = builder.getOrCreateCategory(
-                    Component.translatable("prosperity.config.category.general"));
+                    Component.translatable("config.prosperity.category.general"));
             general.addEntry(entry.startBooleanToggle(
                             label("enable_instanced_loot"), working.enableInstancedLoot)
                     .setDefaultValue(true)
@@ -60,7 +60,7 @@ public class ModMenuIntegration implements ModMenuApi {
 
             // --- Indicators ---
             ConfigCategory indicators = builder.getOrCreateCategory(
-                    Component.translatable("prosperity.config.category.indicators"));
+                    Component.translatable("config.prosperity.category.indicators"));
             indicators.addEntry(entry.startBooleanToggle(
                             label("enable_visual_indicators"), working.enableVisualIndicators)
                     .setDefaultValue(true)
@@ -82,7 +82,7 @@ public class ModMenuIntegration implements ModMenuApi {
 
             // --- Scaling ---
             ConfigCategory scaling = builder.getOrCreateCategory(
-                    Component.translatable("prosperity.config.category.scaling"));
+                    Component.translatable("config.prosperity.category.scaling"));
             scaling.addEntry(entry.startBooleanToggle(
                             label("enable_distance_scaling"), working.enableDistanceScaling)
                     .setDefaultValue(true)
@@ -110,7 +110,7 @@ public class ModMenuIntegration implements ModMenuApi {
 
             // --- Content ---
             ConfigCategory content = builder.getOrCreateCategory(
-                    Component.translatable("prosperity.config.category.content"));
+                    Component.translatable("config.prosperity.category.content"));
             content.addEntry(entry.startBooleanToggle(
                             label("enable_loot_injection"), working.enableLootInjection)
                     .setDefaultValue(true)
@@ -132,7 +132,7 @@ public class ModMenuIntegration implements ModMenuApi {
 
             // --- Feedback ---
             ConfigCategory feedback = builder.getOrCreateCategory(
-                    Component.translatable("prosperity.config.category.feedback"));
+                    Component.translatable("config.prosperity.category.feedback"));
             feedback.addEntry(entry.startBooleanToggle(
                             label("enable_loot_notifications"), working.enableLootNotifications)
                     .setDefaultValue(true)
@@ -174,7 +174,7 @@ public class ModMenuIntegration implements ModMenuApi {
 
             // --- Extended ---
             ConfigCategory extended = builder.getOrCreateCategory(
-                    Component.translatable("prosperity.config.category.extended"));
+                    Component.translatable("config.prosperity.category.extended"));
             extended.addEntry(entry.startBooleanToggle(
                             label("enable_container_protection"), working.enableContainerProtection)
                     .setDefaultValue(false)
@@ -228,7 +228,7 @@ public class ModMenuIntegration implements ModMenuApi {
 
             // --- HUD (client-only) ---
             ConfigCategory hud = builder.getOrCreateCategory(
-                    Component.translatable("prosperity.config.category.hud"));
+                    Component.translatable("config.prosperity.category.hud"));
             hud.addEntry(entry.startBooleanToggle(
                             label("show_indicators"), working.client.showIndicators)
                     .setDefaultValue(true)
@@ -245,7 +245,7 @@ public class ModMenuIntegration implements ModMenuApi {
                             label("hud_anchor"), ProsperityConfig.Anchor.class, working.client.hudAnchor)
                     .setDefaultValue(ProsperityConfig.Anchor.TOP_LEFT)
                     .setEnumNameProvider(a -> Component.translatable(
-                            "prosperity.config.hud_anchor." + a.name().toLowerCase()))
+                            "config.prosperity.hud_anchor." + a.name().toLowerCase()))
                     .setTooltip(tooltip("hud_anchor"))
                     .setSaveConsumer(v -> working.client.hudAnchor = v)
                     .build());
@@ -279,11 +279,11 @@ public class ModMenuIntegration implements ModMenuApi {
     }
 
     private static Component label(String key) {
-        return Component.translatable("prosperity.config." + key);
+        return Component.translatable("config.prosperity." + key);
     }
 
     private static Component[] tooltip(String key) {
-        return new Component[]{Component.translatable("prosperity.config." + key + ".tooltip")};
+        return new Component[]{Component.translatable("config.prosperity." + key + ".tooltip")};
     }
 
     // --- Structured-list row codecs (CSV per row; malformed rows dropped + logged on save) ---

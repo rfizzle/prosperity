@@ -41,7 +41,7 @@ public final class PeekHintMessage {
                 return;
             }
             player.displayClientMessage(
-                    Component.translatable("chat.prosperity.peek_hint",
+                    Component.translatable("message.prosperity.peek_hint",
                             ProsperityClient.KEY_PEEK_LOOT_DETAIL.getTranslatedKeyMessage()),
                     false);
         }));
