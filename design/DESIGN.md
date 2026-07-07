@@ -205,103 +205,51 @@ Prosperity holds **slot 3** in the Concord HUD stack: a 16×16 treasure-chest gl
 
 ---
 
-## 5. Website Specification
+## 5. Website & Listing Brand Notes
 
-### Domain & Hosting
+How the brand lands on Prosperity's public surfaces. The content itself lives
+elsewhere — page copy under `site/`, store copy in `site/listing-*.md` — so this
+section carries only the brand direction, not the copy.
 
-- **Domain:** `prosperity.rfizzle.com`
-- **Hosting:** GitHub Pages via Actions — `site.yml` renders the `site/` content with the shared Concord Eleventy template and deploys it. Site content lives under `site/` per Concord REPO-LAYOUT.
-- **CNAME:** `prosperity.rfizzle.com` (set in `site.json` / handled by the deploy workflow)
-- **Content:** Authored under `site/` — `site.json` plus `pages/*.json` (home, features, config, commands, guide, api, faq) — rendered and deployed by the shared template
+### Where the content lives
 
-### Pages to Create
+- **Website** — `site/site.json` (identity, nav order, theme accents) plus one
+  `site/pages/<slug>.json` per page (home, features, config, commands, guide,
+  api, faq, changelog), rendered and deployed by the shared Concord Eleventy
+  template at `prosperity.rfizzle.com`. The template owns surfaces, neutrals,
+  the SEO/OG scaffolding, and the cross-mod footer; the mod supplies only its
+  content and accent colors.
+- **Store listings** — `site/listing-curseforge.md` and
+  `site/listing-modrinth.md`, authored per the `mc-listing` skill.
+- **README badges** — maintained in `README.md`.
+- **Release notes** — `changelogs/<version>.md` when curated, otherwise
+  generated from the merged PRs (the `mc-changelog` skill).
 
-| Page | File | Content |
-|------|------|---------|
-| Home | `index.html` | Hero with logo, feature overview (instanced loot, indicators, distance scaling), download links |
-| Features | `features.html` | Detailed breakdown — instanced loot, visual indicators, distance tiers, loot modifier API, loot injection |
-| Config | `config.html` | Configuration reference |
-| Commands | `commands.html` | Command reference |
-| Getting Started | `guide.html` | Installation, how instanced loot works, understanding distance tiers |
-| API | `api.html` | Loot Modifier API documentation for mod developers |
-| FAQ | `faq.html` | Compatibility (Lootr migration), performance, hopper behavior |
-| Changelog | `changelog.html` | Version history |
+### Accent usage
 
-### Website Design Tokens (Tailwind)
+The two signature accents — gold (`#DAA520` → bright `#FFD700`) and diamond-cyan
+(`#4EEAED`) — carry every branded moment: hero glow, headings, links, and card
+borders. Base surfaces and body text stay on the shared Concord neutrals
+(bone/ash/smoke over ink/card/elevated). The accents are declared once in
+`site.json`'s `theme` block; the full token set lives in
+`design/DESIGN-SYSTEM.md`.
 
-```javascript
-colors: {
-    base: '#0a0a0a',
-    card: '#1a1a1a',
-    elevated: '#222222',
-    gold: { DEFAULT: '#DAA520', dark: '#8B6914' },
-    amber: { DEFAULT: '#F0C040', bright: '#FFD700' },
-    diamond: { DEFAULT: '#4EEAED', dark: '#00BCD4' },
-    bone: '#e8e0d4',
-    ash: '#a89f93',
-    smoke: '#6b6359',
-}
-```
+### Hero & gallery art direction
 
-### SEO & Social
+The hero leads with the full logo over the dark stone-brick field. Suggested
+gallery shots (1920×1080, vanilla or a light shader for clarity): unlooted
+sparkle indicators above containers in a structure; two players opening the same
+chest to different loot; a local-vs-frontier loot comparison; loot quality at
+extreme distance; Nether/End container loot.
 
-- **Title pattern:** `{Page} — Prosperity | Loot Overhaul for Minecraft`
-- **og:image:** Absolute URL (`https://prosperity.rfizzle.com/logo.png`)
-- **twitter:card:** `summary_large_image`
-- **Favicon:** `<link rel="icon" type="image/png" href="icon.png">`
-- **Apple Touch:** `<link rel="apple-touch-icon" href="apple-touch-icon.png">`
+### OG image
 
-### Cross-Mod Navigation
-
-Footer section linking to all companion mods:
-```
-Part of the rfizzle mod suite:
-[Meridian] [Mercantile] [Tribulation] [Prosperity]
-```
+The full logo on the dark field, served from an absolute URL; social cards use
+the large-summary format.
 
 ---
 
-## 6. Distribution Listings
-
-### CurseForge / Modrinth
-
-**Description Template:**
-1. Logo image (centered)
-2. One-paragraph summary
-3. Feature list with headers (Instanced Loot, Visual Indicators, Distance Scaling, Loot Modifier API, Loot Injection)
-4. Screenshot gallery (3–5 images)
-5. Requirements section (Fabric Loader, Fabric API)
-6. Optional dependencies (EMI/REI/JEI, Jade/WTHIT)
-7. Links to companion mods
-
-**Screenshot Standards:**
-- Resolution: 1920×1080
-- Shader: Complementary Shaders (or vanilla for clarity)
-- Subjects: (1) Unlooted indicator sprites above containers in a structure, (2) Two players opening the same chest showing different loot, (3) Distance tier comparison — local vs. frontier loot, (4) Loot quality at extreme distance, (5) Nether/End container loot
-
-**Changelog Format:**
-```markdown
-## [0.1.0] — 2025-XX-XX
-### Added
-- Feature description
-### Changed
-- Change description
-### Fixed
-- Fix description
-```
-
-### README Badges
-
-```markdown
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green)
-![Fabric](https://img.shields.io/badge/Loader-Fabric-blue)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-![GitHub](https://img.shields.io/github/v/release/rfizzle/prosperity)
-```
-
----
-
-## 7. Companion Mod Context
+## 6. Companion Mod Context
 
 Prosperity is part of a four-mod suite. Each mod overhauls a different Minecraft system:
 
