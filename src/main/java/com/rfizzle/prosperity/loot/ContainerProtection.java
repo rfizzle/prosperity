@@ -238,9 +238,9 @@ public final class ContainerProtection {
      */
     public static Component protectionMessage(boolean unbreakable) {
         return unbreakable
-                ? Component.translatableWithFallback("prosperity.notification.protected_unbreakable",
+                ? Component.translatableWithFallback("notification.prosperity.protected_unbreakable",
                         "⚠ This loot container can't be broken — open it to claim its loot")
-                : Component.translatableWithFallback("prosperity.notification.protected",
+                : Component.translatableWithFallback("notification.prosperity.protected",
                         "⚠ Protected loot container — open it instead of breaking it");
     }
 

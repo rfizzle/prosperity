@@ -28,7 +28,7 @@ public class ProsperityClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         KEY_PEEK_LOOT_DETAIL = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-                "key.prosperity.peek_loot_detail",
+                "key.prosperity.peek_detail",
                 InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_LEFT_ALT,
                 "key.categories.prosperity"));

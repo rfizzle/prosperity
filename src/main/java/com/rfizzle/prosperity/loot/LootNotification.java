@@ -89,7 +89,7 @@ public final class LootNotification {
      * per player. Localizable with a fallback so it renders deterministically on a headless server.
      */
     public static Component buildFirstOpen() {
-        return Component.translatableWithFallback("prosperity.notification.first_open",
+        return Component.translatableWithFallback("notification.prosperity.first_open",
                 "This loot was rolled just for you — other players get their own.");
     }
 
@@ -101,7 +101,7 @@ public final class LootNotification {
         Component structureName = Component.translatableWithFallback(
                 "prosperity.structure." + structure.getPath(), humanize(structure.getPath()));
         return Component.translatableWithFallback(
-                "prosperity.notification.structure_cleared", "✦ %s cleared!", structureName);
+                "notification.prosperity.structure_cleared", "✦ %s cleared!", structureName);
     }
 
     /**
@@ -115,17 +115,17 @@ public final class LootNotification {
         Component tierName = Component.translatableWithFallback(
                 "prosperity.tier." + tier.name(), capitalize(tier.name()));
         MutableComponent message = Component.translatableWithFallback(
-                "prosperity.notification.loot_generated", "✦ %s", tierName);
+                "notification.prosperity.loot_generated", "✦ %s", tierName);
         if (hasModifiers(finalStackMultiplier, finalQuality)) {
             message.append(Component.translatableWithFallback(
-                    "prosperity.notification.modifiers", " — %sx stacks, +%s quality",
+                    "notification.prosperity.modifiers", " — %sx stacks, +%s quality",
                     multiplierText(finalStackMultiplier), finalQuality));
         }
         if (structure != null) {
             Component structureName = Component.translatableWithFallback(
                     "prosperity.structure." + structure.getPath(), humanize(structure.getPath()));
             message.append(Component.translatableWithFallback(
-                    "prosperity.notification.structure", " (%s)", structureName));
+                    "notification.prosperity.structure", " (%s)", structureName));
         }
         return message;
     }
