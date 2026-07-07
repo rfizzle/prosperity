@@ -1495,54 +1495,6 @@ All features are independently toggleable via ModMenu / Cloth Config screen and 
 
 ---
 
-## Implementation Order
-
-Features are ordered by dependency and complexity. Infrastructure comes first, then the core loop, then extensions.
-
-### Phase 0: Infrastructure
-
-1. **Config system** — `ProsperityConfig` class with all server + client fields, JSON serialization, Cloth Config screen builder, `ModMenuIntegration`.
-2. **Data attachment registration** — `InstancedLootData` type + Codec, registered as a persistent block-entity attachment on `RandomizableContainerBlockEntity` (and the parallel entity attachment type for minecarts).
-3. **Networking infrastructure** — Packet registration, `CustomPayload` types for all S2C and C2S packets.
-4. **Command registration** — `/prosperity` command tree (section 15).
-
-### Phase 1: Core Instanced Loot
-
-5. **Instanced loot system** (section 1) — `UseBlockCallback` handler, attachment population, virtual container screen, animation sync, loot table nullification, double chest handling, hopper safety mixin, container adapters (minecart coverage), fake-player guard.
-
-### Phase 2: Visual Feedback
-
-6. **Visual indicators** (section 2) — Client-side overlay renderer, chunk-based data sync packets, indicator cache.
-
-### Phase 3: Loot Scaling
-
-7. **Distance-based loot scaling** (section 3) — Distance calculation, tier lookup, quantity/quality application, dimension handling.
-8. **Structure-specific scaling** (section 6) — Structure detection via `StructureManager`, override map, interaction with distance tiers.
-9. **Loot modifier API** (section 4) — `LootModifierCallback` event, `LootModifierContext`, vanilla luck registration.
-
-### Phase 4: Loot Content
-
-10. **Loot table injection** (section 5) — Datapack schema, resource reload listener, tier-gated injection into loot pools, built-in defaults.
-11. **Loot table blacklist** (section 7) — Config-driven exclusion, pattern matching, integration with UseBlockCallback and visual indicators.
-
-### Phase 5: Player Feedback
-
-12. **Loot notifications** (section 8) — Action bar messages on first open, tier + modifier display, structure override indicator.
-13. **Tier HUD badge** (section 14) — Client-side HUD rendering, tier color, transition animation, overhaul suite stacking convention.
-14. **Loot refresh** (section 9) — Cooldown tracking, lazy expiration check, indicator re-appearance.
-
-### Phase 6: Extended Features
-
-15. **Container protection** (section 12) — Break speed multiplier for instanced containers, creative bypass.
-16. **Mob loot scaling** (section 13) — Distance tier applied to mob drops on player kill, hostile-only filter, Loot Modifier API integration.
-
-### Phase 7: Mod Integrations
-
-17. **Jade/WTHIT plugin** (section 10) — Container tooltip: loot status, distance tier, structure override, refresh timer.
-18. **Loot index** (section 11) — EMI/REI/JEI plugin. Shared `LootIndexDataSource`, three viewer adapters, structure/tier/source filtering, injection display.
-
----
-
 ## Sound Design
 
 Sounds stay **vanilla** where the cue is organic — chest lids, barrel lids, and
@@ -1646,13 +1598,4 @@ Features that require visual/UI verification:
 - Jade/WTHIT tooltip rendering (all status states, refresh timer countdown, structure override display)
 - EMI/REI/JEI loot index (search integration, structure/tier/source filtering, injected entry display)
 - Sodium/EBE/Iris visual compatibility
-
----
-
-## Future Considerations (Out of Scope for v0.1)
-
-- **Shared HUD library** — Extract the overhaul suite HUD convention into a standalone library mod that handles layout, stacking, and toggle. Each overhaul mod registers its badge; the library renders them.
-- **Loot history** — Track what a player has received from instanced containers across all sessions. Surface as a GUI or command.
-- **Trapped chest behavior** — Instanced trapped chests could trigger redstone only on first open per player.
-- **Container locking** — Players can lock their instanced inventory to prevent accidental item removal, with a distinct visual indicator.
 - **Loot preview** — Sneak-click to peek at partial loot without committing to generation.

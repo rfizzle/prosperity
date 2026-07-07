@@ -38,12 +38,11 @@ Prosperity solves multiplayer loot fairness by giving every player their own ins
 | Glow | Warm Amber | `#F0C040` | Particle effects, loot indicators, background radiance |
 | Gem Red | Ruby | `#DC143C` | Gem accent, rare loot tier |
 | Gem Cyan | Diamond | `#00BCD4` | Gem accent, endgame loot tier |
-| Text Primary | Bone | `#e8e0d4` | Body text |
-| Text Secondary | Ash | `#a89f93` | Muted text, descriptions |
-| Text Tertiary | Smoke | `#6b6359` | Disabled, placeholder |
-| Surface Base | Obsidian | `#0a0a0a` | Page backgrounds |
-| Surface Card | Dark Stone | `#1a1a1a` | Cards, panels |
-| Surface Elevated | Stone | `#222222` | Elevated surfaces, hover cards |
+
+Shared neutrals (text and surfaces) follow the standard tokens as-is —
+`--color-bone`, `--color-ash`, `--color-smoke`, `--color-ink`,
+`--color-card`, `--color-elevated` — see concord
+[`design/DESIGN-SYSTEM.md`](../../concord/design/DESIGN-SYSTEM.md) §2.
 
 ### Typography
 
@@ -61,151 +60,13 @@ lives in [`ASSETS.md`](ASSETS.md).
 
 ---
 
-## 3. Generation Prompts
+## 3. HUD
 
-### Gemini Prompts (Logos / High-Res Art)
-
-**Open Graph / Social Card:**
-```
-Pixel art style, 1200x630 banner image for a Minecraft mod called "Prosperity".
-Center the logo: an open wooden treasure chest (brown #7A4E2D, gold trim
-#DAA520/#FFD700) overflowing with gold coins and a diamond-cyan (#4EEAED) gem,
-inside a golden circular medallion frame wrapped with bronze-gold vines. An
-ornate gold key with a diamond-cyan gem crowns the top. The word "PROSPERITY"
-in blocky pixel font below. Dark bronze (#1a1408) background. Warm amber/gold
-glow behind the chest. Falling gold-coin and diamond-cyan gem particles.
-DO NOT use green/emerald/teal/lime — palette is warm gold + brown chest with
-diamond-cyan accents on dark bronze.
-```
-
-**Website Hero Background:**
-```
-Pixel art tileable background texture, 1920x600. Dark stone brickwork
-(#1a1408 to #2e2510 gradient) with subtle hieroglyph/treasure-map carvings
-in the stone. Faint gold coins embedded in mortar. Occasional gem glint.
-Very subtle — this is a background behind text. Minecraft pixel art style,
-16-pixel grid aligned.
-```
-
-**Discord Banner:**
-```
-Pixel art banner, 1280x640. The Prosperity treasure-chest icon centered on a
-dark bronze (#1a1408) background. Warm golden/amber glow radiating from center.
-Falling gold coin particles with occasional diamond-cyan (#4EEAED) gem sparkle.
-"Prosperity" in gold pixel font below the icon. "Loot Overhaul" subtitle in
-lighter text. Clean, minimal. No emerald green.
-```
-
-### Glyph Specs (In-Game Pixel Art)
-
-In-game pixel art — HUD/UI glyphs, recipe-browser icons, item textures, and
-tier-icon sets — is authored through Concord's glyph pipeline: write the
-ASCII-grid `.glyph` spec, then render it deterministically with `/glyph` (the
-`mc-textures` skill is the craft reference). Every PNG master commits its
-`.glyph` source beside it in `art/glyphs/`, so each texture re-renders from its
-spec rather than being hand-patched. Design at the target size with hard pixels,
-a limited palette, and an `ink` (#0a0a0a) 1px outline so the glyph reads against
-any background. The normative spec is concord's `design/DESIGN-SYSTEM.md` §8.
-The specs below seed that work.
-
-**Unlooted Container Indicator Sprite (CRITICAL):**
-```
-Theme: Treasure / undiscovered loot
-Subject: Four-point sparkle indicator icon
-Style: Minecraft world overlay icon, pixel art
-Size: 16x16 per frame — a 4-frame animated strip (16x64), frametime 5,
-      no interpolation. The sparkle pulses small → medium → large → medium
-      and loops (~1s twinkle cycle).
-Colors: Gold (#FFD700) body, gold-deep (#DAA520) spike tips,
-        diamond cyan (#4EEAED) inner glow, bone (#E8E0D4) hot-white core.
-        Emissive — no ink outline; spike tips carry the dark edge.
-Notes: Must be immediately recognizable as "something valuable here."
-       Clean silhouette. Renders as a world overlay above containers and
-       bobs in-game (on top of the texture's own twinkle). A sparkle, not
-       another chest, so it stays distinct from Prosperity's static chest
-       glyph. Visible against varied block backgrounds. No background —
-       transparent.
-```
-
-**Recipe Browser Icon (EMI/REI/JEI Tab):**
-```
-Theme: Treasure / loot discovery
-Subject: Golden key or small treasure chest
-Style: Minecraft item icon, pixel art
-Size: 32x32
-Colors: Gold (#DAA520) key/chest body, darker gold (#8B6914) shadows,
-        diamond cyan (#4EEAED) gem accent
-Notes: Must read clearly at 16x16 downscale. No text. Single centered motif.
-       Should suggest "loot" or "discovery" at a glance.
-```
-
-**Distance Tier Icons (set of 5):**
-```
-Theme: Exploration distance / loot quality progression
-Subject: Five 16x16 icons representing distance-based loot tiers:
-  1. Local (0–999 blocks) — simple wooden chest, plain
-  2. Frontier (1k–3k) — iron-banded chest, slight glow
-  3. Wilderness (3k–6k) — gold-trimmed chest, cyan gem accent
-  4. Outlands (6k–10k) — ornate golden chest, multiple diamond-cyan gems
-  5. Depths (10k+) — radiant diamond/netherite chest, maximum cyan glow
-Style: Minecraft item icons, pixel art, consistent set
-Size: 16x16 each
-Colors: Progression from wood brown through gold (#DAA520) to bright
-        gold (#FFD700) with increasing diamond cyan (#4EEAED) gem accents
-```
-
-**In-Game Mod Icon:** (shipped — `art/icon-128.png` → `assets/prosperity/icon.png`)
-```
-Theme: Treasure abundance
-Subject: Open wooden treasure chest overflowing with gold coins
-Style: Minecraft mod icon, pixel art, clean readable at small sizes
-Size: 128x128
-Colors: Wood brown (#7A4E2D / #4A2E18 / #A06A3C), gold trim (#DAA520 / #FFD700 /
-        #8B6914), gold coins (#FFD700), one diamond-cyan gem (#4EEAED),
-        warm amber inner glow (#F0C040)
-Notes: Match the pixel density of Meridian (open book) and Tribulation (skull
-       with flame). Lid open, coins spilling over the front. Works as a
-       fabric.mod.json icon at all display sizes. Dark/transparent background.
-       DO NOT use green/emerald — metal is gold, wood is brown, only non-gold
-       accent is the diamond-cyan gem.
-```
-
-**HUD Loot Tier Icon:**
-```
-Theme: Exploration / treasure discovery
-Subject: Small treasure chest icon for the shared HUD element strip
-Style: Minecraft HUD icon, pixel art, minimal and flat
-Size: 16x16
-Colors: Gold (#DAA520) chest body, diamond cyan (#4EEAED) gem accent,
-        tier-dependent intensity (plain wood Local → radiant gold Depths)
-Notes: Sits inside the shared semi-transparent HUD box alongside a text
-       label like "Frontier". Must be legible at native 16x16 against the
-       dark box background. Transparent PNG. No frame or border — the
-       shared HUD box provides the container. Could use a single icon
-       tinted by code, or match the 5-variant Distance Tier Icons set.
-```
-
-### HUD
-
-Prosperity holds **slot 3** in the Concord HUD stack: a 16×16 treasure-chest glyph with the current loot-distance tier label, tinted by tier. The full visual spec, slot registry, and stacking/coordination contract live in concord [`HUD-STANDARD.md`](../../concord/HUD-STANDARD.md). The five tier labels are Local, Frontier, Wilderness, Outlands, and Depths.
+Prosperity holds **slot 3** in the Concord HUD stack: a treasure-chest glyph with the current loot-distance tier label, tinted by tier. The glyph is authored at 32×32 (HUD-STANDARD density) and blitted down to 16×16 at render time. The full visual spec, slot registry, and stacking/coordination contract live in concord [`HUD-STANDARD.md`](../../concord/HUD-STANDARD.md). The five tier labels are Local, Frontier, Wilderness, Outlands, and Depths.
 
 ---
 
-## 4. Image References
-
-| Image | Reference Source | Notes |
-|-------|----------------|-------|
-| Chest motif | `art/icon-128.png` | Open wooden treasure chest, gold trim, overflowing with coins + diamond-cyan gem |
-| Golden frame | `art/logo.png` medallion | Vine-wrapped gold ring with bronze-gold berries |
-| Key symbol | `art/logo.png` top | Ornate golden key with diamond-cyan gem — basis for the recipe-browser icon |
-| Treasure variety | `art/logo.png` contents | Multi-colored gems, coins, small chests, trinkets |
-| Background texture | `art/logo.png` background | Dark stone brickwork with hieroglyph carvings |
-| HUD pixel density | `art/glyphs/hud_icon.glyph` | Small treasure-chest glyph for the HUD strip |
-| Companion icon density | Meridian `assets/meridian/icon.png`, Tribulation `assets/tribulation/icon.png` | Match pixel density and style |
-
----
-
-## 5. Website & Listing Brand Notes
+## 4. Website & Listing Brand Notes
 
 How the brand lands on Prosperity's public surfaces. The content itself lives
 elsewhere — page copy under `site/`, store copy in `site/listing-*.md` — so this
@@ -249,7 +110,7 @@ the large-summary format.
 
 ---
 
-## 6. Companion Mod Context
+## 5. Companion Mod Context
 
 Prosperity is part of a four-mod suite. Each mod overhauls a different Minecraft system:
 
