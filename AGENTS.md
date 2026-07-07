@@ -172,6 +172,11 @@ reference for producing a good one. The normative spec is concord's
    questions inline in the issue (no spec re-run needed for the simple cases).
 5. **`jules` label** added → Jules picks up the issue and opens a draft PR.
    Apply it from either `ready` or `open-questions` once you're satisfied.
+   For a locally supervised implementation instead, run the vendored
+   `/implement <issue#>` command in Claude Code — the same lifecycle end to
+   end (domain gate, plan, a green build + unit-test + gametest sweep,
+   parallel reviews, PR) with human approval gates at plan, remediation, and
+   ship.
 6. **PR opened** → `claude-code-review.yml` posts a structured ✓/⚠/✗ review
    (categories from concord's default `review-criteria.yml`, unless a
    repo-local `.ai/review-criteria.yml` override exists). For player-facing
