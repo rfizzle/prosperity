@@ -1,22 +1,90 @@
 ---
 name: mc-persistence
-description: Persist mod state to disk the suite way — Fabric Attachments + Mojang Codec for per-entity/player/block-entity data, SavedData for per-world global state, and block-entity NBT with client sync — funneling writes through one dirtying choke point and keeping the serialized footprint bounded and deterministic. TRIGGER when creating or editing an *Attachments.java, a SavedData subclass, a class with a Codec/CODEC for saved data, block-entity saveAdditional/loadAdditional, or any code that reads/writes data that must survive world reload (player progression, per-block state, world-global counters).
+description: Persist mod state to disk the suite way — vanilla-persisted channels (scoreboard tags, namespaced attribute modifiers) for per-mob flags and stats, Fabric Attachments + Mojang Codec for per-entity/player/block-entity data, SavedData for per-world global state, and block-entity NBT with client sync — funneling writes through one dirtying choke point and keeping the serialized footprint bounded and deterministic. TRIGGER when creating or editing an *Attachments.java, a SavedData subclass, a class with a Codec/CODEC for saved data, block-entity saveAdditional/loadAdditional, per-mob state via entity.addTag or a mod-namespaced AttributeModifier, or any code that reads/writes data that must survive world reload (player progression, per-mob flags, per-block state, world-global counters).
 ---
 
 The user is storing state that must survive a world reload. This is distinct from
 in-memory shared state (see the `mc-shared-state` skill) — here the question is
-how bytes hit disk and come back intact. Three vanilla/Fabric homes, picked by
-**what the data is attached to**:
+how bytes hit disk and come back intact. Four homes, picked by **what the data
+is attached to** — try the cheapest first:
 
 | Data is per… | Use | Reference |
 |---|---|---|
-| player / entity / block-entity instance | **Fabric Attachment** + Codec | Mercantile `PlayerData`, Prosperity `InstancedLootData` |
-| world / dimension (one global blob) | **SavedData** | Tribulation `PlayerDifficultyState` |
+| mob — a boolean flag or a stat delta | **vanilla channels**: scoreboard tag / `AttributeModifier` | Tribulation `AbilityManager`, `MobScalingHandler` |
+| player / entity / block-entity instance (structured) | **Fabric Attachment** + Codec | Mercantile `PlayerData`, Prosperity `InstancedLootData` |
+| world / dimension (one global blob) | **SavedData** | Tribulation `PlayerDifficultyState`, Prosperity `PlayerLastSeenState` |
 | block (lives in the BE, syncs to client) | **block-entity NBT** | Meridian library block entities |
 
-Whichever you pick, the same disciplines apply: **one write choke point** that
-marks the owner dirty, a **Codec/NBT that is forward-compatible and bounded**, and
-**deterministic serialization** so saves diff cleanly and tests are stable.
+Whichever custom home you pick, the same disciplines apply: **one write choke
+point** that marks the owner dirty, a **Codec/NBT that is forward-compatible and
+bounded**, and **deterministic serialization** so saves diff cleanly and tests
+are stable. The vanilla channels need none of that — which is the point.
+
+## Let vanilla persist it — scoreboard tags + attribute modifiers
+
+Before building any attachment or SavedData plumbing, check whether the state
+fits a channel vanilla already saves in the mob's own NBT. Per-mob booleans and
+stat deltas need **zero custom NBT, codec, or sync code** — the entity
+serializes them with its chunk, and every surface (mixin, tooltip, command)
+probes them the same symmetric way.
+
+**Scoreboard tags** (`entity.addTag`) carry boolean state: "this mob has ability
+X", "this mob is variant Y", "this mob was already processed". Namespace every
+tag with the mod id — tags share one global string space and are visible to
+`/tag` and target selectors. The tag — not an attribute modifier — is the
+canonical "mob has ability X" signal for abilities expressed through vanilla
+mechanics that no attribute can capture (arrow effects, potion type, roar
+radius, door breaking, beam charge):
+
+```java
+/** Scoreboard tags read by the ability mixins and the probe-tooltip collector. */
+public static final String TAG_SLOWNESS_ARROWS = "tribulation_slow2";
+public static final String TAG_POISON_ARROWS = "tribulation_poison2";
+public static final String TAG_DOOR_BREAKING = "tribulation_door_break";
+// applied: mob.addTag(TAG_DOOR_BREAKING);
+// probed:  mob.getTags().contains(TAG_DOOR_BREAKING)  — mixins, tooltips, commands alike
+```
+
+A processed-flag tag **doubles as the idempotence guard across chunk reloads**.
+`ENTITY_LOAD` fires on every chunk load, not just first spawn — check the tag
+before rolling and the mob's state is frozen at spawn:
+
+```java
+public static final String PROCESSED_TAG = "tribulation_processed";
+
+static void onEntityLoad(Entity entity, ServerLevel world) {
+    if (!(entity instanceof Mob mob)) return;
+    if (mob.getTags().contains(PROCESSED_TAG)) return;   // already rolled — frozen at spawn
+    // ... roll once, then mob.addTag(PROCESSED_TAG)
+}
+```
+
+**Mod-namespaced `AttributeModifier` ids** carry stat-shaped state: the modifier
+both *applies* the effect (vanilla recomputes the attribute) and *is* the
+persisted record. Presence-probe by scanning attribute instances for the
+namespaced id:
+
+```java
+private static boolean hasModifier(Mob mob, ResourceLocation id) {
+    for (Holder<Attribute> attr : attributeHolders()) {
+        AttributeInstance inst = mob.getAttribute(attr);
+        if (inst != null && inst.getModifier(id) != null) return true;
+    }
+    return false;
+}
+```
+
+The decision table:
+
+| State shape | Use | Probe |
+|---|---|---|
+| Boolean ability / variant / processed flag, queried by id | scoreboard tag | `getTags().contains(TAG)` |
+| Numeric stat that should apply automatically (speed, KB resist, health) | namespaced `AttributeModifier` | `hasModifier(mob, id)` |
+| Structured, synced, or codec-shaped data | Fabric Attachment (below) | attachment API |
+
+One caveat: a variant whose stat delta can be **zero** leaves no modifier to
+probe — give it an always-present tag as well (a skeleton variant with a 0
+health malus carries no attribute modifier).
 
 ## Fabric Attachments — per-entity / player / block-entity
 
@@ -127,10 +195,25 @@ and **serialize deterministically** (sort by UUID). Raise the dirty flag **only
 when a field actually changed**, and factor the state transition into a **pure
 static helper** so it's unit-testable without a server (see `mc-mod-testing`).
 
+**The factory's `DataFixTypes` must be non-null.** On 1.21.1,
+`DimensionDataStorage` calls `dataFixTypes.update(...)` unconditionally on read,
+so a `null` type NPEs inside the storage's *swallowed* load — `computeIfAbsent`
+silently hands back a fresh empty state every restart, and the data loss leaves
+no stack trace. Any `SAVED_DATA_*` constant is benign *on 1.21.1*: `save` stamps
+the current DataVersion, so the fixer short-circuits without touching the tag.
+Re-verify the choice on every MC version bump — a real datafixer registered for
+that type between the save's version and the target would run against your tag
+and could silently drop it (Prosperity `PlayerLastSeenState`).
+
+On load, skip a malformed entry with a warn rather than aborting — and skip
+rather than let a missing field default in the *unsafe* direction (`getLong` on
+an absent tag reads 0, e.g. "absent since world start").
+
 ```java
 public class PlayerDifficultyState extends SavedData {
     public static final SavedData.Factory<PlayerDifficultyState> FACTORY =
-            new SavedData.Factory<>(PlayerDifficultyState::new, PlayerDifficultyState::load, null);
+            new SavedData.Factory<>(PlayerDifficultyState::new, PlayerDifficultyState::load,
+                    DataFixTypes.SAVED_DATA_RANDOM_SEQUENCES);   // non-null — see hazard above
     private final Map<UUID, PlayerData> data = new ConcurrentHashMap<>();
 
     public static PlayerDifficultyState getOrCreate(MinecraftServer server) {
@@ -205,7 +288,9 @@ silently drops a field). Detailed registration of the BE/block lives in the
 
 | Check | What to do |
 |---|---|
+| Cheapest tier first | Per-mob boolean → namespaced scoreboard tag; per-mob stat → namespaced `AttributeModifier`; attachments only for structured/synced data. |
 | Pick the home | Attachment (per entity/BE), SavedData (per world), BE NBT (per block). |
+| DataFixTypes | Non-null `SAVED_DATA_*` constant in every `SavedData.Factory`; re-verify on MC bump. |
 | Write choke point | One `update(owner, mutation)` helper; `setChanged()` for BEs, none for entities. |
 | Forward-compat | Every codec field `optionalFieldOf(name, default)`; skip malformed NBT entries with a warn. |
 | Bounded | Cap every collection, FIFO-evict, document the footprint at the cap. |
@@ -226,6 +311,10 @@ silently drops a field). Detailed registration of the BE/block lives in the
 - **Never** serialize a map/set in iteration order — sort it, or saves churn and
   tests flake.
 - **Never** leave a collection unbounded in persisted data — cap and evict.
+- **Never** build attachment/codec plumbing for a per-mob boolean or stat delta
+  that a namespaced tag or attribute modifier already persists for free.
+- **Never** pass a `null` `DataFixTypes` to a `SavedData.Factory` — on 1.21.1 the
+  load NPEs (swallowed) and every restart silently gets fresh empty state.
 - **Always** clamp/validate in the deserialization constructor; a save file is
   untrusted input.
 - **Always** add a round-trip test on the codec, and a migration test when you

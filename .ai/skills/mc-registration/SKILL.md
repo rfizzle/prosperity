@@ -1,6 +1,6 @@
 ---
 name: mc-registration
-description: Guide Minecraft Fabric mod content registration (blocks, items, block entities, menus, creative tabs, particles, sounds, commands). TRIGGER when creating or editing *Registry.java, *Items.java, *Blocks.java, or any class calling Registry.register(), BuiltInRegistries, or Fabric registration APIs.
+description: Guide Minecraft Fabric mod content registration (blocks, items, block entities, menus, creative tabs, particles, sounds, stats, commands). TRIGGER when creating or editing *Registry.java, *Items.java, *Blocks.java, or any class calling Registry.register(), BuiltInRegistries, or Fabric registration APIs.
 ---
 
 The user is registering mod content in a Fabric mod. Apply this guidance whenever registration code is being written or modified.
@@ -136,6 +136,10 @@ public static final MyCriterionTrigger MY_TRIGGER = new MyCriterionTrigger();
 Registry.register(BuiltInRegistries.TRIGGER_TYPES, MyMod.id("my_trigger"), MY_TRIGGER);
 ```
 
+This is only the registration hook — criterion design (codecs, threshold
+semantics, one-class-many-ids), fire-site discipline, tree design, and
+grant-asserting tests live in **mc-advancements**.
+
 ### Brigadier commands
 ```java
 // In onInitialize(), after registry:
@@ -146,6 +150,58 @@ CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environm
                     .executes(ctx -> { /* reload logic */ return 1; })));
 });
 ```
+
+## Custom statistics
+
+Custom stats live in vanilla's `CUSTOM_STAT` registry and persist through the standard player statistics system — no mod-side persistence needed.
+
+Registration is a two-step quirk: `BuiltInRegistries.CUSTOM_STAT` maps a `ResourceLocation` to itself, and the actual `Stat<ResourceLocation>` is materialized separately by `Stats.CUSTOM.get(id, formatter)`. Both steps are required — a helper keeps them together:
+
+```java
+private static void registerStat(ResourceLocation id, StatFormatter formatter) {
+    Registry.register(BuiltInRegistries.CUSTOM_STAT, id, id);
+    Stats.CUSTOM.get(id, formatter); // materializes the Stat with its formatter
+}
+```
+
+### Awarding: counters vs high-water marks
+
+Counters increment via `player.awardStat(stat)`. Monotonic high-water marks are written with `setValue`, and only when the new value exceeds the stored one:
+
+```java
+// Counter: increment on each occurrence
+player.awardStat(SHARDS_USED);
+
+// Monotonic high-water mark
+int current = player.getStats().getValue(Stats.CUSTOM.get(HIGHEST_LEVEL));
+if (newValue > current) {
+    player.getStats().setValue(player, Stats.CUSTOM.get(HIGHEST_LEVEL), newValue);
+}
+```
+
+Drive both from the mod's own callbacks — award at the moment the event fires, never by polling.
+
+### Shared attribution with advancement triggers
+
+When one event (e.g., a kill) should credit both a stat and an advancement trigger, resolve the responsible player once with a shared helper and do both from a single `AFTER_DEATH` traversal — never register two listeners that each resolve the killer:
+
+```java
+ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
+    if (entity instanceof Mob mob && qualifies(mob)) {
+        // Shared helper: getKillCredit() first (handles arrow/trident kills),
+        // then damageSource.getEntity() as the fallback
+        ServerPlayer killer = resolveKiller(mob, damageSource);
+        if (killer != null) {
+            killer.awardStat(SPECIAL_MOBS_KILLED);
+            MY_TRIGGER.trigger(killer);
+        }
+    }
+});
+```
+
+### Lang keys and verification
+
+Every custom stat needs a `stat.<mod_id>.<path>` entry in `en_us.json` — that key names it in the vanilla statistics screen. Verify stat behavior with a gametest: `makeMockServerPlayerInLevel()`, fire the mod callback, then assert on `player.getStats().getValue(Stats.CUSTOM.get(id))` (including that a high-water mark does **not** decrease).
 
 ## Fabric API lookups (hopper/pipe interaction)
 
@@ -176,7 +232,7 @@ public static ResourceLocation id(String path) {
 2. Blocks + BlockItems (may reference menu types in their `use()`)
 3. Block entity types (reference their blocks)
 4. Standalone items (no dependencies, but listed after blocks for creative tab order)
-5. Loot condition types, particle types, triggers
+5. Loot condition types, particle types, triggers, custom stats
 6. Creative tab (references blocks + items, so must be last)
 7. API lookups (post-registration, in `onInitialize`)
 8. Brigadier commands (post-registration, in `onInitialize`)

@@ -1,6 +1,6 @@
 ---
 name: mc-mod-testing
-description: Write and maintain tests for Fabric Minecraft mods across the three-tier test spectrum (pure JUnit, fabric-loader-junit, Fabric Gametest). TRIGGER when creating or editing *Test.java, *GameTest.java, or when the user asks about testing a Minecraft mod, fabric-loader-junit, or Fabric Gametest.
+description: Write and maintain tests for Fabric Minecraft mods across the three-tier test spectrum (pure JUnit, fabric-loader-junit, Fabric Gametest). TRIGGER when creating or editing *Test.java, *GameTest.java, or when the user asks about testing a Minecraft mod, fabric-loader-junit, Fabric Gametest, or guarding shipped resources (lang keys, models, textures) with tests.
 ---
 
 The user is writing or modifying tests in a Fabric mod. Apply this guidance whenever test code is being touched.
@@ -25,6 +25,7 @@ Ask these in order and stop at the first "yes":
 | What you're testing | Tier |
 |---------------------|------|
 | Pure math, config parsing, utility methods | 1 |
+| Shipped-resource contracts (lang JSON, model JSON, texture presence) | 1 |
 | Codec round-trip on vanilla types | 2 |
 | Vanilla registry lookups (`Items.DIAMOND`, `Attributes.MAX_HEALTH`) | 2 |
 | Attribute computation on vanilla `AttributeMap` | 2 |
@@ -106,6 +107,77 @@ No Minecraft imports, no framework, no bootstrap. Fast. Run with:
 ```bash
 ./gradlew test --tests "com.example.mymod.ScalingEngineTest" 2>&1
 ```
+
+### Resource-contract guards
+
+Shipped resources drift silently: a renamed lang key, a config entry without a
+tooltip, a model whose `layer0` points at a moved texture. All of it compiles
+fine, datagen never sees it, and the failure only shows up in-game — a raw
+translation key on a Cloth screen, a black-purple checker on an item. Guard
+these with plain JUnit tests that parse the shipped JSON and enforce the
+convention. They run in milliseconds with no Fabric runtime and turn
+suite-standard prose into an executable regression gate.
+
+The canonical loader reads off the test classpath (where `src/main/resources`
+lands), with a file-path fallback:
+
+```java
+private static final String RESOURCE = "/assets/mymod/lang/en_us.json";
+private static final Path SOURCE = Path.of("src/main/resources/assets/mymod/lang/en_us.json");
+
+private static JsonObject lang() {
+    try (InputStream in = LangContractTest.class.getResourceAsStream(RESOURCE)) {
+        String json = in != null
+                ? new String(in.readAllBytes(), StandardCharsets.UTF_8)
+                : Files.readString(SOURCE, StandardCharsets.UTF_8);
+        return JsonParser.parseString(json).getAsJsonObject();
+    } catch (IOException e) {
+        throw new AssertionError("could not load en_us.json", e);
+    }
+}
+```
+
+What to pin — pick the contracts the mod actually relies on:
+
+- **Config lang contract** — every `config.<mod>.<section>.<key>` label has a
+  matching non-blank `.tooltip` key, so the Cloth screen never renders a raw
+  key. Collect all misses into a list before asserting, so the failure names
+  exactly which keys are missing (exclude `.title`, `.category.*`, and
+  `.tooltip` keys themselves from the label sweep):
+
+  ```java
+  @Test
+  void everyConfigLabelHasATooltip() {
+      JsonObject lang = lang();
+      List<String> missing = new ArrayList<>();
+      for (String key : lang.keySet()) {
+          if (!isConfigLabel(key)) continue;
+          if (!lang.has(key + ".tooltip")) missing.add(key + ".tooltip");
+      }
+      assertTrue(missing.isEmpty(), "Config entries missing a .tooltip lang key: " + missing);
+  }
+  ```
+
+- **Key-prefix conventions** — sweep every key: allowed surface prefixes
+  (`config.` / `message.` / `notification.` / `hud.` / `command.` /
+  `advancements.` / `key.`), `assertFalse(key.startsWith(...))` bans on retired
+  prefixes, and standard-mandated strings — the suite's ✦ notification glyph,
+  the `"Show <Domain> HUD"` badge-toggle label.
+- **Per-registered-id lang coverage** — a `@TestFactory` mapping the mod's id
+  roster to `DynamicTest`s: every block id has `block.<mod>.<id>` *and* its
+  purpose-line key, both non-blank. One dynamic test per id makes the failing
+  id readable in the report.
+- **Model/texture integrity** — the item model parents the right vanilla model
+  (`minecraft:item/generated` for flat 2D items), `layer0` resolves to the
+  expected texture path, and the referenced `.png` actually exists on the
+  classpath (`assertNotNull(getResourceAsStream(...))`). This catches the
+  model-texture drift that datagen never sees.
+- **Dynamically built keys** — when code assembles keys at runtime
+  (`baseKey + ".hint"`), a rename orphans them invisibly to the compiler.
+  Assert the assembled keys exist and carry the expected `%s` arg count.
+
+What NOT to pin: exact copy text (churns with every wording pass), key order
+in the JSON file, or values datagen already guarantees.
 
 ## Tier 2: fabric-loader-junit
 

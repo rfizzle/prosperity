@@ -1,16 +1,18 @@
 ---
 name: mc-world-render
-description: Draw in-world overlays the suite way — camera-facing billboards in WorldRenderEvents.LAST with custom translucent render types (xray vs occluded) that compose with Sodium/Iris/EBE, and tick-driven particle visualizers that stay cheap via distance + view-cone culling, distance-LOD spacing, a per-tick particle budget, and a request throttle. TRIGGER when creating or editing a *OverlayRenderer.java, *RenderTypes.java, a WorldRenderEvents registration, an in-world marker/highlight/link visualizer, or particle-spawning client tick code; or when the user mentions highlighting blocks/entities in the world, an xray overlay, or in-world markers.
+description: Draw in-world overlays the suite way — camera-facing billboards in WorldRenderEvents.LAST with custom translucent render types (xray vs occluded) that compose with Sodium/Iris/EBE, tick-driven particle visualizers that stay cheap via distance + view-cone culling, distance-LOD spacing, a per-tick particle budget, and a request throttle, and atmosphere tinting (sky/fog/celestial/ambient-light moods) via tiny RETURN-inject mixins that delegate to pure, server-gated blend classes. TRIGGER when creating or editing a *OverlayRenderer.java, *RenderTypes.java, a WorldRenderEvents registration, an in-world marker/highlight/link visualizer, particle-spawning client tick code, a sky/fog/moon-tint or ambient-light mixin (*SkyColorMixin, *FogMixin, *MoonTintMixin, a LightTexture darkness inject), or a *ClientEffects blend class; or when the user mentions highlighting blocks/entities in the world, an xray overlay, in-world markers, or tinting the sky/fog/moon/lighting for a world mood.
 ---
 
-The user is drawing something **in the world** (anchored to a block or entity),
-not on the screen (that's the `mc-hud` skill) and not registering a particle type
-(that's `mc-registration`). Two techniques, picked by what you're drawing:
+The user is changing how **the world** looks — drawing something anchored to a
+block or entity, or tinting the whole atmosphere — not drawing on the screen
+(that's the `mc-hud` skill) and not registering a particle type (that's
+`mc-registration`). Three techniques, picked by what you're changing:
 
-| You're drawing… | Use | Reference |
+| You're changing… | Use | Reference |
 |---|---|---|
 | a sprite/quad hovering on a block or entity | **billboard in `WorldRenderEvents.LAST`** + custom `RenderType` | Prosperity unlooted-container sparkle |
 | streams of motes / status pips between points | **tick-driven particle spawns** with culling + budget | Mercantile workstation-link visualizer |
+| the sky/fog/moon/light mood of the whole world | **RETURN-inject tint mixins** + pure blend class | Tribulation Blood Moon, Oppressive Nights |
 
 Both must stay cheap (they run per frame / per tick over potentially many anchors)
 and **compose with rendering mods** — never fight Sodium/Iris by hooking chunk or
@@ -148,6 +150,85 @@ private static boolean inViewCone(Vec3 point, Vec3 eye, Vec3 view) {
 }
 ```
 
+## Atmosphere tinting (world moods)
+
+For a whole-world mood — a blood-red event sky, oppressive night darkness —
+don't draw anything at all. Nudge the color values **at vanilla's own
+computation points**: one tiny client mixin per channel (~20 lines each) that
+RETURN-injects (or `@ModifyArgs` at the exact call) and immediately delegates
+to a pure static blend class. **All math lives outside the mixin.**
+
+| Channel | Vanilla computation point |
+|---|---|
+| sky color | `ClientLevel#getSkyColor` — `@At("RETURN")` |
+| fog color | `FogRenderer#setupColor` — the final unconditional `RenderSystem.clearColor` call |
+| sun/moon tint | `LevelRenderer#renderSky` — `@ModifyArgs` on the `setShaderColor` before the celestial quads |
+| ambient light | `LightTexture#calculateDarknessScale` — `@At("RETURN")`, add to the darkness scale |
+
+```java
+@Mixin(ClientLevel.class)
+public abstract class EventSkyColorMixin {
+    @Inject(method = "getSkyColor", at = @At("RETURN"), cancellable = true)
+    private void mymod$tintSkyColor(Vec3 pos, float partialTick, CallbackInfoReturnable<Vec3> cir) {
+        ClientLevel self = (ClientLevel) (Object) this;
+        if (!EventClientEffects.isTintActive(self)) return;
+        cir.setReturnValue(EventClientEffects.tintSky(cir.getReturnValue()));
+    }
+}
+```
+
+That is the *entire* mixin. The `*ClientEffects` blend class owns the gate and
+the color curves:
+
+```java
+public final class EventClientEffects {
+    private static final float SKY_BLEND = 0.65f;
+    private static final float FOG_BLEND = 0.3f;        // gentler — see below
+
+    /** True when the given level should render the mood right now. */
+    public static boolean isTintActive(ClientLevel level) {
+        return ClientMyModState.isEventActive()             // only true if the server broadcast it
+                && level != null
+                && level.dimension() == Level.OVERWORLD;    // dimension check
+    }
+
+    public static Vec3 tintSky(Vec3 sky) {
+        return new Vec3(blend(sky.x, SKY_RED, SKY_BLEND), /* green, blue */);
+    }
+
+    static double blend(double base, double target, float factor) {
+        return base + (target - base) * factor;
+    }
+}
+```
+
+**The server decides; the client only renders.** The tint flag is only ever
+true when the server broadcast it — the server folds its client-effects config
+toggle into the sync — and the blend class adds a local dimension check.
+Clients never self-activate a world mood. When the server syncs an *intensity*
+rather than a flag, clamp it client-side (Tribulation caps oppressive-night
+darkness at 0.6) so a misconfigured or malicious server can't black out the
+screen; a local client-config opt-out belongs in the same gate.
+
+**Fog composes with the sky — tint it gentler.** Vanilla's clear-air fog path
+derives part of its color from the *already-tinted* sky color, so the fog
+blend must be a deliberate top-up, not a second full pull (Tribulation: sky
+0.65, fog 0.3). Also bail when `camera.getFluidInCamera() != FogType.NONE` so
+water/lava fog stays vanilla.
+
+**Why this stays Sodium/Iris/shader-safe:** there is no render-pipeline
+surgery — no custom sky renderer, no pass replacement — only adjusting color
+values at the points vanilla computes them, which rendering mods read
+downstream. The ambient-light channel likewise rides the vanilla
+Darkness-effect scale, so it composes with sky/block light, night vision,
+gamma, and the "Darkness Pulsing" accessibility slider.
+
+**Unit-test the blend class** — it's plain arithmetic. Intensity 0 must be a
+vanilla passthrough, full intensity must land on the target hue, and values in
+between must be monotonic. Tribulation's
+`EnvironmentalPressureClientEffectsTest` is the model: noon → 0, midnight →
+full, smooth dusk ramp, stays in `[0,1]`, caps oversized server values.
+
 ## Keep the math pure
 
 Distance fade, the hover bob, the animation-frame index, and view-cone math are
@@ -169,7 +250,10 @@ camera/anchor data into pure functions.
 | Throttle | C2S request interval matches the server cooldown. |
 | Cull + budget | Distance-squared cull, view-cone cull, `MAX_PARTICLES_PER_TICK`. |
 | LOD | Widen spacing with camera distance. |
-| Pure math | Fade/bob/frame/cone math in a Minecraft-free class with unit tests. |
+| Tint mixins | Tiny RETURN-injects at vanilla color points; delegate straight to a blend class. |
+| Mood gate | Server-broadcast flag + dimension check; clamp synced intensity client-side. |
+| Fog blend | Gentler than sky (fog derives from the tinted sky); skip submerged cameras. |
+| Pure math | Fade/bob/frame/cone/blend math in a Minecraft-free class with unit tests. |
 
 ## Guardrails
 
@@ -182,6 +266,13 @@ camera/anchor data into pure functions.
   frame and skip when absent.
 - **Never** write depth from an indicator quad — indicators would occlude each
   other; use `COLOR_WRITE` only.
+- **Never** replace the sky/fog renderer to tint the atmosphere — adjust the
+  color values at vanilla's own computation points so Sodium/Iris/shaders read
+  them unchanged downstream.
+- **Never** let a client self-activate a world mood — gate every tint on the
+  server-broadcast flag, and clamp any server-synced intensity.
+- **Never** put color math in a tint mixin — the mixin is a one-call delegate
+  to a pure blend class.
 - **Always** clear visualizer state (caches, cooldowns, last-request tick) when
   the feature deactivates or the player disconnects.
 - **Always** keep fade/bob/cone math pure and unit-tested; the renderer is a thin
