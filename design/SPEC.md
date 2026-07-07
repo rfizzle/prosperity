@@ -705,7 +705,7 @@ When a player opens an instanced container **for the first time** (loot generati
 
 - Server-side: after loot generation completes, send the resolved tier data to the player with `ServerPlayer#displayClientMessage(component, true)` — a system-chat packet with `overlay=true` (action bar placement).
 - The message is built from the `LootModifierContext` final values, so it reflects all modifiers (distance + structure override + API listeners): the multiplier and quality shown are the post-listener `stackMultiplier` and `luck` (the latter rounded to a whole number), not the raw tier values.
-- Assembled from three translation keys: `prosperity.notification.loot_generated` (`✦ %s`, the tier name), `prosperity.notification.modifiers` (` — %sx stacks, +%s quality`, appended only when a value is off its baseline — so the bare tier shows at Local), and `prosperity.notification.structure` (` (%s)`, appended only when a structure override changed the tier from the pure distance band). The multiplier renders in natural-decimal form (`2.0`, `2.75`); structure names resolve through `prosperity.structure.*` with a humanized-path fallback for unmapped (e.g. modded) structures.
+- Assembled from three translation keys: `notification.prosperity.loot_generated` (`✦ %s`, the tier name), `notification.prosperity.modifiers` (` — %sx stacks, +%s quality`, appended only when a value is off its baseline — so the bare tier shows at Local), and `notification.prosperity.structure` (` (%s)`, appended only when a structure override changed the tier from the pure distance band). The multiplier renders in natural-decimal form (`2.0`, `2.75`); structure names resolve through `prosperity.structure.*` with a humanized-path fallback for unmapped (e.g. modded) structures.
 
 ---
 
@@ -1097,7 +1097,7 @@ Because the panel lives behind a keybind a player might never think to press, a 
 
 #### Keybind
 
-- Translation key `key.prosperity.peek_loot_detail`, category `key.categories.prosperity`, default **Left Alt**. The default is safe because the panel never opens a screen or captures the mouse, so it does not conflict with normal play, and it makes the feature discoverable without a Controls-menu visit.
+- Translation key `key.prosperity.peek_detail`, category `key.categories.prosperity`, default **Left Alt**. The default is safe because the panel never opens a screen or captures the mouse, so it does not conflict with normal play, and it makes the feature discoverable without a Controls-menu visit.
 - Fully rebindable and clearable under Controls → Prosperity. A player who has already assigned their own key keeps it; clearing the binding disables the panel.
 
 #### Configuration
@@ -1525,12 +1525,12 @@ All user-facing text uses translation keys in `assets/prosperity/lang/en_us.json
 |---|---|---|
 | `prosperity.tier.*` | `prosperity.tier.wilderness` | Distance tier display names (action bar, HUD badge) |
 | `prosperity.structure.*` | `prosperity.structure.monument` | Structure display names in notifications |
-| `prosperity.notification.*` | `prosperity.notification.loot_generated` | Action bar loot notifications |
-| `prosperity.config.*` | `prosperity.config.enable_distance_scaling` | Cloth Config screen labels |
-| `prosperity.config.*.tooltip` | `prosperity.config.enable_distance_scaling.tooltip` | Cloth Config field descriptions |
+| `notification.prosperity.*` | `notification.prosperity.loot_generated` | Action bar loot notifications |
+| `config.prosperity.*` | `config.prosperity.enable_distance_scaling` | Cloth Config screen labels |
+| `config.prosperity.*.tooltip` | `config.prosperity.enable_distance_scaling.tooltip` | Cloth Config field descriptions |
 | `command.prosperity.*` | `command.prosperity.info` | Command feedback messages (incl. `/prosperity info` output) |
-| `key.categories.prosperity` / `key.prosperity.*` | `key.prosperity.peek_loot_detail` | Controls-menu keybind category and binding names |
-| `chat.prosperity.*` | `chat.prosperity.peek_hint` | Chat hints (the peek-panel discovery line naming the bound key) |
+| `key.categories.prosperity` / `key.prosperity.*` | `key.prosperity.peek_detail` | Controls-menu keybind category and binding names |
+| `message.prosperity.*` | `message.prosperity.peek_hint` | Chat hints (the peek-panel discovery line naming the bound key) |
 | `prosperity.jade.*` | `prosperity.jade.status.looted` | Jade/WTHIT tooltip lines (status, tier, override, refresh timer) |
 | `prosperity.loot_index.*` | `prosperity.loot_index.injected` | EMI/REI/JEI loot index UI |
 | `category.prosperity.*` / `emi.category.prosperity.*` | `category.prosperity.loot_tables` | Recipe-viewer category title |
