@@ -8,12 +8,17 @@ those characters, one character per pixel — and this script deterministically
 rasterizes it to a true-size PNG plus a scaled nearest-neighbor preview you can
 actually see.
 
-Multiple frames produce an **animated** texture: a vertical sprite strip
-(16 wide × 16·N tall) plus a `<name>.png.mcmeta` sidecar, exactly as vanilla
-Minecraft animated textures are packaged. Two previews come with it: a
-horizontal filmstrip (every frame side-by-side, to eyeball each one) and an
-`@Nx-anim` **animated PNG** (full RGBA, true alpha, real motion — to watch the
-loop).
+Multiple frames produce an **animated** texture. Default packaging is a
+vertical sprite strip (16 wide × 16·N tall) plus a `<name>.png.mcmeta` sidecar,
+exactly as vanilla Minecraft animated textures are packaged — right for a block
+or item sprite the vanilla atlas animates for you. For a texture your own code
+binds and advances a frame at a time (a custom render type, a HUD icon, a GUI
+blit), pass `--split-frames` to write each frame as a standalone `<name>_<i>.png`
+with no strip and no `.mcmeta`, so nothing in a resource pipeline can reinterpret
+the strip as a 16×16 animated sprite and break your hand-sliced UVs. Two previews
+come with either packaging: a horizontal filmstrip (every frame side-by-side, to
+eyeball each one) and an `@Nx-anim` **animated PNG** (full RGBA, true alpha, real
+motion — to watch the loop).
 
 `--scale-to N` mints a true high-res master by nearest-neighbor upscale (N an
 integer multiple of the native grid), the honest way to fill the large tiers of
@@ -54,6 +59,7 @@ or a named token from NAMED_COLORS (the Concord design-system palette).
 USAGE
 -----
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph                 # -> SPEC.png (+ .mcmeta if animated) + preview
+    python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --split-frames  # -> SPEC_0.png, SPEC_1.png … (code-driven anim; no strip/.mcmeta)
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph -o art/marker.png
     python3 .ai/skills/mc-textures/scripts/glyph.py - < SPEC.glyph             # spec on stdin
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --preview-scale 24 --no-preview
@@ -391,6 +397,12 @@ def main(argv=None):
                          "Use this to mint the high-res tiers of a size ladder from a "
                          "native master — unlike --preview-scale this output IS the master, "
                          "not a '@Nx' preview")
+    ap.add_argument("--split-frames", action="store_true",
+                    help="for an animated spec, write each frame as a standalone "
+                         "<name>_<i>.png (no strip, no .mcmeta) instead of a vertical "
+                         "strip — the packaging for a texture your own code binds and "
+                         "advances (custom render type, HUD icon, GUI blit), which a "
+                         "strip+.mcmeta can be reinterpreted and broken by")
     ap.add_argument("--no-preview", action="store_true", help="skip the scaled preview PNG")
     ap.add_argument("--list-colors", action="store_true", help="print the named palette and exit")
     args = ap.parse_args(argv)
@@ -423,6 +435,10 @@ def main(argv=None):
     out.parent.mkdir(parents=True, exist_ok=True)
     nframes = len(frames_px)
 
+    if args.split_frames and nframes == 1:
+        print("glyph: --split-frames needs an animated spec (2+ frames)", file=sys.stderr)
+        return 1
+
     # --scale-to mints a true high-res master by nearest-neighbor upscale, the
     # honest way to fill the large tiers of a size ladder from a native master.
     # Works for both static glyphs and animated sprite strips.
@@ -440,6 +456,11 @@ def main(argv=None):
         if nframes == 1:
             write_png(out, scaled[0], target, target)
             print(f"  wrote {out}  ({target}×{target} master, nearest-neighbor ×{factor} from {size}px)")
+        elif args.split_frames:
+            for i, px in enumerate(scaled):
+                fp = out.with_name(f"{out.stem}_{i}{out.suffix}")
+                write_png(fp, px, target, target)
+                print(f"  wrote {fp}  ({target}×{target} frame {i}, ×{factor} from {size}px)")
         else:
             strip_px, sw, sh = stack_vertical(scaled, target)
             write_png(out, strip_px, sw, sh)
@@ -460,19 +481,28 @@ def main(argv=None):
             print(f"  wrote {preview}  ({sw}×{sh} preview)")
         return 0
 
-    # animated: vertical sprite strip + .mcmeta sidecar
-    strip_px, sw, sh = stack_vertical(frames_px, size)
-    write_png(out, strip_px, sw, sh)
-    mcmeta = out.with_name(out.name + ".mcmeta")
-    write_mcmeta(mcmeta, anim)
+    # animated: a vertical strip + .mcmeta sidecar (vanilla atlas animates it), or,
+    # with --split-frames, one standalone PNG per frame (your code binds and advances it).
+    ft = anim.get("frametime", DEFAULT_FRAMETIME)
+    if args.split_frames:
+        for i, px in enumerate(frames_px):
+            write_png(out.with_name(f"{out.stem}_{i}{out.suffix}"), px, size, size)
+    else:
+        strip_px, sw, sh = stack_vertical(frames_px, size)
+        write_png(out, strip_px, sw, sh)
+        mcmeta = out.with_name(out.name + ".mcmeta")
+        write_mcmeta(mcmeta, anim)
 
     for i, px in enumerate(frames_px, 1):
         print(f"frame {i}/{nframes}")
         print(render_ascii(px, size, size))
         print()
-    ft = anim.get("frametime", DEFAULT_FRAMETIME)
-    print(f"  wrote {out}  ({sw}×{sh} strip, {nframes} frames)")
-    print(f"  wrote {mcmeta}  (frametime {ft}, interpolate {anim.get('interpolate', False)})")
+    if args.split_frames:
+        print(f"  wrote {nframes} standalone frames {out.stem}_0..{nframes - 1}{out.suffix}  "
+              f"({size}×{size} each, no strip/.mcmeta; drive frametime {ft} from your own timer)")
+    else:
+        print(f"  wrote {out}  ({sw}×{sh} strip, {nframes} frames)")
+        print(f"  wrote {mcmeta}  (frametime {ft}, interpolate {anim.get('interpolate', False)})")
 
     if not args.no_preview and args.preview_scale > 1:
         # Filmstrip of stills — every frame side-by-side, for frame-by-frame review.

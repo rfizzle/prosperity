@@ -65,8 +65,9 @@ command drives it end to end.
 
 Spec shape — a `legend:` mapping single chars to colors, then one or more `frame:` grids
 of N×N legend chars (`.` = transparent, `#` starts a comment). One `frame:` = a static
-sprite; multiple `frame:` blocks + a `frametime:` = an animated texture (vertical strip +
-`.mcmeta` sidecar, exactly vanilla packaging). `--scale-to N` mints a true high-res master
+sprite; multiple `frame:` blocks + a `frametime:` = an animated texture — packaged as a
+vanilla strip + `.mcmeta`, or as standalone per-frame PNGs for a code-driven texture (see
+**Animated textures** below). `--scale-to N` mints a true high-res master
 by integer nearest-neighbor upscale — the honest way to fill the large tiers (128/256) of
 a size ladder from a small native master. Full format + worked example: the `SPEC FORMAT`
 header of `.ai/skills/mc-textures/scripts/glyph.py`, and the `/glyph` command. Reference
@@ -87,6 +88,29 @@ python3 $G SPEC.glyph --scale-to 128 -o out-128.png   # upscaled master
 Always **read the rendered `@Nx` preview back** and judge it honestly against the motif,
 then iterate the grid — fixing pixel art is fast (edit the `.glyph`, re-run).
 
+## Animated textures: pick the packaging by who animates it
+
+An animated glyph (2+ `frame:` blocks + a `frametime:`) ships one of two ways — chosen by
+*what advances the frames*, not by preference:
+
+- **The vanilla atlas animates it → strip + `.mcmeta`** (the default output). A block or
+  item sprite sits on the block/item atlas, and Minecraft's own texture-animation system
+  cycles the frames from the `.mcmeta`. A 16×N vertical strip beside a `<name>.png.mcmeta`
+  is the correct, idiomatic packaging there.
+- **Your code animates it → standalone per-frame PNGs** (`glyph.py --split-frames` →
+  `<name>_0.png`, `<name>_1.png`, …). A texture you bind yourself — a custom `RenderType`
+  billboard/overlay, a HUD icon, a GUI blit — is *not* on the atlas, so the vanilla
+  animator never runs: your code picks the frame index and samples the whole texture. Ship
+  each frame as its own PNG with **no strip and no `.mcmeta`**.
+
+**Never hand-slice frames out of a directly-bound strip.** The `.mcmeta` still declares "N
+frames of 16×16," and a resource/texture mod that honours that declaration on a non-atlas
+texture collapses your 16×N strip into an animated 16×16 sprite — your per-frame UV window
+then samples a sliver of a single frame and stretches it over the quad, so the animation
+renders as a vertical smear. Standalone frames carry nothing for a loader to reinterpret.
+Bind the frame whose index your own tick counter selects, and take the cadence from the
+spec's `frametime`.
+
 ## Companion `.glyph` files (the repeatability rule)
 
 Every committed texture master ships its `.glyph` source **beside it**, same basename:
@@ -102,5 +126,7 @@ Re-touching a texture recreates it through its `.glyph`.
       mod's accents
 - [ ] `ink` outline, single centered motif, legible at native size
 - [ ] Rendered via `.ai/skills/mc-textures/scripts/glyph.py`; preview read back and judged
+- [ ] Animated? Strip + `.mcmeta` only when the atlas animates it; a code-bound texture
+      ships `--split-frames` standalone frames (no strip, no `.mcmeta`)
 - [ ] `.glyph` source committed beside the master (same basename) in `art/`
 - [ ] Master in `art/`, derived copies refreshed in `assets/`/`docs/`
