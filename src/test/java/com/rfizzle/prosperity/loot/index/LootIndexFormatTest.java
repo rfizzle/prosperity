@@ -13,8 +13,8 @@ class LootIndexFormatTest {
 
     @Test
     void structureKeyAppendsPath() {
-        assertEquals("loot_index.prosperity.structure.dungeon", LootIndexFormat.structureKey("dungeon"));
-        assertEquals("loot_index.prosperity.structure.other", LootIndexFormat.structureKey("other"));
+        assertEquals("gui.prosperity.structure.dungeon", LootIndexFormat.structureKey("dungeon"));
+        assertEquals("gui.prosperity.structure.other", LootIndexFormat.structureKey("other"));
     }
 
     @Test

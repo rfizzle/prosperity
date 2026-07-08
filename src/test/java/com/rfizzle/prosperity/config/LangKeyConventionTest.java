@@ -9,22 +9,50 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Guards the Concord terminology alignment: every custom translation-key tree the mod ships follows
- * the ratified {@code <concept>.<mod>} ordering (Concord HUD Standard §4/§8, concord#22), the shipped
- * {@code ✦} notification glyph is retained, and no key carries a mod-first prefix. A pure
+ * Guards the concord localization vocabulary (DESIGN-SYSTEM §10): every shipped translation key is
+ * namespaced by the <em>surface</em> it renders on — a sanctioned {@code <surface>.prosperity.*} prefix,
+ * a vanilla-mandated name key ({@code item.prosperity.<id>}), or a recipe-viewer-mandated category key.
+ * Arbitrary gameplay-concept prefixes ({@code tier.}, {@code structure.}, {@code jade.}, …) are the exact
+ * drift #104 retired, so the whitelist below is the durable guard against their return. A pure
  * resource/string check with no Fabric APIs, so it runs in the fast JUnit tier.
  */
 class LangKeyConventionTest {
 
     private static final String RESOURCE = "/assets/prosperity/lang/en_us.json";
     private static final Path SOURCE = Path.of("src/main/resources/assets/prosperity/lang/en_us.json");
+
+    /** Surface prefixes from DESIGN-SYSTEM §10; every custom key reads {@code <surface>.prosperity.<path>}. */
+    private static final Set<String> SURFACE_PREFIXES = Set.of(
+            "config", "command", "hud", "gui", "tooltip", "message",
+            "notification", "advancements", "info", "key", "stat");
+
+    /**
+     * Keys that do NOT take the {@code <surface>.prosperity.*} shape: vanilla name keys
+     * ({@code <registry>.<mod>.<id>}), the per-mod keybind category, and the recipe-viewer category keys
+     * whose leading token the viewer mandates — EMI derives {@code emi.category.<ns>.<path>} from the
+     * category id, REI/JEI read their own {@code <viewer>.<mod>.category.*}.
+     */
+    private static final List<String> ALLOWED_LITERAL_PREFIXES = List.of(
+            "item.prosperity.",
+            "block.prosperity.",
+            "enchantment.prosperity.",
+            "key.categories.prosperity",
+            "emi.category.prosperity.",
+            "rei.prosperity.",
+            "jei.prosperity.");
+
+    /** The concept prefixes #104 retired; a regression must fail loudly here, not ship a raw key to players. */
+    private static final List<String> RETIRED_PREFIXES = List.of(
+            "tier.prosperity.", "structure.prosperity.", "jade.prosperity.",
+            "party.prosperity.", "loot_index.prosperity.", "category.prosperity.");
 
     private static JsonObject lang() {
         try (InputStream in = LangKeyConventionTest.class.getResourceAsStream(RESOURCE)) {
@@ -37,59 +65,68 @@ class LangKeyConventionTest {
         }
     }
 
+    private static boolean isSanctioned(String key) {
+        for (String literal : ALLOWED_LITERAL_PREFIXES) {
+            if (key.startsWith(literal)) {
+                return true;
+            }
+        }
+        int firstDot = key.indexOf('.');
+        if (firstDot < 0) {
+            return false;
+        }
+        String surface = key.substring(0, firstDot);
+        return SURFACE_PREFIXES.contains(surface) && key.startsWith(surface + ".prosperity.");
+    }
+
     @Test
-    void customTreesUseConceptFirstNamespace() {
-        JsonObject lang = lang();
-
-        // The renamed trees are present under the <concept>.<mod> ordering.
-        assertTrue(lang.has("config.prosperity.title"), "config tree moved to config.prosperity.*");
-        assertTrue(lang.has("config.prosperity.enable_tier_hud"), "tier-HUD toggle key");
-        assertTrue(lang.has("message.prosperity.peek_hint"), "chat tree moved to message.prosperity.*");
-        assertTrue(lang.has("notification.prosperity.loot_generated"),
-                "notification tree moved to notification.prosperity.*");
-        assertTrue(lang.has("hud.prosperity.detail.title"), "panel keys moved to hud.prosperity.detail.*");
-        assertTrue(lang.has("key.prosperity.peek_detail"), "peek keybind uses the standard id");
-
-        // No key retains a pre-alignment prefix.
-        for (String key : lang.keySet()) {
-            assertFalse(key.startsWith("prosperity.config."), key);
-            assertFalse(key.startsWith("chat.prosperity."), key);
-            assertFalse(key.startsWith("prosperity.notification."), key);
-            assertFalse(key.startsWith("hud.prosperity.loot_detail."), key);
-            assertNotEquals("key.prosperity.peek_loot_detail", key);
+    void everyKeyUsesASanctionedSurfacePrefix() {
+        for (String key : lang().keySet()) {
+            assertTrue(isSanctioned(key),
+                    key + " is not under a sanctioned surface/vanilla/viewer prefix (DESIGN-SYSTEM §10)");
         }
     }
 
     @Test
-    void remainingCustomTreesUseConceptFirstNamespace() {
-        JsonObject lang = lang();
-
-        // The jade, loot index, tier, structure, party, and compass-tooltip trees carry the
-        // <concept>.<mod> ordering. These endpoints double as the targets the code assembles at
-        // runtime (e.g. "tier.prosperity." + name, LootIndexFormat.STRUCTURE_KEY_PREFIX + path),
-        // so an orphaned prefix would render a raw key in a tooltip, notification, or index label.
-        assertTrue(lang.has("jade.prosperity.status.looted"), "jade tree moved to jade.prosperity.*");
-        assertTrue(lang.has("loot_index.prosperity.injected"),
-                "loot index tree moved to loot_index.prosperity.*");
-        assertTrue(lang.has("loot_index.prosperity.structure.dungeon"),
-                "assembled loot-index structure keys resolve under loot_index.prosperity.structure.*");
-        assertTrue(lang.has("tier.prosperity.wilderness"), "tier tree moved to tier.prosperity.*");
-        assertTrue(lang.has("structure.prosperity.monument"),
-                "structure tree moved to structure.prosperity.*");
-        assertTrue(lang.has("party.prosperity.container_in_use"),
-                "party message moved to party.prosperity.*");
-        assertTrue(lang.has("tooltip.prosperity.prospectors_compass.points"),
-                "compass tooltip moved to tooltip.prosperity.*");
-
-        // No key retains a mod-first prefix for any of the renamed trees.
-        for (String key : lang.keySet()) {
-            assertFalse(key.startsWith("prosperity.jade."), key);
-            assertFalse(key.startsWith("prosperity.loot_index."), key);
-            assertFalse(key.startsWith("prosperity.tier."), key);
-            assertFalse(key.startsWith("prosperity.structure."), key);
-            assertFalse(key.startsWith("prosperity.party."), key);
-            assertFalse(key.startsWith("prosperity.item.prospectors_compass.tooltip."), key);
+    void retiredConceptPrefixesAreGone() {
+        for (String key : lang().keySet()) {
+            for (String retired : RETIRED_PREFIXES) {
+                assertFalse(key.startsWith(retired), key + " still uses the retired " + retired + " prefix");
+            }
         }
+    }
+
+    @Test
+    void reclassifiedKeysResolveUnderTheirNewSurface() {
+        JsonObject lang = lang();
+        // The runtime-assembled endpoints each surface's code builds: an orphaned prefix would render a raw
+        // key in a toast, tooltip, or index label, so pin each new home explicitly.
+        assertTrue(lang.has("notification.prosperity.tier.wilderness"),
+                "tier names moved to notification.prosperity.tier.*");
+        assertTrue(lang.has("notification.prosperity.structure.monument"),
+                "structure names moved to notification.prosperity.structure.*");
+        assertTrue(lang.has("notification.prosperity.container_in_use"),
+                "party refusal cue moved to notification.prosperity.*");
+        assertTrue(lang.has("tooltip.prosperity.status.looted"),
+                "probe-tooltip lines moved to tooltip.prosperity.*");
+        assertTrue(lang.has("tooltip.prosperity.override.fixed"),
+                "probe-tooltip override lines moved to tooltip.prosperity.*");
+        assertTrue(lang.has("gui.prosperity.injected"), "loot-index labels moved to gui.prosperity.*");
+        assertTrue(lang.has("gui.prosperity.structure.dungeon"),
+                "loot-index structure names moved to gui.prosperity.structure.*");
+        assertTrue(lang.has("rei.prosperity.category.loot_tables"), "REI category title");
+        assertTrue(lang.has("jei.prosperity.category.loot_tables"), "JEI category title");
+        assertTrue(lang.has("emi.category.prosperity.loot_tables"), "EMI category title (viewer-mandated)");
+    }
+
+    @Test
+    void tierTranslationKeyIsTheSharedChokePoint() {
+        // The six tier-name sites now route through DistanceTier.translationKey(); it must land in-vocabulary
+        // and resolve against the shipped lang file.
+        assertEquals("notification.prosperity.tier.wilderness", DistanceTier.translationKey("wilderness"));
+        assertTrue(isSanctioned(DistanceTier.translationKey("depths")),
+                "the assembled tier key is under a sanctioned surface prefix");
+        assertTrue(lang().has(DistanceTier.translationKey("depths")), "the assembled tier key resolves");
     }
 
     @Test

@@ -48,7 +48,7 @@ class LootTooltipTest {
 
         List<Component> lines = LootTooltip.buildLines(tag);
         assertEquals(1, lines.size());
-        assertEquals("jade.prosperity.status.vanilla", key(lines.get(0)));
+        assertEquals("tooltip.prosperity.status.vanilla", key(lines.get(0)));
         assertEquals(ChatFormatting.WHITE.getColor().intValue(), color(lines.get(0)));
     }
 
@@ -63,12 +63,12 @@ class LootTooltipTest {
 
         List<Component> lines = LootTooltip.buildLines(tag);
         assertEquals(2, lines.size());
-        assertEquals("jade.prosperity.status.unlooted", key(lines.get(0)));
+        assertEquals("tooltip.prosperity.status.unlooted", key(lines.get(0)));
         assertEquals(ChatFormatting.GOLD.getColor().intValue(), color(lines.get(0)));
 
-        assertEquals("jade.prosperity.tier", key(lines.get(1)));
+        assertEquals("tooltip.prosperity.tier", key(lines.get(1)));
         Object[] tierArgs = args(lines.get(1));
-        assertEquals("tier.prosperity.wilderness", key((Component) tierArgs[0]));
+        assertEquals("notification.prosperity.tier.wilderness", key((Component) tierArgs[0]));
         assertEquals("2.0", tierArgs[1]);
     }
 
@@ -89,16 +89,16 @@ class LootTooltipTest {
 
         List<Component> lines = LootTooltip.buildLines(tag);
         assertEquals(4, lines.size());
-        assertEquals("jade.prosperity.status.looted", key(lines.get(0)));
+        assertEquals("tooltip.prosperity.status.looted", key(lines.get(0)));
         assertEquals(ChatFormatting.GRAY.getColor().intValue(), color(lines.get(0)));
 
-        assertEquals("jade.prosperity.tier", key(lines.get(1)));
-        assertEquals("jade.prosperity.override.minimum", key(lines.get(2)));
+        assertEquals("tooltip.prosperity.tier", key(lines.get(1)));
+        assertEquals("tooltip.prosperity.override.minimum", key(lines.get(2)));
         Object[] overrideArgs = args(lines.get(2));
-        assertEquals("structure.prosperity.ancient_city", key((Component) overrideArgs[0]));
-        assertEquals("tier.prosperity.outlands", key((Component) overrideArgs[1]));
+        assertEquals("notification.prosperity.structure.ancient_city", key((Component) overrideArgs[0]));
+        assertEquals("notification.prosperity.tier.outlands", key((Component) overrideArgs[1]));
 
-        assertEquals("jade.prosperity.refresh", key(lines.get(3)));
+        assertEquals("tooltip.prosperity.refresh", key(lines.get(3)));
         assertEquals("2d 14h", args(lines.get(3))[0]);
     }
 
@@ -110,15 +110,15 @@ class LootTooltipTest {
 
         List<Component> lines = LootTooltip.buildLines(tag);
         assertEquals(1, lines.size());
-        assertEquals("jade.prosperity.status.refreshed", key(lines.get(0)));
+        assertEquals("tooltip.prosperity.status.refreshed", key(lines.get(0)));
         assertEquals(ChatFormatting.GREEN.getColor().intValue(), color(lines.get(0)));
     }
 
     @Test
     void overrideModeSelectsTheMatchingKey() {
-        assertEquals("jade.prosperity.override.fixed", key(overrideLine("fixed")));
-        assertEquals("jade.prosperity.override.maximum", key(overrideLine("maximum")));
-        assertEquals("jade.prosperity.override.minimum", key(overrideLine("minimum")));
+        assertEquals("tooltip.prosperity.override.fixed", key(overrideLine("fixed")));
+        assertEquals("tooltip.prosperity.override.maximum", key(overrideLine("maximum")));
+        assertEquals("tooltip.prosperity.override.minimum", key(overrideLine("minimum")));
     }
 
     private static Component overrideLine(String mode) {

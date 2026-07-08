@@ -48,7 +48,7 @@ public final class LootTableRecipeCategory extends AbstractRecipeCategory<LootIn
     private static final int TEXT_COLOR = 0x404040;
 
     public LootTableRecipeCategory(IDrawable icon) {
-        super(RECIPE_TYPE, Component.translatable("category.prosperity.loot_tables"), icon, WIDTH, HEIGHT);
+        super(RECIPE_TYPE, Component.translatable("jei.prosperity.category.loot_tables"), icon, WIDTH, HEIGHT);
     }
 
     @Override

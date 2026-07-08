@@ -115,9 +115,9 @@ public class ContainerTooltipGameTest implements FabricGameTest {
         helper.assertTrue(LootTooltip.readStatus(tag) == Status.UNLOOTED,
                 "a never-opened loot container reads Unlooted");
         List<Component> lines = LootTooltip.buildLines(tag);
-        helper.assertTrue(lineWithKey(lines, "jade.prosperity.tier") != null,
+        helper.assertTrue(lineWithKey(lines, "tooltip.prosperity.tier") != null,
                 "the distance-tier line is present with scaling enabled");
-        helper.assertTrue(lineWithKey(lines, "jade.prosperity.refresh") == null,
+        helper.assertTrue(lineWithKey(lines, "tooltip.prosperity.refresh") == null,
                 "no refresh timer with refresh disabled");
         player.discard();
         helper.succeed();
@@ -181,7 +181,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
             CompoundTag tag = writeData(helper, rel, player);
             helper.assertTrue(LootTooltip.readStatus(tag) == Status.REFRESHED,
                     "a past-cooldown instance reads Refreshed");
-            helper.assertTrue(lineWithKey(LootTooltip.buildLines(tag), "jade.prosperity.refresh") == null,
+            helper.assertTrue(lineWithKey(LootTooltip.buildLines(tag), "tooltip.prosperity.refresh") == null,
                     "an expired instance shows no running countdown");
             player.discard();
             helper.succeed();
@@ -199,7 +199,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
 
             CompoundTag tag = writeData(helper, rel, player);
             helper.assertTrue(LootTooltip.readStatus(tag) == Status.LOOTED, "within cooldown reads Looted");
-            Component refresh = lineWithKey(LootTooltip.buildLines(tag), "jade.prosperity.refresh");
+            Component refresh = lineWithKey(LootTooltip.buildLines(tag), "tooltip.prosperity.refresh");
             helper.assertTrue(refresh != null, "an unexpired looted instance carries a refresh countdown");
             // generate and the read happen on the same tick, so the full one-day cooldown remains.
             Object arg = ((TranslatableContents) refresh.getContents()).getArgs()[0];
@@ -221,7 +221,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
             helper.assertTrue(LootTooltip.readStatus(tag) == Status.VANILLA,
                     "a blacklisted container reads Vanilla");
             List<Component> lines = LootTooltip.buildLines(tag);
-            helper.assertTrue(lineWithKey(lines, "jade.prosperity.tier") == null,
+            helper.assertTrue(lineWithKey(lines, "tooltip.prosperity.tier") == null,
                     "vanilla loot shows no scaling lines");
             helper.assertTrue(lines.size() == 1, "vanilla renders only the status line");
             player.discard();

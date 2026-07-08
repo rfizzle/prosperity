@@ -115,7 +115,7 @@ public final class HudMath {
     }
 
     /**
-     * Title-cases a tier's config name for display when no {@code tier.prosperity.<name>} lang key
+     * Title-cases a tier's config name for display when no {@code notification.prosperity.tier.<name>} lang key
      * resolves (a custom tier) &mdash; {@code "wilderness"} &rarr; {@code "Wilderness"}. The five
      * default tiers have lang keys, so this is only the fallback.
      */

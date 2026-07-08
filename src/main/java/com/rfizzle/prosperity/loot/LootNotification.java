@@ -93,13 +93,25 @@ public final class LootNotification {
                 "This loot was rolled just for you — other players get their own.");
     }
 
+    /** Lang-key prefix for a structure's display name (DESIGN-SYSTEM §10 surface: notification). */
+    public static final String STRUCTURE_NAME_KEY_PREFIX = "notification.prosperity.structure.";
+
+    /**
+     * The translation key for a structure id path, e.g. {@code "monument"} →
+     * {@code "notification.prosperity.structure.monument"}. Shared by the loot toast and the probe
+     * tooltip so both read a structure name from one place.
+     */
+    public static String structureNameKey(String path) {
+        return STRUCTURE_NAME_KEY_PREFIX + path;
+    }
+
     /**
      * Assemble the completion fanfare: the structure's display name (localizable with a humanized
      * fallback, so modded structures still read sensibly) in a {@code "✦ %s cleared!"} frame.
      */
     public static Component buildStructureCleared(ResourceLocation structure) {
         Component structureName = Component.translatableWithFallback(
-                "structure.prosperity." + structure.getPath(), humanize(structure.getPath()));
+                structureNameKey(structure.getPath()), humanize(structure.getPath()));
         return Component.translatableWithFallback(
                 "notification.prosperity.structure_cleared", "✦ %s cleared!", structureName);
     }
@@ -113,7 +125,7 @@ public final class LootNotification {
     public static Component build(DistanceTier tier, double finalStackMultiplier, int finalQuality,
             @Nullable ResourceLocation structure) {
         Component tierName = Component.translatableWithFallback(
-                "tier.prosperity." + tier.name(), capitalize(tier.name()));
+                tier.translationKey(), capitalize(tier.name()));
         MutableComponent message = Component.translatableWithFallback(
                 "notification.prosperity.loot_generated", "✦ %s", tierName);
         if (hasModifiers(finalStackMultiplier, finalQuality)) {
@@ -123,7 +135,7 @@ public final class LootNotification {
         }
         if (structure != null) {
             Component structureName = Component.translatableWithFallback(
-                    "structure.prosperity." + structure.getPath(), humanize(structure.getPath()));
+                    structureNameKey(structure.getPath()), humanize(structure.getPath()));
             message.append(Component.translatableWithFallback(
                     "notification.prosperity.structure", " (%s)", structureName));
         }
