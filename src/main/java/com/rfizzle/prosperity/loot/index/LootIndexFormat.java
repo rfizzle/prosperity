@@ -13,14 +13,14 @@ import java.util.Locale;
 public final class LootIndexFormat {
 
     /** Lang-key prefix for per-structure display names; the structure id path is appended. */
-    public static final String STRUCTURE_KEY_PREFIX = "prosperity.loot_index.structure.";
+    public static final String STRUCTURE_KEY_PREFIX = "loot_index.prosperity.structure.";
 
     private LootIndexFormat() {
     }
 
     /**
      * The translation key for a structure id path, e.g. {@code "dungeon"} →
-     * {@code "prosperity.loot_index.structure.dungeon"}. Unmapped/modded structures fall back to
+     * {@code "loot_index.prosperity.structure.dungeon"}. Unmapped/modded structures fall back to
      * {@link #titleCase(String)} of the path via {@code translatableWithFallback}.
      */
     public static String structureKey(String path) {

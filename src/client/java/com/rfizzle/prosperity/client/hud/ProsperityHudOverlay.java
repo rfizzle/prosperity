@@ -95,7 +95,7 @@ public final class ProsperityHudOverlay {
 
         Font font = mc.font;
         Component label = Component.translatableWithFallback(
-                "prosperity.tier." + tierName, HudMath.displayName(tierName));
+                "tier.prosperity." + tierName, HudMath.displayName(tierName));
         int textW = font.width(label);
 
         int badgeW = PAD_H + ICON_SIZE + ICON_TEXT_GAP + textW + PAD_H;

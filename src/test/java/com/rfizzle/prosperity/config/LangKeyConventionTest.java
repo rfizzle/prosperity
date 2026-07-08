@@ -16,9 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Guards the Concord terminology alignment (#98): the mod's custom translation-key trees follow the
- * ratified {@code <concept>.<mod>} ordering (Concord HUD Standard §4/§8, concord#22), the shipped
- * {@code ✦} notification glyph is retained, and no key still carries a pre-alignment prefix. A pure
+ * Guards the Concord terminology alignment: every custom translation-key tree the mod ships follows
+ * the ratified {@code <concept>.<mod>} ordering (Concord HUD Standard §4/§8, concord#22), the shipped
+ * {@code ✦} notification glyph is retained, and no key carries a mod-first prefix. A pure
  * resource/string check with no Fabric APIs, so it runs in the fast JUnit tier.
  */
 class LangKeyConventionTest {
@@ -57,6 +57,38 @@ class LangKeyConventionTest {
             assertFalse(key.startsWith("prosperity.notification."), key);
             assertFalse(key.startsWith("hud.prosperity.loot_detail."), key);
             assertNotEquals("key.prosperity.peek_loot_detail", key);
+        }
+    }
+
+    @Test
+    void remainingCustomTreesUseConceptFirstNamespace() {
+        JsonObject lang = lang();
+
+        // The jade, loot index, tier, structure, party, and compass-tooltip trees carry the
+        // <concept>.<mod> ordering. These endpoints double as the targets the code assembles at
+        // runtime (e.g. "tier.prosperity." + name, LootIndexFormat.STRUCTURE_KEY_PREFIX + path),
+        // so an orphaned prefix would render a raw key in a tooltip, notification, or index label.
+        assertTrue(lang.has("jade.prosperity.status.looted"), "jade tree moved to jade.prosperity.*");
+        assertTrue(lang.has("loot_index.prosperity.injected"),
+                "loot index tree moved to loot_index.prosperity.*");
+        assertTrue(lang.has("loot_index.prosperity.structure.dungeon"),
+                "assembled loot-index structure keys resolve under loot_index.prosperity.structure.*");
+        assertTrue(lang.has("tier.prosperity.wilderness"), "tier tree moved to tier.prosperity.*");
+        assertTrue(lang.has("structure.prosperity.monument"),
+                "structure tree moved to structure.prosperity.*");
+        assertTrue(lang.has("party.prosperity.container_in_use"),
+                "party message moved to party.prosperity.*");
+        assertTrue(lang.has("tooltip.prosperity.prospectors_compass.points"),
+                "compass tooltip moved to tooltip.prosperity.*");
+
+        // No key retains a mod-first prefix for any of the renamed trees.
+        for (String key : lang.keySet()) {
+            assertFalse(key.startsWith("prosperity.jade."), key);
+            assertFalse(key.startsWith("prosperity.loot_index."), key);
+            assertFalse(key.startsWith("prosperity.tier."), key);
+            assertFalse(key.startsWith("prosperity.structure."), key);
+            assertFalse(key.startsWith("prosperity.party."), key);
+            assertFalse(key.startsWith("prosperity.item.prospectors_compass.tooltip."), key);
         }
     }
 

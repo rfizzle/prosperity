@@ -437,7 +437,7 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
     }
 
     private static Component tierName(String name) {
-        return Component.translatableWithFallback("prosperity.tier." + name, HudMath.displayName(name));
+        return Component.translatableWithFallback("tier.prosperity." + name, HudMath.displayName(name));
     }
 
     private static Component ladderName(DistanceTier tier) {

@@ -99,7 +99,7 @@ public final class LootNotification {
      */
     public static Component buildStructureCleared(ResourceLocation structure) {
         Component structureName = Component.translatableWithFallback(
-                "prosperity.structure." + structure.getPath(), humanize(structure.getPath()));
+                "structure.prosperity." + structure.getPath(), humanize(structure.getPath()));
         return Component.translatableWithFallback(
                 "notification.prosperity.structure_cleared", "✦ %s cleared!", structureName);
     }
@@ -113,7 +113,7 @@ public final class LootNotification {
     public static Component build(DistanceTier tier, double finalStackMultiplier, int finalQuality,
             @Nullable ResourceLocation structure) {
         Component tierName = Component.translatableWithFallback(
-                "prosperity.tier." + tier.name(), capitalize(tier.name()));
+                "tier.prosperity." + tier.name(), capitalize(tier.name()));
         MutableComponent message = Component.translatableWithFallback(
                 "notification.prosperity.loot_generated", "✦ %s", tierName);
         if (hasModifiers(finalStackMultiplier, finalQuality)) {
@@ -123,7 +123,7 @@ public final class LootNotification {
         }
         if (structure != null) {
             Component structureName = Component.translatableWithFallback(
-                    "prosperity.structure." + structure.getPath(), humanize(structure.getPath()));
+                    "structure.prosperity." + structure.getPath(), humanize(structure.getPath()));
             message.append(Component.translatableWithFallback(
                     "notification.prosperity.structure", " (%s)", structureName));
         }

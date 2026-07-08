@@ -26,9 +26,9 @@ public class ProspectorsCompassItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, Item.TooltipContext context,
             List<Component> tooltip, TooltipFlag flag) {
-        tooltip.add(Component.translatable("prosperity.item.prospectors_compass.tooltip.points")
+        tooltip.add(Component.translatable("tooltip.prosperity.prospectors_compass.points")
                 .withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("prosperity.item.prospectors_compass.tooltip.spins")
+        tooltip.add(Component.translatable("tooltip.prosperity.prospectors_compass.spins")
                 .withStyle(ChatFormatting.GRAY));
     }
 }
