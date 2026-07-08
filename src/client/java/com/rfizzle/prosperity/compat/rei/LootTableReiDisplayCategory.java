@@ -46,7 +46,7 @@ public final class LootTableReiDisplayCategory implements DisplayCategory<LootTa
 
     @Override
     public Component getTitle() {
-        return Component.translatable("category.prosperity.loot_tables");
+        return Component.translatable("rei.prosperity.category.loot_tables");
     }
 
     @Override

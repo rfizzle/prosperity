@@ -113,7 +113,7 @@ class LootIndexAssemblyTest {
                 "a generative entry's display stack carries one descriptive lore line");
         Component line = lore.lines().get(0);
         assertTrue(line.getContents() instanceof TranslatableContents contents
-                        && contents.getKey().equals("loot_index.prosperity.random_enchantment"),
+                        && contents.getKey().equals("gui.prosperity.random_enchantment"),
                 "the lore line is the random-enchantment translatable: got " + line);
         Object arg = ((TranslatableContents) line.getContents()).getArgs()[0];
         assertTrue(arg instanceof Component rarity

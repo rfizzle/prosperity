@@ -214,7 +214,7 @@ public final class LootTooltip {
             return lines;
         }
         if (tag.getBoolean(KEY_TIER_SHOWN)) {
-            lines.add(Component.translatable("jade.prosperity.tier",
+            lines.add(Component.translatable("tooltip.prosperity.tier",
                     tierName(tag.getString(KEY_TIER_NAME)),
                     formatMultiplier(tag.getDouble(KEY_TIER_MULT))));
         }
@@ -224,7 +224,7 @@ public final class LootTooltip {
                     tierName(tag.getString(KEY_OVERRIDE_TIER))));
         }
         if (tag.getBoolean(KEY_REFRESH_SHOWN)) {
-            lines.add(Component.translatable("jade.prosperity.refresh",
+            lines.add(Component.translatable("tooltip.prosperity.refresh",
                     RefreshTimerFormat.format(tag.getLong(KEY_REFRESH_TICKS))));
         }
         return lines;
@@ -232,22 +232,22 @@ public final class LootTooltip {
 
     private static Component statusLine(Status status) {
         return switch (status) {
-            case UNLOOTED -> Component.translatable("jade.prosperity.status.unlooted")
+            case UNLOOTED -> Component.translatable("tooltip.prosperity.status.unlooted")
                     .withStyle(ChatFormatting.GOLD);
-            case LOOTED -> Component.translatable("jade.prosperity.status.looted")
+            case LOOTED -> Component.translatable("tooltip.prosperity.status.looted")
                     .withStyle(ChatFormatting.GRAY);
-            case REFRESHED -> Component.translatable("jade.prosperity.status.refreshed")
+            case REFRESHED -> Component.translatable("tooltip.prosperity.status.refreshed")
                     .withStyle(ChatFormatting.GREEN);
-            case VANILLA -> Component.translatable("jade.prosperity.status.vanilla")
+            case VANILLA -> Component.translatable("tooltip.prosperity.status.vanilla")
                     .withStyle(ChatFormatting.WHITE);
         };
     }
 
     private static String overrideKey(String mode) {
         return switch (mode) {
-            case "fixed" -> "jade.prosperity.override.fixed";
-            case "maximum" -> "jade.prosperity.override.maximum";
-            default -> "jade.prosperity.override.minimum";
+            case "fixed" -> "tooltip.prosperity.override.fixed";
+            case "maximum" -> "tooltip.prosperity.override.maximum";
+            default -> "tooltip.prosperity.override.minimum";
         };
     }
 
@@ -257,17 +257,17 @@ public final class LootTooltip {
     }
 
     /**
-     * The localized tier name, reusing the {@code tier.prosperity.<name>} keys (and capitalized
-     * fallback) shared with {@code /prosperity info} and the loot notification, so a custom tier still
-     * renders a readable name.
+     * The localized tier name, reusing the {@link DistanceTier#translationKey(String) tier name key}
+     * (and capitalized fallback) shared with {@code /prosperity info} and the loot notification, so a
+     * custom tier still renders a readable name.
      */
     private static Component tierName(String name) {
-        return Component.translatableWithFallback("tier.prosperity." + name, capitalize(name));
+        return Component.translatableWithFallback(DistanceTier.translationKey(name), capitalize(name));
     }
 
     /**
-     * The localized structure name, reusing the {@code structure.prosperity.<path>} keys (and humanized
-     * fallback) shared with the loot notification.
+     * The localized structure name, reusing the {@link LootNotification#structureNameKey(String) structure
+     * name key} (and humanized fallback) shared with the loot notification.
      */
     private static Component structureName(String structureId) {
         String path = structureId;
@@ -275,7 +275,7 @@ public final class LootTooltip {
         if (colon >= 0) {
             path = structureId.substring(colon + 1);
         }
-        return Component.translatableWithFallback("structure.prosperity." + path,
+        return Component.translatableWithFallback(LootNotification.structureNameKey(path),
                 LootNotification.humanize(path));
     }
 

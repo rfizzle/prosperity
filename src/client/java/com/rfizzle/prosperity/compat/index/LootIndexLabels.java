@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.compat.index;
 
+import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.loot.index.LootIndexEntry;
 import com.rfizzle.prosperity.loot.index.LootIndexFormat;
 import net.minecraft.ChatFormatting;
@@ -28,19 +29,19 @@ public final class LootIndexLabels {
     /** The on-screen tier badge: {@code "Frontier+"} for an injected entry, "Any tier" for vanilla. */
     public static Component tierBadge(LootIndexEntry entry) {
         return entry.minTier()
-                .map(name -> Component.translatable("loot_index.prosperity.tier", tierName(name)))
-                .orElseGet(() -> Component.translatable("loot_index.prosperity.any_tier"));
+                .map(name -> Component.translatable("gui.prosperity.tier", tierName(name)))
+                .orElseGet(() -> Component.translatable("gui.prosperity.any_tier"));
     }
 
     /** The output slot's appended tooltip line: the injection note for injected rows, else the source. */
     public static Component sourceTooltip(LootIndexEntry entry) {
         if (entry.origin() == LootIndexEntry.Origin.INJECTED) {
-            return Component.translatable("loot_index.prosperity.injected", tierBadge(entry)).withStyle(ChatFormatting.GOLD);
+            return Component.translatable("gui.prosperity.injected", tierBadge(entry)).withStyle(ChatFormatting.GOLD);
         }
-        return Component.translatable("loot_index.prosperity.source.vanilla").withStyle(ChatFormatting.GRAY);
+        return Component.translatable("gui.prosperity.source.vanilla").withStyle(ChatFormatting.GRAY);
     }
 
     private static Component tierName(String name) {
-        return Component.translatableWithFallback("tier.prosperity." + name, LootIndexFormat.titleCase(name));
+        return Component.translatableWithFallback(DistanceTier.translationKey(name), LootIndexFormat.titleCase(name));
     }
 }

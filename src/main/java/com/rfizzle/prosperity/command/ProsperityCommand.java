@@ -107,7 +107,7 @@ public final class ProsperityCommand {
         DistanceTier tier = resolveTier(level, x, z);
         double distance = Math.sqrt(x * x + z * z);
         Component tierName = Component.translatableWithFallback(
-                "tier.prosperity." + tier.name(), capitalize(tier.name()));
+                tier.translationKey(), capitalize(tier.name()));
         Component modifiers = Component.translatable("command.prosperity.info.modifiers",
                 TierFormat.multiplier(tier.stackMultiplier()), tier.qualityModifier());
         Component message = Component.translatable("command.prosperity.info",
@@ -155,7 +155,7 @@ public final class ProsperityCommand {
         for (String tierName : statsTierOrder(Prosperity.getConfig().distanceTiers, tiers.keySet())) {
             final long count = tiers.getOrDefault(tierName, 0L);
             final Component display = Component.translatableWithFallback(
-                    "tier.prosperity." + tierName, capitalize(tierName));
+                    DistanceTier.translationKey(tierName), capitalize(tierName));
             src.sendSuccess(() -> Component.translatable("command.prosperity.stats.tier", display, count),
                     false);
         }

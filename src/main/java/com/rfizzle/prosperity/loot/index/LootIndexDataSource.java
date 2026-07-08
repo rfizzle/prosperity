@@ -167,7 +167,7 @@ public final class LootIndexDataSource {
                 LootIndexFormat.titleCase(segment));
         ItemStack stack = injected.stack().copy();
         stack.set(DataComponents.LORE, new ItemLore(List.of(
-                Component.translatable("loot_index.prosperity.random_enchantment", rarity))));
+                Component.translatable("gui.prosperity.random_enchantment", rarity))));
         return stack;
     }
 }
