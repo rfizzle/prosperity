@@ -705,7 +705,7 @@ When a player opens an instanced container **for the first time** (loot generati
 
 - Server-side: after loot generation completes, send the resolved tier data to the player with `ServerPlayer#displayClientMessage(component, true)` — a system-chat packet with `overlay=true` (action bar placement).
 - The message is built from the `LootModifierContext` final values, so it reflects all modifiers (distance + structure override + API listeners): the multiplier and quality shown are the post-listener `stackMultiplier` and `luck` (the latter rounded to a whole number), not the raw tier values.
-- Assembled from three translation keys: `notification.prosperity.loot_generated` (`✦ %s`, the tier name), `notification.prosperity.modifiers` (` — %sx stacks, +%s quality`, appended only when a value is off its baseline — so the bare tier shows at Local), and `notification.prosperity.structure` (` (%s)`, appended only when a structure override changed the tier from the pure distance band). The multiplier renders in natural-decimal form (`2.0`, `2.75`); structure names resolve through `structure.prosperity.*` with a humanized-path fallback for unmapped (e.g. modded) structures.
+- Assembled from three translation keys: `notification.prosperity.loot_generated` (`✦ %s`, the tier name), `notification.prosperity.modifiers` (` — %sx stacks, +%s quality`, appended only when a value is off its baseline — so the bare tier shows at Local), and `notification.prosperity.structure` (` (%s)`, appended only when a structure override changed the tier from the pure distance band). The multiplier renders in natural-decimal form (`2.0`, `2.75`); structure names resolve through `notification.prosperity.structure.*` with a humanized-path fallback for unmapped (e.g. modded) structures.
 
 ---
 
@@ -1373,7 +1373,7 @@ Instanced loot gives every player their own roll, but co-op groups exploring tog
 - Teamless players fall back to individual instancing while the mode is on. Leaving or joining a team affects only future generations — it never migrates existing instances.
 - **Membership snapshot** — a team instance records the member UUIDs that have opened it. Those players keep resolving to that instance for that container even after leaving the team (resolution, not migration), closing the "leave, re-loot the same chest" loop. The snapshot rides the container's persistent attachment.
 - **Leave grace** — optional `teamLeaveGraceMinutes` (default 0 = off): a player who recently resolved into a team keeps generating *new* instances against that former team's key for N real minutes, making leave/loot/rejoin cycling more hassle than it is worth. This memory is in-memory only (a deterrent, not enforcement) and does not survive a server restart.
-- **v1 concurrency** — a second teammate opening a shared instance already open by a teammate is refused with an action-bar message and a "no" cue (`party.prosperity.container_in_use`), rather than served a copy that a last-close-wins write would clobber. The in-use lock releases when the first member closes the screen. Live simultaneous access is a v2 candidate.
+- **v1 concurrency** — a second teammate opening a shared instance already open by a teammate is refused with an action-bar message and a "no" cue (`notification.prosperity.container_in_use`), rather than served a copy that a last-close-wins write would clobber. The in-use lock releases when the first member closes the screen. Live simultaneous access is a v2 candidate.
 - The unlooted indicator and Jade/WTHIT status reflect the shared state: a container looted by any teammate reads as looted for the whole team, and the refresh sweep re-lights it once for the team. Newly-bound teammates converge via the passive per-chunk scan.
 
 ### API
@@ -1517,27 +1517,27 @@ The current cues all map to vanilla events:
 
 ## Localization
 
-All user-facing text uses translation keys in `assets/prosperity/lang/en_us.json`.
+All user-facing text uses translation keys in `assets/prosperity/lang/en_us.json`. Keys are namespaced by the **surface** the string renders on, per concord DESIGN-SYSTEM §10 — never by gameplay concept. Cross-surface enum names (tiers, structures) route through a single translation-key helper (`DistanceTier.translationKey`, `LootNotification.structureNameKey`) so every site reads the name from one place.
 
 ### Key Conventions
 
 | Pattern | Example | Used For |
 |---|---|---|
-| `tier.prosperity.*` | `tier.prosperity.wilderness` | Distance tier display names (action bar, HUD badge) |
-| `structure.prosperity.*` | `structure.prosperity.monument` | Structure display names in notifications |
-| `notification.prosperity.*` | `notification.prosperity.loot_generated` | Action bar loot notifications |
 | `config.prosperity.*` | `config.prosperity.enable_distance_scaling` | Cloth Config screen labels |
 | `config.prosperity.*.tooltip` | `config.prosperity.enable_distance_scaling.tooltip` | Cloth Config field descriptions |
 | `command.prosperity.*` | `command.prosperity.info` | Command feedback messages (incl. `/prosperity info` output) |
-| `key.categories.prosperity` / `key.prosperity.*` | `key.prosperity.peek_detail` | Controls-menu keybind category and binding names |
+| `hud.prosperity.*` | `hud.prosperity.detail.title` | Tier HUD badge and peek detail-panel text |
+| `gui.prosperity.*` | `gui.prosperity.injected` | Loot-index recipe-viewer screen labels (incl. `gui.prosperity.structure.*` names) |
+| `tooltip.prosperity.*` | `tooltip.prosperity.status.looted` | Hover + Jade/WTHIT probe tooltip lines (compass behavior; container status, tier, override, refresh timer) |
 | `message.prosperity.*` | `message.prosperity.peek_hint` | Chat hints (the peek-panel discovery line naming the bound key) |
-| `jade.prosperity.*` | `jade.prosperity.status.looted` | Jade/WTHIT tooltip lines (status, tier, override, refresh timer) |
-| `loot_index.prosperity.*` | `loot_index.prosperity.injected` | EMI/REI/JEI loot index UI |
-| `party.prosperity.*` | `party.prosperity.container_in_use` | Shared-instance in-use action-bar message |
-| `tooltip.prosperity.*` | `tooltip.prosperity.prospectors_compass.points` | Prospector's Compass behavior tooltip lines |
-| `category.prosperity.*` / `emi.category.prosperity.*` | `category.prosperity.loot_tables` | Recipe-viewer category title |
+| `notification.prosperity.*` | `notification.prosperity.loot_generated` | Action-bar toasts (loot, structure-cleared, protection + shared-instance-in-use refusals) plus the tier (`notification.prosperity.tier.*`) and structure (`notification.prosperity.structure.*`) display names they embed |
+| `advancements.prosperity.*` | `advancements.prosperity.root.title` | Advancement titles and descriptions |
+| `key.categories.prosperity` / `key.prosperity.*` | `key.prosperity.peek_detail` | Controls-menu keybind category and binding names |
+| `item.prosperity.<id>` | `item.prosperity.prospectors_compass` | Item display name (vanilla-mandated) |
+| `emi.category.prosperity.*` | `emi.category.prosperity.loot_tables` | EMI recipe category title (EMI derives the key from the category id) |
+| `rei.prosperity.category.*` / `jei.prosperity.category.*` | `jei.prosperity.category.loot_tables` | REI / JEI recipe category title (per-viewer, kept unshared) |
 
-Parameterized messages use `String.format` style (`%s`, `%d`) — e.g. `"tier.prosperity.info": "%s tier (%.1fx stacks, +%d quality)"`.
+Parameterized messages use `String.format` style (`%s`, `%d`) — e.g. `"command.prosperity.info": "Distance: %s blocks — %s tier (%s)"`.
 
 ---
 
