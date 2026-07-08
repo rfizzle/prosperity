@@ -339,6 +339,11 @@ public final class LootDetailPanelRenderer implements HudRenderCallback {
             graphics.pose().popPose();
         }
         graphics.setColor(1f, 1f, 1f, 1f);
+
+        // Commit the batch (HUD-STANDARD §3, mc-hud "Commit the draw batch") after the pose is
+        // restored and color reset, before a batching optimizer (ImmediatelyFast) or a
+        // framebuffer-reading effect (Blur+, a post shader) can drop or capture the panel.
+        graphics.flush();
     }
 
     /**

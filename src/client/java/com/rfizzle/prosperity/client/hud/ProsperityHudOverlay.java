@@ -121,6 +121,11 @@ public final class ProsperityHudOverlay {
         int textX = iconX + ICON_SIZE + ICON_TEXT_GAP;
         int textY = y + (badgeH - font.lineHeight) / 2 + 1;
         graphics.drawString(font, label, textX, textY, color, true);
+
+        // Commit the batch (HUD-STANDARD §3, mc-hud "Commit the draw batch") before a batching
+        // optimizer (ImmediatelyFast) or a framebuffer-reading effect (Blur+, a post shader) can
+        // fold in, drop, or capture the glyph and label left unflushed.
+        graphics.flush();
     }
 
     private static boolean shouldRender(Minecraft mc) {
