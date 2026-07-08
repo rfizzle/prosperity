@@ -35,14 +35,9 @@ Zero external dependencies beyond Fabric API.
 Every player gets their own independent loot from each naturally generated
 container, rolled the first time they open it and stored per UUID. Hoppers and
 comparators see an empty vanilla container — instanced loot lives outside the
-vanilla inventory, preventing extraction and duplication exploits.
-
-### Unlooted Indicators
-
-A gold sparkle hovers above containers you haven't opened yet, and disappears
-once you've looted them. No more backtracking through strongholds, mansions, and
-mineshafts to find what you missed. The indicator is a world-space overlay, not
-a HUD element.
+vanilla inventory, preventing extraction and duplication exploits. Chests,
+barrels, shulker boxes, loot dispensers, and chest/hopper minecarts are all
+covered, so mineshaft loot is first-class.
 
 ### Distance Scaling
 
@@ -57,8 +52,57 @@ Loot quality scales with absolute distance from world origin across five tiers:
 | **Depths** | 10,000+ | 3.5x | +4 |
 
 Stack quantities scale by the multiplier (capped at 64); quality adds luck to
-loot generation. The End is always treated as Depths tier. Structure overrides
-can fix, raise, or cap the tier a given structure uses.
+loot generation. The End is always treated as Depths tier.
+
+The same tiers drive the whole reward loop, not just chests. Hostile mobs you
+kill drop scaled stacks and rarer loot (player kills only); fishing rolls the
+catch at the bobber's tier and biases toward treasure the farther out you cast;
+trial-chamber vault and spawner rewards scale with the chamber's tier. Loot
+every instanced container in a structure and the final one pays an extra
+tier-appropriate reward with an action-bar fanfare. Each surface is
+independently toggleable.
+
+Structure overrides can fix, raise, or cap the tier a given structure uses.
+
+### Prospector's Compass
+
+A gold-cased compass whose needle points at the nearest container *you* have
+not looted yet — each player's points somewhere different, because each
+player's loot history is different. Craft one from a compass, gold, netherite,
+and an end rod, or find one as injected chest loot from the Frontier tier
+outward.
+
+### Unlooted Indicators
+
+A gold sparkle hovers above containers you haven't opened yet and disappears
+once you've looted them. No more backtracking through strongholds, mansions,
+and mineshafts to find what you missed — container minecarts carry the same
+sparkle. It renders as a client-side, world-space overlay driven from
+lightweight per-chunk requests.
+
+### Tier HUD Badge & Peek Detail
+
+A compact badge in the shared Concord HUD strip shows your current distance
+tier at a glance, drawn in the tier's color and updating live as you travel.
+Hold **Left Alt** — the rebindable *Peek Loot Detail* bind — for a detail
+panel: your tier and progress to the next, the full tier ladder, and the
+unlooted containers around you, with distance and bearing to the nearest when
+you're carrying a Prospector's Compass.
+
+### Party Loot
+
+Optional co-op sharing (off by default): players on the same team share a
+single loot instance per container instead of each rolling their own — the
+first teammate to open a chest rolls the loot the whole team draws from. It
+follows vanilla scoreboard teams by default, or your Open Parties and Claims or
+FTB Teams party when either is installed.
+
+### Milestone Advancements
+
+A Prosperity advancement tab turns exploration into goals: reach each distance
+tier in turn, loot 10 / 50 / 250 containers over a lifetime, and cover 3 / 8 /
+15 distinct structure types. Every milestone is granted server-side the moment
+loot is generated, so only real instanced opens count.
 
 ### Loot Modifier API & Injection
 
@@ -69,9 +113,11 @@ ships built-in injections so distance scaling feels meaningful out of the box.
 
 ## Commands
 
-Player commands: `/prosperity info`. Operator commands cover per-player and
-per-container `reset`, viewing other players' tiers, and `reload`. Full
-reference:
+Player commands: `/prosperity info` and `/prosperity stats` show your current
+loot tier and your lifetime loot statistics. Operator commands (level 2) cover
+`reset` and `refresh` — by container position or `around` you within a radius,
+optionally for a single player — plus `reload` to hot-reload config from disk.
+Full reference:
 [prosperity.rfizzle.com/commands.html](https://prosperity.rfizzle.com/commands.html)
 
 ## Optional integrations
@@ -79,10 +125,16 @@ reference:
 Prosperity detects and integrates with these mods when present. **None are
 bundled** — install whichever you already use.
 
+- [Mod Menu](https://modrinth.com/mod/modmenu) — config screen entry
+- [Cloth Config](https://modrinth.com/mod/cloth-config) — settings GUI
 - [Jade](https://modrinth.com/mod/jade) / [WTHIT](https://modrinth.com/mod/wthit)
   — container loot-status, distance-tier, structure-override, and refresh-timer tooltips
 - [EMI](https://modrinth.com/mod/emi) / [REI](https://modrinth.com/mod/rei) /
-  [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) — loot injection recipes
+  [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) — a loot-table index and injection recipes
+- [Meridian](https://meridian.rfizzle.com) — injected enchanted-book rewards roll live, distance-scaled Meridian enchantments
+- [Tribulation](https://tribulation.rfizzle.com) — local danger adds bonus luck, and dangerous mobs drop their tier gear more often the farther out they roam
+- [Open Parties and Claims](https://modrinth.com/mod/open-parties-and-claims) / [FTB Teams](https://modrinth.com/mod/ftb-teams)
+  — party loot follows your party instead of scoreboard teams
 
 For mod developers: a stable Loot Modifier API
 (`com.rfizzle.prosperity.api`) — see the
@@ -101,8 +153,9 @@ For mod developers: a stable Loot Modifier API
 1. Install [Fabric Loader](https://fabricmc.net/use/) for 1.21.1.
 2. Drop [Fabric API](https://modrinth.com/mod/fabric-api) into your `mods/`
    folder.
-3. Download Prosperity and place it into `mods/` as well — on both server
-   and client.
+3. Download Prosperity from this **Modrinth** page (Modrinth App, Prism's
+   Modrinth tab, or a manual jar drop) and place it into `mods/` as well — on
+   both server and client.
 4. Remove Lootr first if you have it installed.
 
 Config generates at `config/prosperity.json` on first launch.
