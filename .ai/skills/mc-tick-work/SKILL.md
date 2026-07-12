@@ -164,6 +164,13 @@ for (int dx = -viewDistance; dx <= viewDistance; dx++) {
   each tick, iterate it (early-return when empty), revert entries past their
   deadline, and verify the world still holds your block before writing — a
   player may have mined it.
+- **Never block the game thread on I/O.** The server simulates every tick on
+  one thread; a disk read, HTTP call, or DNS lookup inside a tick or event
+  handler stalls the whole server for its duration. Offload to
+  `CompletableFuture.supplyAsync(...)` or `Util.backgroundExecutor()` and apply
+  the result back on the game thread via `server.execute(...)`. (Config saves
+  are small and atomic — see `mc-config` — but anything network-bound or
+  unbounded in size never runs inline.)
 
 ## Persistent-entity orphan cleanup
 
