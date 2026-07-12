@@ -82,6 +82,8 @@ public static final ExtendedScreenHandlerType<MyMenu, BlockPos> MY_MENU =
         new ExtendedScreenHandlerType<>(MyMenu::new, BlockPos.STREAM_CODEC);
 ```
 
+For live values shown only while the menu is open (progress bars, energy levels), use `ContainerData` + `addDataSlots()` in the menu constructor — not a custom sync payload (see `mc-networking`, "Sync on a need-to-know basis").
+
 ## Standalone item registration
 
 Items that are not BlockItems (tools, materials, tomes, etc.):
