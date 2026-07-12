@@ -152,6 +152,15 @@ ClientPlayNetworking.registerGlobalReceiver(
 
 ## Sync patterns
 
+### Sync on a need-to-know basis
+Before adding a sync payload, ask what client surface actually reads the value — and when. Send only what the client can currently see:
+
+- **No client surface reads it** (internal counters, server-side cooldowns): don't sync at all.
+- **Visible only while a menu is open** (progress bars, energy levels, stored counts): use `ContainerData`/`menu.addDataSlots()` on the menu — it syncs automatically only to viewers, only while the screen is open, and only when values change. No custom payload, no block-entity update packets.
+- **Visible in-world at any time** (HUD badges, overlays, tooltips on look): a real sync payload, scoped to the players who can see it (tracking-range or per-player sends), not a broadcast.
+
+The common mistake is continuous block-entity or custom-packet sync for a value nobody looks at until they open a GUI.
+
 ### Sync-on-join
 Send full server state to each player when they connect:
 
@@ -234,6 +243,7 @@ Server-side network handlers MUST replicate ALL validation from the correspondin
 
 - **Permission/state checks** — player has required items, is in the right state, entity is valid and within range
 - **Entity ID validation** — the entity exists, is the correct type, and is close enough to interact with
+- **BlockPos validation** — a client-sent `BlockPos` can point anywhere, including unloaded chunks. Check `level.isLoaded(pos)` AND range to the player before calling `getBlockState()`/`setBlockState()`/`getBlockEntity()`. Touching an unvalidated position forces arbitrary chunk loading/generation — a server DoS vector even at low packet rates.
 - **Config gating** — if the feature has an `enableX` toggle, check it server-side too
 
 ```java
@@ -298,6 +308,8 @@ private static MyPayload decode(RegistryFriendlyByteBuf buf) {
 - **Never** reference client-only classes (screens, renderers) in a payload class that lives in the common source set. The payload record and codec go in `main/`; the client handler goes in `client/`.
 - **Always** use `RegistryFriendlyByteBuf` (not raw `ByteBuf`) when the payload contains registry-backed objects like `ItemStack`, `Holder`, or `ResourceKey`.
 - **Never** trust C2S packet contents without server-side validation. Replicate all permission, state, range, and config checks from the client-side code in the server handler.
+- **Never** touch a client-sent `BlockPos` without checking `level.isLoaded(pos)` and player range first — unvalidated positions force arbitrary chunk loading.
+- **Never** add a sync payload for data with no live client surface. Menu-only values ride `ContainerData`; unseen values don't sync at all.
 - **Always** add per-player cooldowns on C2S packets that trigger expensive server operations (POI queries, trade generation, world reads).
 - **Always** register `ClientPlayConnectionEvents.DISCONNECT` to clear client-side data caches. Maps that survive reconnect grow unboundedly and leak stale data.
 - **Always** cap collection sizes and string lengths when decoding S2C payloads. Use `readUtf(maxLen)` for known-short fields and reject oversized collections early.
