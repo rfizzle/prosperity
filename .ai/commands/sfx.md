@@ -1,6 +1,6 @@
 ---
 description: Synthesize a Concord sound effect from a declarative .sfx spec — a UI blip, an alarm klaxon, a tech/sci-fi alert, a charge-up, or a chiptune sting — and render it to Ogg Vorbis with a waveform/spectrogram report.
-argument-hint: <sound description> [mod: meridian|mercantile|tribulation|prosperity] [vanilla-ok?]
+argument-hint: <sound description> [mod]
 allowed-tools: Read, Write, Bash(python3 .ai/skills/mc-audio/scripts/sfx.py:*)
 ---
 
@@ -34,31 +34,34 @@ A `.sfx` file is JSON: global fields (`name`, `sample_rate`, `peak_dbfs` ≈ −
 `python3 .ai/skills/mc-audio/scripts/sfx.py --list-waveforms`), a `freq` or a
 pitch glide (`from`→`to`, `glide` `exp`|`lin`), an `env`
 (attack/decay/sustain/release), a `start`/`duration`, and optional
-`gain`/`filter`/`repeat`. A layer's `notes` list renders a sequence (chiptune
-sting). The full format with a worked example is the `SPEC FORMAT` header of
-`.ai/skills/mc-audio/scripts/sfx.py`.
+`gain`/`filter`/`repeat`. Character tools: `duty` (square pulse width — thin
+duties read chiptune), `vibrato` (`{"rate": Hz, "depth": semitones}` — klaxon
+wobble), and a filter cutoff sweep (`"filter": {"type": "lowpass", "from": 300,
+"to": 6000}` — whoosh/riser/charge). A layer's `notes` list renders a sequence
+(chiptune sting). The full format with a worked example is the `SPEC FORMAT`
+header of `.ai/skills/mc-audio/scripts/sfx.py`.
 
 Keep the patch lean (1–3 layers), pick a **`seed`** so noise renders
 reproducibly, and write a **`subtitle`** key (`<mod>.subtitle.<event>`) —
 accessibility is non-negotiable. Write the spec to `art/audio/<cue>.sfx` (or a
-path the user gives). The `.sfx` is the committed source — `art/audio/` holds
-`.sfx` files only (rendered audio there is gitignored). The rendered files are
-throwaway review artifacts (step 3); the shipped master lands in the mod's asset
-tree on approval (step 4).
+path the user gives). The `.sfx` is the committed source of truth; the rendered
+files are throwaway review artifacts (step 3); the shipped master lands in the
+mod's asset tree on approval (step 4).
 
 ## Step 3 — Render and review (you can't hear it)
 
-Render with `-o` pointing at `/tmp` so the derived files land in scratch, not
-beside the source spec:
+Render the spec — the derived files land beside it in `art/audio/`, where the
+suite `.gitignore` already ignores every render (`.ogg`, `.wav`, `.report.png`):
 
 ```bash
-python3 .ai/skills/mc-audio/scripts/sfx.py art/audio/<cue>.sfx -o /tmp/<cue>.ogg
+python3 .ai/skills/mc-audio/scripts/sfx.py art/audio/<cue>.sfx
 ```
 
-This writes `<cue>.ogg` (the master), `<cue>.wav`, and `<cue>.report.png` (a
-waveform + spectrogram) into `/tmp`, and prints stats: duration, peak dBFS, RMS,
-spectral centroid. These rendered files are throwaway review artifacts — they
-stay in `/tmp` until the user approves the cue. Close the loop on **objective signals**: **read the `.report.png`
+This writes `<cue>.ogg`, `<cue>.wav`, and `<cue>.report.png` (a waveform +
+spectrogram) beside the spec, and prints stats: duration, peak dBFS, RMS,
+spectral centroid. These renders are throwaway review artifacts — gitignored, so
+they can sit beside the source for review without ever being committable. Close
+the loop on **objective signals**: **read the `.report.png`
 back** and check the shape matches the gesture (envelope, sweep direction,
 harmonic content); confirm peak ≈ −1 dBFS (no clipping), the duration is tight,
 and the centroid suits the character (bright vs. dark). Iterate the spec until
@@ -76,12 +79,11 @@ Two locations, no duplication:
   the re-renderable deliverable.
 - **Master** — the shipped `.ogg`. On approval, render it **straight into the
   mod's resource tree**, `src/main/resources/assets/<mod>/sounds/…` (confirm the
-  exact subpath with the user). The master does **not** get a copy in
-  `art/audio/`; rendered audio there is gitignored.
+  exact subpath with the user). The renders beside the spec in `art/audio/` are
+  gitignored review artifacts, never the shipped copy.
 
-So the throwaway `/tmp` renders (step 3) are only for review — once the cue is
-approved, re-render with `-o` pointing at the final `assets/<mod>/sounds/…` path
-instead of `/tmp`.
+So the review renders (step 3) stay uncommitted beside the spec — once the cue is
+approved, re-render with `-o` pointing at the final `assets/<mod>/sounds/…` path.
 
 Then wire the Minecraft side (see the `mc-audio` and `mc-registration` skills):
 

@@ -1,6 +1,6 @@
 ---
 name: mc-gradle-builds
-description: Best practices for running Gradle builds, tests, and gametests in Fabric Minecraft mods. Prevents wasted reruns from partial output capture. TRIGGER when running any Gradle command (build, test, runGametest, runDatagen, assemble, check), when inspecting build output/reports, or when editing repositories/dependencies in build.gradle.
+description: Best practices for running Gradle builds, tests, gametests, and coverage in Fabric Minecraft mods. Prevents wasted reruns from partial output capture; wires the merged unit+gametest JaCoCo report. TRIGGER when running any Gradle command (build, test, runGametest, runDatagen, assemble, check), when inspecting build output/reports, when wiring or reading JaCoCo coverage, or when editing repositories/dependencies in build.gradle.
 ---
 
 The user is running a Gradle build, test, or gametest in a Fabric mod. Follow these rules to avoid losing output and forcing expensive reruns.
@@ -42,6 +42,7 @@ After a test run completes, reports are on disk:
 | HTML test report | `build/reports/tests/test/index.html` |
 | JUnit XML results | `build/test-results/test/*.xml` |
 | Gametest XML | Path set by `-Dfabric-api.gametest.report-file` |
+| Merged coverage (unit + gametest) | `build/reports/jacoco/jacocoMergedReport/html/index.html` |
 | Build failure log | Full console output from Bash call |
 
 Use the `Read` tool to inspect reports — never re-run just to see results.
@@ -149,6 +150,69 @@ loom {
     }
 }
 ```
+
+## Coverage: merge unit-test and gametest execution data
+
+JaCoCo's default `jacocoTestReport` instruments only the `test` task, so code
+exercised exclusively in-game — event handlers, commands, registration, anything
+a gametest drives — reads as 0% even when it is thoroughly gametested. The
+merged report below is the mod's real coverage number; read per-package coverage
+from it, never from the unit-test-only report.
+
+Attach the agent to the gametest server (Loom's `runGametest` is a `JavaExec`,
+so the JaCoCo task extension applies cleanly):
+
+```groovy
+// Attach the JaCoCo agent to the gametest server so code only exercised
+// in-game counts toward coverage. The includes filter keeps the agent from
+// instrumenting Minecraft/Fabric classes.
+tasks.named('runGametest') {
+    jacoco.applyTo(it)
+    it.jacoco.destinationFile = layout.buildDirectory.file('jacoco/runGametest.exec').get().asFile
+    it.jacoco.includes = ['com.example.mymod.*']
+}
+```
+
+Then merge both exec files into one report:
+
+```groovy
+// Single source of coverage truth: unit tests + gametests merged over src/main.
+tasks.register('jacocoMergedReport', JacocoReport) {
+    // Ordering only — not dependsOn, so the report can run from existing exec
+    // data without forcing a gametest server spin-up.
+    mustRunAfter test, tasks.named('runGametest')
+    // fileTree only picks up exec files that exist, so the report still runs
+    // when one of the two sweeps hasn't.
+    executionData fileTree(layout.buildDirectory.dir('jacoco')) {
+        include 'test.exec', 'runGametest.exec'
+    }
+    sourceSets sourceSets.main
+    // Mixin bodies execute inside the transformed vanilla classes, so the
+    // agent can never attribute coverage to the mixin class files — excluding
+    // them keeps the denominator honest. Mixins stay thin (delegate to
+    // handlers, see mc-mixin-craft) so nothing measurable hides here.
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: ['com/example/mymod/mixin/**'])
+    }))
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+```
+
+Full sweep and report:
+
+```bash
+./gradlew test runGametest jacocoMergedReport 2>&1
+```
+
+The report lands in `build/reports/jacoco/jacocoMergedReport/` (HTML + XML).
+Without `mustRunAfter`, Gradle 8 fails the report task with an
+implicit-dependency validation error whenever it runs in the same invocation as
+`test`/`runGametest` (both write into `build/jacoco`). What counts toward the
+number, which residual misses are acceptable, and the target live in the
+`mc-mod-testing` skill's coverage-accounting section.
 
 ## Dependency scoping
 

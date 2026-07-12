@@ -1,6 +1,6 @@
 ---
 name: mc-mod-testing
-description: Write and maintain tests for Fabric Minecraft mods across the three-tier test spectrum (pure JUnit, fabric-loader-junit, Fabric Gametest). TRIGGER when creating or editing *Test.java, *GameTest.java, or when the user asks about testing a Minecraft mod, fabric-loader-junit, Fabric Gametest, or guarding shipped resources (lang keys, models, textures) with tests.
+description: Write and maintain tests for Fabric Minecraft mods across the three-tier test spectrum (pure JUnit, fabric-loader-junit, Fabric Gametest), and account for coverage honestly. TRIGGER when creating or editing *Test.java, *GameTest.java, or when the user asks about testing a Minecraft mod, fabric-loader-junit, Fabric Gametest, test coverage, or guarding shipped resources (lang keys, models, textures) with tests.
 ---
 
 The user is writing or modifying tests in a Fabric mod. Apply this guidance whenever test code is being touched.
@@ -47,6 +47,14 @@ Tier 1 (fast, no bootstrap); the shell gets a handful of Tier 3 gametests for th
 wiring. This is *why* the mods carry ~25 unit-test classes each instead of pushing
 everything to slow gametests.
 
+The same split is the suite's multi-version insurance. A pure core references no
+`net.minecraft.*` or `net.fabricmc.*` types, so mapping renames, Minecraft version
+bumps, and any future multi-version targeting (Stonecutter) or loader split touch
+only the thin shells — logic buried in an event handler has to be re-verified per
+version; logic in a pure core ports untouched. Extract pure logic whenever a seam
+allows it: every line moved from shell to core is a line that is unit-testable
+today and version-portable tomorrow.
+
 The move is to **take the game objects as plain parameters and return a plain
 result**, so the same method a gametest would exercise through a real entity is
 callable from a unit test with primitives:
@@ -84,6 +92,33 @@ A method that takes a `ServerLevel` only to read one number, or a screen that ba
 its formatting into `render()`, has hidden a Tier-1-testable core inside a Tier-3
 shell. Pull the core out. When you find yourself reaching for Tier 3 to test pure
 logic, that's the signal the logic is in the wrong place.
+
+## Coverage accounting
+
+Coverage is measured over `src/main` with the **merged** unit + gametest JaCoCo
+report (`jacocoMergedReport` — build wiring in the `mc-gradle-builds` skill).
+The unit-test-only `jacocoTestReport` badly undercounts a Fabric mod: every line
+only a gametest exercises reads as 0%, which makes exactly the runtime-heavy
+packages (events, commands, registration) look untested when they aren't. Never
+diagnose coverage from the unit-test-only number.
+
+- **Target: ≥80% merged line coverage** on `src/main`. Suite mods sit in the
+  70s from their existing test suites once the merge is wired; the last stretch
+  comes from pure-core extraction (above), not from more gametests.
+- **The per-package readout is the work list.** A package far below the mod's
+  average is usually a shell holding a hidden pure core — extract and unit-test
+  it. Reach for a new gametest only when the uncovered code is genuinely wiring.
+- **Honest exclusions only.** Mixin classes are excluded mechanically (their
+  bodies execute inside transformed vanilla classes, so the agent cannot
+  attribute them — behavioral coverage comes from gametests on the features
+  they enable). A compat shim for a viewer that is absent from the dev/gametest
+  runtime (an API-only dependency like WTHIT) can never execute in any test
+  tier; accept it as a small residual miss or exclude that one shim. Never
+  exclude a package because it is inconvenient to test — exclude only what a
+  test provably cannot reach.
+- **`src/client` is out of scope for the number.** Client rendering only
+  executes in a live client; its testable parts are the pure math/formatter
+  classes, which live in `src/main` precisely so Tier 1 covers them.
 
 ## Tier 1: Pure JUnit
 

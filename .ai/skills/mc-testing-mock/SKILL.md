@@ -1,27 +1,57 @@
 ---
 name: mc-testing-mock
-description: Mock player helpers in Fabric Gametest (makeMockServerPlayerInLevel, makeMockPlayer). TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, or player.discard() in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test, or when writing production code that must distinguish real players from fake/automation players (FakePlayer guards).
+description: Mock player helpers in Fabric Gametest (MockPlayers.serverPlayerInLevel replica for the deprecated makeMockServerPlayerInLevel, plus makeMockPlayer). TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, or player.discard() in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test, or when writing production code that must distinguish real players from fake/automation players (FakePlayer guards).
 ---
 
-The user is writing or reviewing Fabric gametest code that needs a mock player. Apply this guidance to avoid repeated lookups of how `makeMockServerPlayerInLevel` and `makeMockPlayer` work.
+The user is writing or reviewing Fabric gametest code that needs a mock player. Apply this guidance to avoid repeated lookups of how the connected-`ServerPlayer` replica and `makeMockPlayer` work.
 
 ## Two mock player factories
 
-`GameTestHelper` provides two distinct mock player factories. They are NOT interchangeable.
+Gametests need one of two distinct mock players. They are NOT interchangeable: a lightweight client-side `Player` stub, or a fully connected `ServerPlayer` registered in the player list.
 
-### `makeMockServerPlayerInLevel()` — full ServerPlayer with network connection
+### Connected `ServerPlayer` — `MockPlayers.serverPlayerInLevel(helper)`
 
 ```java
-ServerPlayer player = helper.makeMockServerPlayerInLevel();
+ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 ```
 
-**What it does internally (MC 1.21.1):**
+`GameTestHelper.makeMockServerPlayerInLevel()` is `@Deprecated(forRemoval = true)` in MC 1.21.1, and neither vanilla nor the Fabric gametest API ships a non-deprecated replacement. Compiling against it emits `[removal]` warnings that a future MC/Fabric bump turns into a hard break. The current way to get a connected server player is a small local gametest helper — a `MockPlayers.serverPlayerInLevel(helper)` — that reproduces the vanilla method's construction faithfully using only public, non-deprecated APIs, so no access widener is needed.
 
-1. Creates a `GameProfile` with `UUID.randomUUID()` and name `"test-mock-player"`
-2. Creates a `CommonListenerCookie` via `CommonListenerCookie.createInitial(profile, false)`
-3. Constructs a **`ServerPlayer` subclass** (anonymous inner class `GameTestHelper$2`) with the helper's `ServerLevel`, the server, and the cookie's `GameProfile` + `ClientInformation`
-4. Creates a real `Connection(PacketFlow.SERVERBOUND)` backed by a Netty `EmbeddedChannel`
-5. Calls `server.getPlayerList().placeNewPlayer(connection, player, cookie)` — this **fully registers the player** in the server's player list, sets up `ServerGamePacketListenerImpl`, and adds the player to the level
+**The faithful replica — five steps (MC 1.21.1):**
+
+1. Create a `GameProfile` with `UUID.randomUUID()` and name `"test-mock-player"`
+2. Create a `CommonListenerCookie` via `CommonListenerCookie.createInitial(profile, false)`
+3. Construct a **`ServerPlayer` subclass** with the helper's `ServerLevel`, its server, and the cookie's `gameProfile()` + `clientInformation()`, **overriding `isSpectator()` to return `false` and `isCreative()` to return `true`** (the vanilla method forces these; a bare `ServerPlayer` would report spectator/non-creative and silently change gameplay-gated behavior)
+4. Create a real `Connection(PacketFlow.SERVERBOUND)` and back it with `new EmbeddedChannel(connection)` — the embedded channel absorbs packets so `connection.send(...)` paths work instead of NPEing
+5. Call `server.getPlayerList().placeNewPlayer(connection, player, cookie)` — this **fully registers the player** in the server's player list, sets up `ServerGamePacketListenerImpl`, and adds the player to the level
+
+```java
+public static ServerPlayer serverPlayerInLevel(GameTestHelper helper) {
+    GameProfile profile = new GameProfile(UUID.randomUUID(), "test-mock-player");
+    CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+
+    ServerLevel level = helper.getLevel();
+    MinecraftServer server = level.getServer();
+    ServerPlayer player = new ServerPlayer(server, level, cookie.gameProfile(), cookie.clientInformation()) {
+        @Override
+        public boolean isSpectator() {
+            return false;
+        }
+
+        @Override
+        public boolean isCreative() {
+            return true;
+        }
+    };
+
+    Connection connection = new Connection(PacketFlow.SERVERBOUND);
+    new EmbeddedChannel(connection);   // absorbs sent packets; no real client
+    server.getPlayerList().placeNewPlayer(connection, player, cookie);
+    return player;
+}
+```
+
+Keep this in one gametest utility per mod (e.g. a `MockPlayers` class in the mod's gametest source set) and guard its faithfulness with a gametest — assert the returned player has a live connection, is in the player list, is in the level, `isCreative()`, and `!isSpectator()` — so a later "simplification" to a bare `new ServerPlayer(...)` fails loudly instead of silently breaking the connection-dependent tests.
 
 **Key properties:**
 - `player.connection` is **non-null** — has a real `ServerGamePacketListenerImpl`
@@ -72,8 +102,8 @@ Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 Both factories place the player away from the test structure. **Always teleport.**
 
 ```java
-// makeMockServerPlayerInLevel — use teleportTo or moveTo
-ServerPlayer player = helper.makeMockServerPlayerInLevel();
+// connected server player — use teleportTo or moveTo
+ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 
 // Option A: teleport to an absolute position derived from the test structure
 BlockPos abs = helper.absolutePos(new BlockPos(0, 2, 1));
@@ -92,13 +122,13 @@ player.teleportTo(villager.getX(), villager.getY(), villager.getZ());
 
 ## Connection null guards in production code
 
-Because `makeMockServerPlayerInLevel()` creates a player with a real connection, and the `EmbeddedChannel` silently absorbs packets, mixin hooks that call `player.connection.send(...)` will work without crashing.
+Because `MockPlayers.serverPlayerInLevel(helper)` creates a player with a real connection, and the `EmbeddedChannel` silently absorbs packets, mixin hooks that call `player.connection.send(...)` will work without crashing.
 
 However, if production code has `if (serverPlayer.connection == null) return;` guards (defensive coding for test contexts or edge cases), be aware that:
-- `makeMockServerPlayerInLevel()` players will pass this guard (connection is non-null)
+- `MockPlayers.serverPlayerInLevel(helper)` players will pass this guard (connection is non-null)
 - Directly constructed `ServerPlayer` instances (via `new ServerPlayer(...)`) will have `connection == null`
 
-**Pattern seen in this project:** `CommandGameTest` constructs `ServerPlayer` directly (bypassing `makeMockServerPlayerInLevel`) for lightweight command tests:
+**Pattern seen in this project:** `CommandGameTest` constructs `ServerPlayer` directly (bypassing the connected replica) for lightweight command tests:
 
 ```java
 var player = new ServerPlayer(server, helper.getLevel(),
@@ -116,7 +146,7 @@ player.discard();
 helper.succeed();
 ```
 
-For `makeMockServerPlayerInLevel()` players, `discard()` removes the entity from the level. The player list entry may linger but is harmless in gametest context since each test gets a fresh server state.
+For connected replica players, `discard()` removes the entity from the level. The player list entry may linger but is harmless in gametest context since each test gets a fresh server state.
 
 For manager cleanup (e.g., `FollowManager`), explicitly stop/clear state before discarding:
 
@@ -157,13 +187,13 @@ Centralise this in one utility (see `FakePlayers.isFakePlayer` in prosperity's `
 ```java
 FakePlayer fake = FakePlayer.get(helper.getLevel());   // real Fabric fake player, not a mock
 fake.teleportTo(...);                                   // then drive the real event/callback path
-// assert PASS-through + no state, discard, then repeat with makeMockServerPlayerInLevel()
+// assert PASS-through + no state, discard, then repeat with MockPlayers.serverPlayerInLevel(helper)
 // and assert the real player still triggers first-visit behavior
 ```
 
 See prosperity's `FakePlayerGuardGameTest` for the full pattern, driven through `UseBlockCallback.EVENT.invoker()` exactly as a live interaction fires.
 
-**Interaction with the mock factories above:** `makeMockPlayer(...)` and directly constructed `ServerPlayer` instances trip this guard (no connection, not in the player list). Only `makeMockServerPlayerInLevel()` yields a connected, player-list-registered player that classifies as real. Any test exercising player-gated behavior MUST use it for the "real player" role.
+**Interaction with the mock factories above:** `makeMockPlayer(...)` and directly constructed `ServerPlayer` instances trip this guard (no connection, not in the player list). Only `MockPlayers.serverPlayerInLevel(helper)` yields a connected, player-list-registered player that classifies as real. Any test exercising player-gated behavior MUST use it for the "real player" role.
 
 ## Reflection for private methods
 
@@ -195,13 +225,13 @@ Always provide a diagnostic message referencing the method name so signature cha
 
 | Need | Use |
 |------|-----|
-| Fabric attachments (PlayerData) | `makeMockServerPlayerInLevel()` |
-| Network/packet interaction | `makeMockServerPlayerInLevel()` |
-| Command source stack from a player | `makeMockServerPlayerInLevel()` or direct `new ServerPlayer(...)` |
-| Proximity/range checks | `makeMockServerPlayerInLevel()` + teleport |
-| Villager trading (startTrading mixin) | `makeMockServerPlayerInLevel()` |
+| Fabric attachments (PlayerData) | `MockPlayers.serverPlayerInLevel(helper)` |
+| Network/packet interaction | `MockPlayers.serverPlayerInLevel(helper)` |
+| Command source stack from a player | `MockPlayers.serverPlayerInLevel(helper)` or direct `new ServerPlayer(...)` |
+| Proximity/range checks | `MockPlayers.serverPlayerInLevel(helper)` + teleport |
+| Villager trading (startTrading mixin) | `MockPlayers.serverPlayerInLevel(helper)` |
 | Inventory-only (bulk trade menus) | `makeMockPlayer(GameType.SURVIVAL)` |
 | MerchantMenu construction | `makeMockPlayer(GameType.SURVIVAL)` |
 | Lightweight, no network needed | Direct `new ServerPlayer(...)` |
-| Real-player role vs a fake-player guard | `makeMockServerPlayerInLevel()` |
+| Real-player role vs a fake-player guard | `MockPlayers.serverPlayerInLevel(helper)` |
 | Fake-player role vs a fake-player guard | `FakePlayer.get(level)` |
