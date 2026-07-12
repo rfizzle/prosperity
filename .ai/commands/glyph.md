@@ -1,6 +1,6 @@
 ---
 description: Design a Concord pixel-art glyph as an ASCII grid and render it to a PNG — single sprite, a 16/32/64/128/256 size ladder, or an animated strip.
-argument-hint: <motif description> [mod: meridian|mercantile|tribulation|prosperity] [sizes: 16,32,…] [animated]
+argument-hint: <motif description> [mod] [sizes: 16,32,…] [animated]
 allowed-tools: Read, Write, Bash(python3 .ai/skills/mc-textures/scripts/glyph.py:*)
 ---
 
@@ -80,9 +80,9 @@ file (resampling a 32px drawing down to 16px goes muddy — don't). Reserve nati
 extra detail.
 
 Write the spec to `art/glyphs/<name>.glyph` (or a path the user gives). The
-`.glyph` is the committed source — `art/glyphs/` holds `.glyph` files only (PNGs
-there are gitignored). The rendered PNGs are throwaway review artifacts (step 3);
-the shipped master lands in the mod's asset tree on approval (step 4). Format — a `legend:`
+`.glyph` is the committed source of truth; the rendered PNGs are throwaway
+review artifacts (step 3); the shipped master lands in the mod's asset tree on
+approval (step 4). Format — a `legend:`
 mapping single chars to colors, then a `frame:` (or `grid:`) of exactly N rows ×
 N chars. `#` begins a comment anywhere; don't use it as a legend key. The full
 format (with a worked example) is documented in the `SPEC FORMAT` header of
@@ -90,19 +90,24 @@ format (with a worked example) is documented in the `SPEC FORMAT` header of
 
 ## Step 3 — Render and review
 
-Render with `-o` pointing at `/tmp` so the derived PNGs land in scratch, not
-beside the source spec:
+Render the spec — the derived PNGs land beside it in `art/glyphs/`, where the
+suite `.gitignore` already ignores every render (`*.png`, `*.gif`, `*.mcmeta`):
 
 ```bash
-python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph -o /tmp/<name>.png
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph
 ```
 
-This writes `<name>.png` (the true master) and `<name>@16x.png` (a 256px
-nearest-neighbor preview) into `/tmp`. **Read the @16x preview back** and judge
-it honestly against the motif. Then iterate the grid until it's right — fixing
-pixel art is fast: edit the `.glyph` and re-run. Show the user the preview each
-iteration. These rendered PNGs are throwaway review artifacts — they stay in
-`/tmp` until the user approves the glyph.
+This writes `<name>.png` (the render) and `<name>@16x.png` (a 256px
+nearest-neighbor preview) beside the spec, and prints read-back stats: opaque
+color count, edge margin vs. full bleed, and the largest single-tone region —
+with warnings when a surface reads as a flat fill, an edge is half-bled, or the
+legend mixes two mods' accents. For a tiling block texture, add
+`--tile-preview` and read the `@2x2.png` back to check seams and the shared
+corner. **Read the @16x preview back** and
+judge it honestly against the motif. Then iterate the grid until it's right —
+fixing pixel art is fast: edit the `.glyph` and re-run. Show the user the
+preview each iteration. These rendered PNGs are throwaway review artifacts —
+gitignored, so they can sit beside the source without ever being committable.
 
 ---
 
@@ -129,18 +134,25 @@ different object.
 
 Author one `.glyph` per native tier (`…-16.glyph`, `…-32.glyph`, `…-64.glyph`) in
 `art/glyphs/`, render each, then mint the high tiers with `--scale-to` (a real
-master, **not** a `@Nx` preview). Route every rendered PNG to `/tmp` with `-o`:
+master, **not** a `@Nx` preview). Review renders land beside the specs
+(gitignored):
 
 ```bash
-python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph -o /tmp/<name>-32.png                 # native 32 master
-python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph --scale-to 128 -o /tmp/<name>-128.png
-python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph --scale-to 256 -o /tmp/<name>-256.png
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph                                       # native 32
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph --scale-to 128 -o art/glyphs/<name>-128.png
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>-32.glyph --scale-to 256 -o art/glyphs/<name>-256.png
 ```
 
 `--scale-to N` refuses any N that isn't an integer multiple of the source grid —
 that guard protects the hard pixel edges, so don't work around it. If an upscaled
 tier looks too blocky for its use, author the next native tier down rather than
 switching to smooth scaling (smoothing breaks the pixel-art aesthetic).
+
+To spec an existing raster master, run `glyph.py --from-png master.png` — it
+emits a `.glyph` that re-renders pixel-identical. A grid too large or too
+regular to hand-type (a 128/256 master, rings/rays/gradients) is authored as a
+**generator** — an `art/glyphs/<name>.gen.py` that emits the `.glyph`, both
+committed. See "Generated specs" in the `mc-textures` skill.
 
 ## Mode: animation
 
@@ -166,12 +178,13 @@ Two locations, no duplication:
   one per natively-authored ladder tier. This is the re-renderable deliverable.
 - **Master** — the shipped PNG. On approval, render it **straight into the mod's
   resource tree**, `src/main/resources/assets/<mod>/textures/…` (the exact
-  subpath depends on the texture's role — confirm it with the user). The master
-  does **not** get a copy in `art/glyphs/`; PNGs there are gitignored.
+  subpath depends on the texture's role — confirm it with the user). The PNGs
+  beside the spec in `art/glyphs/` are gitignored review artifacts, never the
+  shipped copy.
 
-So the throwaway `/tmp` preview (step 3) is only for review — once the glyph is
-approved, re-render with `-o` pointing at the final `assets/<mod>/textures/…`
-path instead of `/tmp`.
+So the review renders (step 3) stay uncommitted beside the spec — once the glyph
+is approved, re-render with `-o` pointing at the final `assets/<mod>/textures/…`
+path.
 
 Keep going until the glyph reads clearly at native size and matches the mod's
 identity. Show the user the preview each iteration.
