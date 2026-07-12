@@ -38,10 +38,15 @@ the skill is vendored; its one external tool is **ffmpeg** (the WAV→Ogg Vorbis
 Spec shape — global fields (`sample_rate`, `peak_dbfs`, `subtitle`, `seed`, output `name`)
 plus a list of `layers`, each a `waveform` (`sine`/`square`/`triangle`/`saw`/`noise`), a
 `freq` or pitch glide (`from`→`to`), an amplitude `env` (attack/decay/sustain/release), a
-`start`/`duration`, and optional `filter`/`gain`/`repeat`. A layer's `notes` list makes a
+`start`/`duration`, and optional `filter`/`gain`/`repeat`, plus the character tools:
+`duty` (square pulse width — thin duties read chiptune), `vibrato` (`rate`/`depth` pitch
+LFO — klaxon wobble), and a filter cutoff sweep (`filter` with `from`→`to` — whoosh,
+riser, charge). A layer's `notes` list makes a
 chiptune sting. Full format + worked example: the `SPEC FORMAT` header of
-`.ai/skills/mc-audio/scripts/sfx.py`, and the `/sfx` command. Existing specs to copy from
-live under `.ai/skills/mc-audio/examples/`.
+`.ai/skills/mc-audio/scripts/sfx.py`, and the `/sfx` command. Reference specs to copy from
+live under `.ai/skills/mc-audio/examples/`, one per archetype: `ui-blip` (two-tone
+confirm), `charge-up` (riser + pop), `alarm-klaxon` (alternating two-tone with vibrato),
+and `chiptune-sting` (a `notes` arpeggio with thin `duty`).
 
 ```bash
 S=.ai/skills/mc-audio/scripts/sfx.py
