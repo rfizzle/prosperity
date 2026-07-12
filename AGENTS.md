@@ -131,6 +131,23 @@ Claude Code auto-loads these via the `.claude/skills` symlink; Google Jules,
 OpenCode, and any other agent should read the relevant `SKILL.md` directly
 **before** working in its subject area.
 
+## Pure core, thin Minecraft shell
+
+Split gameplay logic into a **pure core** — decision and math logic with no
+`net.minecraft.*` or `net.fabricmc.*` types — behind a **thin shell** that wires
+the core to the game (the event handler, mixin body, command node, or renderer).
+Extract pure logic whenever a seam allows it, for two reasons:
+
+- **Testability** — the core is plain JUnit (fast, no Fabric bootstrap), which is
+  what keeps real coverage on gameplay logic instead of pushing everything into
+  slow gametests.
+- **Multi-version portability** — mapping renames, Minecraft version bumps, and
+  multi-version targeting touch only the shells; the core ports untouched.
+
+The craft (which seams to extract, how to route tests across the three tiers) is
+the `mc-mod-testing` skill; the merged unit + gametest coverage report that
+measures the result is in `mc-gradle-builds`.
+
 ## Custom art & audio
 
 Custom, high-quality assets are encouraged across the suite — there are clean,
