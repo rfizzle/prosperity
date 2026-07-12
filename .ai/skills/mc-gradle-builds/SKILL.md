@@ -299,14 +299,59 @@ The compile surface of a soft dep is its **API artifact** via `modCompileOnly`; 
 
 ## Version management
 
-Externalize all versions in `gradle.properties`:
+Externalize all versions — never inline a version literal in `build.gradle`. Two
+files hold them, split by ownership:
+
+**Suite toolchain pins — `versions-common.properties` (concord-owned).** The
+Minecraft target and build toolchain are identical across every Concord mod, so
+they live in one concord-owned file synced into each member by the concord-sync
+PR. A suite-wide bump (new Minecraft, new Loom) is one commit in concord; the
+sync PR carries it to every member for its CI to validate before merge. Do not
+hand-edit this file in a member repo — bump it in concord.
 ```properties
 minecraft_version=1.21.1
 loader_version=0.16.10
 fabric_version=0.116.1+1.21.1
+loom_version=1.9-SNAPSHOT
+java_version=21
+```
+
+**Per-repo values — `gradle.properties`.** Everything a mod varies on its own:
+```properties
 # Local/dev base only — releases derive the version from the pushed tag.
 mod_version=0.0.0
+maven_group=com.rfizzle
+archives_base_name=<modid>
+# Per-mod integration pins (soft deps): EMI, REI, JEI, Jade, sibling mods, …
+emi_version=1.1.22+1.21.1
+# Gradle daemon / JVM tuning is per-repo (memory, WSL2 launch workarounds).
+org.gradle.jvmargs=-Xmx3g -XX:+UseParallelGC
 ```
+
+### Consuming the suite pins
+
+Gradle auto-loads `gradle.properties` but not `versions-common.properties`, so
+load it in `settings.gradle` before any project is configured — then
+`build.gradle` reads the pins as ordinary project properties, unchanged:
+```groovy
+// Concord suite toolchain — concord-owned, synced via the concord-sync PR.
+def suitePins = new Properties()
+def suiteFile = file('versions-common.properties')
+if (suiteFile.exists()) { suiteFile.withInputStream { suitePins.load(it) } }
+gradle.rootProject {
+    suitePins.each { key, value -> ext[key as String] = value }
+}
+```
+`gradle.rootProject { … }` runs when the root project is created, before
+`build.gradle` is evaluated, so the pins are set in time for the `plugins {}`
+block (`id 'fabric-loom' version "${loom_version}"`) and the `dependencies` block
+(`"com.mojang:minecraft:${project.minecraft_version}"`, etc.).
+
+Adopt it as one PR per member, on top of the merged sync PR that provides the
+file: add the loader above and delete the five toolchain keys from
+`gradle.properties` in the same commit — keep a key in only one file so there's
+no ambiguity about which value the build uses. `toolchain-drift.yml` in concord
+reports any member still pinning a toolchain key to a stale value.
 
 Inject version into `fabric.mod.json`:
 ```groovy
