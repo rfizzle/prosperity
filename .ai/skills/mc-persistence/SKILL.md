@@ -308,6 +308,8 @@ silently drops a field). Detailed registration of the BE/block lives in the
   fresh vanilla container has none; gate on the real trigger.
 - **Never** write a non-optional codec field for persisted data — an older save
   missing it fails to load the whole object. Use `optionalFieldOf` with a default.
+- **Never** key persisted player data by username — usernames are unique but not
+  permanent. Key by `player.getUUID()`; a renamed player must keep their data.
 - **Never** serialize a map/set in iteration order — sort it, or saves churn and
   tests flake.
 - **Never** leave a collection unbounded in persisted data — cap and evict.
