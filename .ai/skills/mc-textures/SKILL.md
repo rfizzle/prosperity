@@ -44,8 +44,9 @@ so the centered-motif and transparent-margin rules above are *sprite* rules. A b
 - **Side faces tile and join at the corners.** Design the sides as one texture whose **right
   edge continues into its left edge** and **top into bottom** with no visible seam when
   copies sit adjacent. Going around the block, each side's right edge meets the next side's
-  left edge — so a side that tiles cleanly left-to-right also corners cleanly. Verify by
-  eye: replicate the tile in a 2×2 grid and check the seams and the shared corner.
+  left edge — so a side that tiles cleanly left-to-right also corners cleanly. Verify with
+  `--tile-preview`: it renders a 2×2 tiled `@2x2.png` — read it back and check the seams
+  and the shared corner.
 - **Top and bottom are separate textures**, not the side repeated. Design them to agree with
   the **top and bottom edges of the side faces** so the seam where a side meets the cap
   reads continuously — the side's top trim lines up with the top face's perimeter, and
@@ -73,20 +74,48 @@ a size ladder from a small native master. Full format + worked example: the `SPE
 header of `.ai/skills/mc-textures/scripts/glyph.py`, and the `/glyph` command. Reference
 specs ship beside this skill under `.ai/skills/mc-textures/examples/` — a `sprite-coin`
 (centered motif, `ink` outline, transparent margin), a `block-stone-bricks` (tileable
-full-bleed side face), and a `skull-shaded` (the **shaded-form quality bar**: a 32px
+full-bleed side face), a `skull-shaded` (the **shaded-form quality bar**: a 32px
 glyph rendered with tonal ramps, rim light, and a selective outline — ~49 colors over a
-few base hues, the opposite of a flat fill). The concord repo's `scripts/examples/` holds
-more, mod-specific ones.
+few base hues, the opposite of a flat fill), and an `anim-sparkle` (the animated-spec
+reference: four pulse frames + `frametime:`).
 
 ```bash
 G=.ai/skills/mc-textures/scripts/glyph.py
 python3 $G SPEC.glyph                  # render + preview
 python3 $G --list-colors              # named palette
 python3 $G SPEC.glyph --scale-to 128 -o out-128.png   # upscaled master
+python3 $G --from-png MASTER.png      # raster -> .glyph spec (transcription)
 ```
 
 Always **read the rendered `@Nx` preview back** and judge it honestly against the motif,
 then iterate the grid — fixing pixel art is fast (edit the `.glyph`, re-run).
+
+## Generated specs: `.gen.py` authoring
+
+Some grids are impractical to hand-type — a 128/256px master (16k–65k cells), a
+geometrically regular motif (rings, radial rays, dithered gradients), or a spec that
+embeds an existing raster. For those, author a **generator**: a Python script at
+`art/glyphs/<name>.gen.py` that computes the grid and writes `art/glyphs/<name>.glyph`.
+Both files are committed — the `.gen.py` is the source of the `.glyph`, and the `.glyph`
+stays the render input (`glyph.py` treats it like any hand-authored spec). Re-touching a
+generated texture means editing the generator, re-running it, and re-rendering; never
+hand-patch its emitted grid. Two flavors:
+
+- **Procedural** — the script computes pixels mathematically (draw the ring, place the
+  rays, dither the gradient) and assigns legend chars itself. Most generated logos and
+  icons are this.
+- **Image transcription** — `glyph.py --from-png art/<name>.png` turns a finished raster
+  master into a spec directly (stdlib PNG decode, no external tools; square, 8-bit,
+  non-interlaced). Fully transparent pixels become `.`; each remaining distinct color is
+  assigned the next char from a fixed token pool, in first-seen order. Legend colors are
+  emitted as raw hex (`#RRGGBB`, or `#RRGGBBAA` when partial alpha exists) — the
+  named-token rule governs hand-authored accents, not transcribed masters. The emitted
+  spec re-renders pixel-identical to the input, verified before it is written. A custom
+  `.gen.py` reads pixels itself only when transcription composes with procedure —
+  stamping a raster into a computed frame.
+
+Transcription is how a raster that predates its spec joins the repeatability rule: run
+it once, review the emitted `.glyph`, and from then on the spec is the source of truth.
 
 ## Animated textures: pick the packaging by who animates it
 
@@ -113,12 +142,14 @@ spec's `frametime`.
 
 ## Companion `.glyph` files (the repeatability rule)
 
-Every committed texture master ships its `.glyph` source **beside it**, same basename:
-`art/hud-icon-16.png` ↔ `art/hud-icon-16.glyph` (a size ladder commits one `.glyph` per
-natively-authored tier). The `.glyph` is the source of truth — minor edits re-render in
-seconds instead of hand-patching pixels, and the master is reproducible from the spec
-alone. Masters live in the mod's `art/`; `assets/` and web `docs/` hold derived copies.
-Re-touching a texture recreates it through its `.glyph`.
+`art/glyphs/` holds the committed `.glyph` source of truth (a size ladder commits one
+`.glyph` per natively-authored tier; a generated spec commits its `.gen.py` beside the
+`.glyph` it emits). Rendered PNGs beside the specs are **not** kept:
+render there for review — the PNGs, GIFs, and `.mcmeta` in `art/glyphs/` are throwaway
+and gitignored — then ship the final PNG to `src/main/resources/assets/<mod>/textures/…`,
+the only committed copy (web `docs/` copies are likewise rendered from the spec). The
+`.glyph` re-renders reproducibly, so re-touching a texture means editing the spec and
+re-rendering — never hand-patching pixels.
 
 ## Quick checklist
 
@@ -128,5 +159,8 @@ Re-touching a texture recreates it through its `.glyph`.
 - [ ] Rendered via `.ai/skills/mc-textures/scripts/glyph.py`; preview read back and judged
 - [ ] Animated? Strip + `.mcmeta` only when the atlas animates it; a code-bound texture
       ships `--split-frames` standalone frames (no strip, no `.mcmeta`)
-- [ ] `.glyph` source committed beside the master (same basename) in `art/`
-- [ ] Master in `art/`, derived copies refreshed in `assets/`/`docs/`
+- [ ] `.glyph` source committed in `art/glyphs/`; the shipping master in
+      `assets/<mod>/textures/…` (renders in `art/glyphs/` are gitignored throwaways)
+- [ ] Generated spec? The `.gen.py` committed beside the `.glyph` it emits; edits go
+      through the generator, never the emitted grid
+- [ ] Derived web `docs/` copies re-rendered from the spec, not hand-copied
