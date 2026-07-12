@@ -248,6 +248,17 @@ as the build version. `mod_version=0.0.0` in `gradle.properties` is only the
 local/dev base; local builds surface as `0.0.0+g<sha>`. Never hand-edit a real
 version into `gradle.properties` or open a "set version" PR.
 
+## Suite toolchain
+
+The Minecraft target and build toolchain — `minecraft_version`,
+`loader_version`, `fabric_version`, `loom_version`, `java_version` — are pinned
+suite-wide in the concord-owned `versions-common.properties`, synced in by the
+concord-sync PR and loaded in `settings.gradle`. Do not hand-edit those keys or
+inline them in `build.gradle`; a suite bump lands as one commit in concord and
+arrives as a sync PR. `gradle.properties` keeps only this repo's own values —
+the `mod_version` dev base, `maven_group`/`archives_base_name`, per-mod
+integration pins, and Gradle JVM/daemon tuning.
+
 ## Release notes
 
 Release notes are AI-written from the merged PRs by default. To publish curated
