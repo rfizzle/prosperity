@@ -1,0 +1,27 @@
+{
+  "name": "alarm-klaxon",
+  "sample_rate": 44100,
+  "peak_dbfs": -1.0,
+  "subtitle": "ui.subtitle.alarm_klaxon",
+  "seed": 17,
+  "layers": [
+    {
+      "waveform": "square",
+      "freq": 620, "duty": 0.35,
+      "duration": 0.22, "gain": 0.5,
+      "vibrato": {"rate": 9, "depth": 0.35},
+      "env": {"attack": 0.008, "decay": 0.0, "sustain": 1.0, "release": 0.03},
+      "filter": {"type": "lowpass", "cutoff": 2600},
+      "repeat": {"count": 3, "interval": 0.5}
+    },
+    {
+      "waveform": "square",
+      "freq": 464, "duty": 0.35,
+      "start": 0.25, "duration": 0.22, "gain": 0.5,
+      "vibrato": {"rate": 9, "depth": 0.35},
+      "env": {"attack": 0.008, "decay": 0.0, "sustain": 1.0, "release": 0.03},
+      "filter": {"type": "lowpass", "cutoff": 2600},
+      "repeat": {"count": 3, "interval": 0.5}
+    }
+  ]
+}
