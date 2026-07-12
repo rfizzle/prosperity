@@ -36,11 +36,16 @@ Each layer:
       "freq": 440,                # constant pitch (Hz) ...
       "from": 880, "to": 220,     # ... OR a pitch glide (overrides freq)
       "glide": "exp",             # glide curve: exp (default) | lin
+      "duty": 0.25,               # square only: pulse width 0..1 (default 0.5)
+      "vibrato": {"rate": 6, "depth": 0.5},  # pitch LFO: rate Hz, depth semitones
       "start": 0.0,               # layer onset, seconds
       "duration": 0.25,           # tone length before release, seconds
       "gain": 0.8,                # linear mix level (0..1)
       "env": {"attack": 0.005, "decay": 0.05, "sustain": 0.6, "release": 0.05},
       "filter": {"type": "lowpass", "cutoff": 3000},   # one-pole lowpass|highpass
+                                  # ... or a cutoff sweep over the note:
+                                  # {"type": "lowpass", "from": 200, "to": 4000,
+                                  #  "sweep": "exp"}   # sweep: exp (default) | lin
       "repeat": {"count": 3, "interval": 0.3},          # repeat the whole layer
       "notes": [                  # OR a sequence (chiptune sting); shares the
         {"freq": 523, "start": 0.0, "duration": 0.1},   # waveform/env/filter above
@@ -48,9 +53,9 @@ Each layer:
       ]                                                  # to the layer start
     }
 
-A note may carry its own `freq` / `from`+`to` / `gain` overrides. `env.sustain`
-is a level (0..1); `attack`/`decay`/`release` are seconds. Release extends a note
-past its `duration`. Total cue length is inferred from the layers.
+A note may carry its own `freq` / `from`+`to` / `gain` / `duty` overrides.
+`env.sustain` is a level (0..1); `attack`/`decay`/`release` are seconds. Release
+extends a note past its `duration`. Total cue length is inferred from the layers.
 
 USAGE
 -----
@@ -135,11 +140,12 @@ def _glide_freq(note, t, dur):
 # Synthesis
 # --------------------------------------------------------------------------- #
 
-def _osc(waveform, phase, rng):
+def _osc(waveform, phase, rng, duty=0.5):
     if waveform == "sine":
         return math.sin(phase)
     if waveform == "square":
-        return 1.0 if math.sin(phase) >= 0 else -1.0
+        frac = (phase / (2 * math.pi)) % 1.0
+        return 1.0 if frac < duty else -1.0
     if waveform == "saw":
         frac = (phase / (2 * math.pi)) % 1.0
         return 2.0 * frac - 1.0
@@ -172,22 +178,34 @@ def _envelope(n_samples, sr, env, tail):
     return out
 
 
-def _one_pole(samples, sr, ftype, cutoff):
-    if cutoff <= 0:
+def _one_pole(samples, sr, ftype, cutoff, cutoff_to=None, sweep="exp"):
+    """One-pole filter; `cutoff_to` sweeps the cutoff across the buffer."""
+    if cutoff <= 0 and (cutoff_to is None or cutoff_to <= 0):
         return samples
+    n = len(samples)
     dt = 1.0 / sr
-    rc = 1.0 / (2 * math.pi * cutoff)
-    out = [0.0] * len(samples)
+
+    def cut_at(i):
+        if cutoff_to is None or n <= 1:
+            return cutoff
+        frac = i / (n - 1)
+        if sweep == "lin" or cutoff <= 0 or cutoff_to <= 0:
+            return cutoff + (cutoff_to - cutoff) * frac
+        return cutoff * (cutoff_to / cutoff) ** frac
+
+    out = [0.0] * n
     if ftype == "lowpass":
-        alpha = dt / (rc + dt)
         prev = 0.0
         for i, x in enumerate(samples):
+            rc = 1.0 / (2 * math.pi * max(1e-6, cut_at(i)))
+            alpha = dt / (rc + dt)
             prev = prev + alpha * (x - prev)
             out[i] = prev
     elif ftype == "highpass":
-        alpha = rc / (rc + dt)
         prev_x = prev_y = 0.0
         for i, x in enumerate(samples):
+            rc = 1.0 / (2 * math.pi * max(1e-6, cut_at(i)))
+            alpha = rc / (rc + dt)
             prev_y = alpha * (prev_y + x - prev_x)
             prev_x = x
             out[i] = prev_y
@@ -196,24 +214,35 @@ def _one_pole(samples, sr, ftype, cutoff):
     return out
 
 
-def _render_note(note, waveform, env, filt, gain, sr, rng):
+def _render_note(note, waveform, env, filt, gain, sr, rng, duty=0.5, vibrato=None):
     """A single tone: oscillator -> envelope -> filter -> gain. Returns floats."""
     dur = float(note.get("duration", 0.2))
     tail = max(0, int(env["release"] * sr))
     n = max(1, int(dur * sr) + tail)
     body_t = dur
+    duty = float(note.get("duty", duty))
+    if vibrato:
+        vib_rate = float(vibrato.get("rate", 6.0))
+        vib_depth = float(vibrato.get("depth", 0.5))  # semitones
     buf = [0.0] * n
     phase = 0.0
     for i in range(n):
         t = i / sr
         f = _glide_freq(note, t, body_t)
-        buf[i] = _osc(waveform, phase, rng)
+        if vibrato:
+            f *= 2.0 ** (vib_depth * math.sin(2 * math.pi * vib_rate * t) / 12.0)
+        buf[i] = _osc(waveform, phase, rng, duty)
         phase += 2 * math.pi * f / sr
     eg = _envelope(n, sr, env, tail)
     for i in range(n):
         buf[i] *= eg[i]
     if filt:
-        buf = _one_pole(buf, sr, filt.get("type", "lowpass"), float(filt.get("cutoff", 0)))
+        ftype = filt.get("type", "lowpass")
+        if "from" in filt and "to" in filt:
+            buf = _one_pole(buf, sr, ftype, float(filt["from"]), float(filt["to"]),
+                            filt.get("sweep", "exp"))
+        else:
+            buf = _one_pole(buf, sr, ftype, float(filt.get("cutoff", 0)))
     g = gain * float(note.get("gain", 1.0))
     return [x * g for x in buf], n
 
@@ -231,6 +260,8 @@ def synthesize(spec):
         env = _env(layer)
         filt = layer.get("filter")
         gain = float(layer.get("gain", 1.0))
+        duty = float(layer.get("duty", 0.5))
+        vibrato = layer.get("vibrato")
         notes = layer.get("notes")
         if notes is None:
             notes = [{k: layer[k] for k in ("freq", "from", "to", "glide", "duration")
@@ -244,7 +275,8 @@ def synthesize(spec):
         for r in range(count):
             base = layer_start + r * interval
             for note in notes:
-                buf, n = _render_note(note, waveform, env, filt, gain, sr, rng)
+                buf, n = _render_note(note, waveform, env, filt, gain, sr, rng,
+                                      duty, note.get("vibrato", vibrato))
                 off = int((base + float(note.get("start", 0.0))) * sr)
                 rendered.append((off, buf))
                 end = max(end, off + n)
@@ -345,11 +377,19 @@ def compute_stats(samples, sr):
     def dbfs(v):
         return -float("inf") if v <= 0 else 20 * math.log10(v)
 
+    # Leading/trailing silence (below -60 dBFS) — the quality bar wants the cue
+    # trimmed tight, so measure what a trim would remove.
+    thresh = 10 ** (-60 / 20.0)
+    lead = next((i for i, x in enumerate(samples) if abs(x) >= thresh), n)
+    tail = next((i for i, x in enumerate(reversed(samples)) if abs(x) >= thresh), n)
+
     return {
         "duration_s": n / sr if sr else 0.0,
         "peak_dbfs": dbfs(peak),
         "rms_dbfs": dbfs(rms),
         "centroid_hz": centroid,
+        "lead_silence_s": lead / sr if sr else 0.0,
+        "tail_silence_s": tail / sr if sr else 0.0,
         "frames": frames,
     }
 
@@ -516,6 +556,17 @@ def main(argv=None):
     print(f"peak:       {stats['peak_dbfs']:.2f} dBFS")
     print(f"rms:        {stats['rms_dbfs']:.2f} dBFS")
     print(f"centroid:   {stats['centroid_hz']:.0f} Hz")
+    print(f"silence:    lead {stats['lead_silence_s'] * 1000:.0f} ms, "
+          f"tail {stats['tail_silence_s'] * 1000:.0f} ms  (below -60 dBFS)")
+    if stats["lead_silence_s"] > 0.025:
+        print("sfx: warning: leading silence over 25 ms — the cue should start "
+              "at the transient; pull the first onset to t=0", file=sys.stderr)
+    if stats["tail_silence_s"] > 0.12:
+        print("sfx: warning: trailing silence over 120 ms — tighten the last "
+              "note's duration/release so the cue ends when the sound does", file=sys.stderr)
+    if stats["duration_s"] > 2.5:
+        print(f"sfx: warning: {stats['duration_s']:.2f} s is long for an SFX cue — "
+              f"most read best under ~2 s", file=sys.stderr)
     sub = spec.get("subtitle")
     if sub:
         print(f"subtitle:   {sub}")
