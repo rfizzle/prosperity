@@ -901,7 +901,7 @@ With instanced loot, a single player breaking a world-gen chest destroys every p
 ### Behavior
 
 When enabled, world-gen loot containers that still hold unclaimed loot receive increased break resistance:
-- **Mining speed reduction:** Breaking takes **4x longer** than normal (configurable multiplier). A chest that normally breaks instantly takes ~2 seconds. This signals "this is deliberate" and prevents accidental breaks.
+- **Mining speed reduction:** Breaking takes several times longer than normal — the exact multiplier is set by `protectionBreakMultiplier`. This signals "this is deliberate" and prevents accidental breaks.
 - **Hard lock (optional):** With `protectionUnbreakable`, a protected container is fully unbreakable in survival (like bedrock) instead of merely slow, and it is also **blast-proof** — TNT, creepers, and other explosions cannot destroy it. It cannot be removed until its loot is claimed. The slow-break mode (flag off) leaves explosions alone, staying a speed bump rather than a wall.
 - **Feedback:** An action-bar warning (the "open it instead of breaking it" form, or a "can't be broken" form under `protectionUnbreakable`), a small particle burst, and a subtle anvil-land sound cue play when a player starts breaking a protected container, reinforcing that something is different.
 - **Still creative-bypassable:** Players in creative mode break instantly as normal, in both modes.
