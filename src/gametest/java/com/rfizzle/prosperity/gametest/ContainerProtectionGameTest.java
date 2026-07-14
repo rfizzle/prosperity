@@ -71,17 +71,26 @@ public class ContainerProtectionGameTest implements FabricGameTest {
         boolean savedEnabled = Prosperity.getConfig().enableContainerProtection;
         float savedMultiplier = Prosperity.getConfig().protectionBreakMultiplier;
         boolean savedUnbreakable = Prosperity.getConfig().protectionUnbreakable;
+        boolean savedRefresh = Prosperity.getConfig().enableLootRefresh;
         ServerPlayer creative = helper.makeMockServerPlayerInLevel();
         creative.setGameMode(GameType.CREATIVE);
         try {
             Prosperity.getConfig().enableContainerProtection = true;
             Prosperity.getConfig().protectionBreakMultiplier = 4.0f;
             Prosperity.getConfig().protectionUnbreakable = false;
+            Prosperity.getConfig().enableLootRefresh = false;
 
             helper.assertTrue(ContainerProtection.isProtectedServer(level, abs, null, List.of(PENDING)),
                     "a generated container with a pending online player must be protected");
             helper.assertFalse(ContainerProtection.isProtectedServer(level, abs, null, List.of(GENERATED)),
                     "protection must lift once every online player has generated");
+
+            // With loot refresh on, an emptied container's loot always returns, so it stays protected
+            // even after every online player has looted it — nobody can break it to deny the refresh.
+            Prosperity.getConfig().enableLootRefresh = true;
+            helper.assertTrue(ContainerProtection.isProtectedServer(level, abs, null, List.of(GENERATED)),
+                    "a refreshable container must stay protected even after everyone has generated");
+            Prosperity.getConfig().enableLootRefresh = false;
 
             helper.assertTrue(
                     ContainerProtection.protectionMultiplierFor(level, abs, null, List.of(PENDING)) == 4.0f,
@@ -139,6 +148,7 @@ public class ContainerProtectionGameTest implements FabricGameTest {
             Prosperity.getConfig().enableContainerProtection = savedEnabled;
             Prosperity.getConfig().protectionBreakMultiplier = savedMultiplier;
             Prosperity.getConfig().protectionUnbreakable = savedUnbreakable;
+            Prosperity.getConfig().enableLootRefresh = savedRefresh;
             creative.discard();
         }
         helper.succeed();
