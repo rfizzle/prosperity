@@ -36,6 +36,12 @@ import org.jetbrains.annotations.Nullable;
  * and it lifts once every online player has opened the container (so an emptied container breaks at
  * vanilla speed). A blacklisted loot table is never managed, so it is never protected.
  *
+ * <p><b>Refreshable containers stay protected for good.</b> When loot refresh (S-016) is enabled, a
+ * managed container's loot is never gone for good &mdash; it returns each cooldown &mdash; so breaking
+ * it after a clean-out would still deny everyone the refreshed loot. While {@code enableLootRefresh}
+ * is on, protection therefore holds a managed container indefinitely, even once every player has
+ * looted it.
+ *
  * <p><b>Server-authoritative, client-synced visual.</b> The {@link InstancedLootData} attachment is
  * server-only, so the common {@code BlockBehaviour#getDestroyProgress} mixin can only evaluate
  * protection where {@code level} is a {@link ServerLevel}. The server independently gates the actual
@@ -146,7 +152,8 @@ public final class ContainerProtection {
      * player list. Protected iff: the feature is enabled, the breaker is not creative, the block is a
      * Prosperity-managed (non-blacklisted) loot container, and it still has unclaimed loot &mdash; a
      * never-opened container (no instance generated yet) or a generated one some online player has not
-     * yet opened. An emptied container (every online player has opened it) is not protected.
+     * yet opened. An emptied container (every online player has opened it) is not protected &mdash;
+     * unless loot refresh is enabled, in which case its loot always returns and it stays protected.
      */
     public static boolean isProtectedServer(ServerLevel level, BlockPos pos, @Nullable Player player) {
         return isProtectedServer(level, pos, player, onlineUuids(level));
@@ -168,7 +175,7 @@ public final class ContainerProtection {
         if (!isManagedLootContainer(container, data)) {
             return false;
         }
-        return anyLootPending(data, onlinePlayers);
+        return anyLootPending(data, onlinePlayers, Prosperity.getConfig().enableLootRefresh);
     }
 
     /**
@@ -190,12 +197,18 @@ public final class ContainerProtection {
     }
 
     /**
-     * Whether the container still has loot no one has claimed yet. A container that has never generated
-     * an instance is pending for everyone; once generated, it is pending while any online player has
-     * not opened it.
+     * Whether the container still has loot worth protecting. A container that has never generated an
+     * instance is pending for everyone. When {@code refreshable} (loot refresh is enabled), a generated
+     * container stays pending indefinitely &mdash; its loot returns each cooldown, so breaking it would
+     * deny the refresh to everyone. Otherwise it is pending only while some online player has not opened
+     * it, and an emptied container breaks at vanilla speed.
      */
-    static boolean anyLootPending(@Nullable InstancedLootData data, Collection<UUID> onlinePlayers) {
+    static boolean anyLootPending(@Nullable InstancedLootData data, Collection<UUID> onlinePlayers,
+            boolean refreshable) {
         if (data == null || !data.isGenerated()) {
+            return true;
+        }
+        if (refreshable) {
             return true;
         }
         return anyOnlinePlayerPending(data, onlinePlayers);
