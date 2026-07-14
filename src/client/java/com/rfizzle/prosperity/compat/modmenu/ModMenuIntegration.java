@@ -1,6 +1,7 @@
 package com.rfizzle.prosperity.compat.modmenu;
 
 import com.rfizzle.prosperity.Prosperity;
+import com.rfizzle.prosperity.client.network.ClientProsperityData;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.config.StructureOverride;
@@ -10,6 +11,8 @@ import com.terraformersmc.modmenu.api.ModMenuApi;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
+import me.shedaniel.clothconfig2.api.Requirement;
+import me.shedaniel.clothconfig2.impl.builders.FieldBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -27,8 +30,14 @@ import java.util.List;
  * <p>Edits are applied to a deep working copy of the live config (so a cancelled screen never
  * half-applies); saving writes that copy to {@code prosperity.json}, reloads the live instance
  * (re-running {@link ProsperityConfig#clamp()} to sanitize ranges and dropped list rows), and
- * re-syncs to connected players when an integrated server is running. On a remote server the screen
- * edits the local file harmlessly without changing server behavior.
+ * re-syncs to connected players when an integrated server is running.
+ *
+ * <p>On a remote server the server-authoritative settings (every top-level {@link ProsperityConfig}
+ * field) are the operator's: their entries render read-only, seeded from the server's synced values
+ * ({@link ClientProsperityData#config()}) so the screen reflects what is actually in effect, and the
+ * save persists only the player-owned {@link ProsperityConfig#client} block. The
+ * remote-vs-editable decision and the save merge are the pure {@link RemoteConfigGate}. Singleplayer,
+ * an integrated LAN host, and the main menu leave every entry editable.
  *
  * <p>The two structured-list keys ({@code distanceTiers}, {@code structureOverrides}) are edited as
  * string-list rows: each row is a CSV form parsed back on save, with malformed rows dropped and
@@ -37,11 +46,21 @@ import java.util.List;
  */
 public class ModMenuIntegration implements ModMenuApi {
 
+    /** Enable requirement that never holds — a widget carrying it renders permanently read-only. */
+    private static final Requirement READ_ONLY = () -> false;
+
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
         return parent -> {
             // Deep copy via JSON round-trip so save consumers never touch the live config until save().
             ProsperityConfig working = ProsperityConfig.fromJson(Prosperity.getConfig().toJson());
+
+            Minecraft mc = Minecraft.getInstance();
+            boolean locked = RemoteConfigGate.serverSettingsLocked(
+                    mc.level != null, mc.hasSingleplayerServer());
+            // Server-authoritative widgets show the server's synced view when locked (what is really in
+            // effect), the local working copy otherwise. The client block is always the working copy.
+            ProsperityConfig serverView = locked ? ClientProsperityData.config() : working;
 
             ConfigBuilder builder = ConfigBuilder.create()
                     .setParentScreen(parent)
@@ -51,182 +70,163 @@ public class ModMenuIntegration implements ModMenuApi {
             // --- General ---
             ConfigCategory general = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.general"));
-            general.addEntry(entry.startBooleanToggle(
-                            label("enable_instanced_loot"), working.enableInstancedLoot)
+            lockNote(general, entry, locked);
+            addServer(general, locked, entry.startBooleanToggle(
+                            label("enable_instanced_loot"), serverView.enableInstancedLoot)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_instanced_loot"))
-                    .setSaveConsumer(v -> working.enableInstancedLoot = v)
-                    .build());
+                    .setSaveConsumer(v -> working.enableInstancedLoot = v));
 
             // --- Indicators ---
             ConfigCategory indicators = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.indicators"));
-            indicators.addEntry(entry.startBooleanToggle(
-                            label("enable_visual_indicators"), working.enableVisualIndicators)
+            lockNote(indicators, entry, locked);
+            addServer(indicators, locked, entry.startBooleanToggle(
+                            label("enable_visual_indicators"), serverView.enableVisualIndicators)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_visual_indicators"))
-                    .setSaveConsumer(v -> working.enableVisualIndicators = v)
-                    .build());
-            indicators.addEntry(entry.startIntSlider(
-                            label("indicator_render_distance"), working.indicatorRenderDistance, 0, 512)
+                    .setSaveConsumer(v -> working.enableVisualIndicators = v));
+            addServer(indicators, locked, entry.startIntSlider(
+                            label("indicator_render_distance"), serverView.indicatorRenderDistance, 0, 512)
                     .setDefaultValue(48)
                     .setTooltip(tooltip("indicator_render_distance"))
-                    .setSaveConsumer(v -> working.indicatorRenderDistance = v)
-                    .build());
-            indicators.addEntry(entry.startIntSlider(
-                            label("indicator_xray_distance"), working.indicatorXrayDistance, 0, 512)
+                    .setSaveConsumer(v -> working.indicatorRenderDistance = v));
+            addServer(indicators, locked, entry.startIntSlider(
+                            label("indicator_xray_distance"), serverView.indicatorXrayDistance, 0, 512)
                     .setDefaultValue(8)
                     .setTooltip(tooltip("indicator_xray_distance"))
-                    .setSaveConsumer(v -> working.indicatorXrayDistance = v)
-                    .build());
+                    .setSaveConsumer(v -> working.indicatorXrayDistance = v));
 
             // --- Scaling ---
             ConfigCategory scaling = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.scaling"));
-            scaling.addEntry(entry.startBooleanToggle(
-                            label("enable_distance_scaling"), working.enableDistanceScaling)
+            lockNote(scaling, entry, locked);
+            addServer(scaling, locked, entry.startBooleanToggle(
+                            label("enable_distance_scaling"), serverView.enableDistanceScaling)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_distance_scaling"))
-                    .setSaveConsumer(v -> working.enableDistanceScaling = v)
-                    .build());
-            scaling.addEntry(entry.startBooleanToggle(
-                            label("end_always_max_tier"), working.endAlwaysMaxTier)
+                    .setSaveConsumer(v -> working.enableDistanceScaling = v));
+            addServer(scaling, locked, entry.startBooleanToggle(
+                            label("end_always_max_tier"), serverView.endAlwaysMaxTier)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("end_always_max_tier"))
-                    .setSaveConsumer(v -> working.endAlwaysMaxTier = v)
-                    .build());
-            scaling.addEntry(entry.startStrList(
-                            label("distance_tiers"), encodeTiers(working.distanceTiers))
+                    .setSaveConsumer(v -> working.endAlwaysMaxTier = v));
+            addServer(scaling, locked, entry.startStrList(
+                            label("distance_tiers"), encodeTiers(serverView.distanceTiers))
                     .setDefaultValue(encodeTiers(ProsperityConfig.defaultDistanceTiers()))
                     .setTooltip(tooltip("distance_tiers"))
-                    .setSaveConsumer(rows -> working.distanceTiers = parseTiers(rows))
-                    .build());
-            scaling.addEntry(entry.startStrList(
-                            label("structure_overrides"), encodeOverrides(working.structureOverrides))
+                    .setSaveConsumer(rows -> working.distanceTiers = parseTiers(rows)));
+            addServer(scaling, locked, entry.startStrList(
+                            label("structure_overrides"), encodeOverrides(serverView.structureOverrides))
                     .setDefaultValue(encodeOverrides(ProsperityConfig.defaultStructureOverrides()))
                     .setTooltip(tooltip("structure_overrides"))
-                    .setSaveConsumer(rows -> working.structureOverrides = parseOverrides(rows))
-                    .build());
+                    .setSaveConsumer(rows -> working.structureOverrides = parseOverrides(rows)));
 
             // --- Content ---
             ConfigCategory content = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.content"));
-            content.addEntry(entry.startBooleanToggle(
-                            label("enable_loot_injection"), working.enableLootInjection)
+            lockNote(content, entry, locked);
+            addServer(content, locked, entry.startBooleanToggle(
+                            label("enable_loot_injection"), serverView.enableLootInjection)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_loot_injection"))
-                    .setSaveConsumer(v -> working.enableLootInjection = v)
-                    .build());
-            content.addEntry(entry.startBooleanToggle(
-                            label("enable_structure_completion_bonus"), working.enableStructureCompletionBonus)
+                    .setSaveConsumer(v -> working.enableLootInjection = v));
+            addServer(content, locked, entry.startBooleanToggle(
+                            label("enable_structure_completion_bonus"), serverView.enableStructureCompletionBonus)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_structure_completion_bonus"))
-                    .setSaveConsumer(v -> working.enableStructureCompletionBonus = v)
-                    .build());
-            content.addEntry(entry.startStrList(
-                            label("loot_table_blacklist"), new ArrayList<>(working.lootTableBlacklist))
+                    .setSaveConsumer(v -> working.enableStructureCompletionBonus = v));
+            addServer(content, locked, entry.startStrList(
+                            label("loot_table_blacklist"), new ArrayList<>(serverView.lootTableBlacklist))
                     .setDefaultValue(new ArrayList<>())
                     .setTooltip(tooltip("loot_table_blacklist"))
-                    .setSaveConsumer(rows -> working.lootTableBlacklist = new ArrayList<>(rows))
-                    .build());
+                    .setSaveConsumer(rows -> working.lootTableBlacklist = new ArrayList<>(rows)));
 
             // --- Feedback ---
             ConfigCategory feedback = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.feedback"));
-            feedback.addEntry(entry.startBooleanToggle(
-                            label("enable_loot_notifications"), working.enableLootNotifications)
+            lockNote(feedback, entry, locked);
+            addServer(feedback, locked, entry.startBooleanToggle(
+                            label("enable_loot_notifications"), serverView.enableLootNotifications)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_loot_notifications"))
-                    .setSaveConsumer(v -> working.enableLootNotifications = v)
-                    .build());
-            feedback.addEntry(entry.startBooleanToggle(
-                            label("enable_loot_refresh"), working.enableLootRefresh)
+                    .setSaveConsumer(v -> working.enableLootNotifications = v));
+            addServer(feedback, locked, entry.startBooleanToggle(
+                            label("enable_loot_refresh"), serverView.enableLootRefresh)
                     .setDefaultValue(false)
                     .setTooltip(tooltip("enable_loot_refresh"))
-                    .setSaveConsumer(v -> working.enableLootRefresh = v)
-                    .build());
-            feedback.addEntry(entry.startIntField(
-                            label("loot_refresh_days"), working.lootRefreshDays)
+                    .setSaveConsumer(v -> working.enableLootRefresh = v));
+            addServer(feedback, locked, entry.startIntField(
+                            label("loot_refresh_days"), serverView.lootRefreshDays)
                     .setDefaultValue(7)
                     .setMin(1)
                     .setTooltip(tooltip("loot_refresh_days"))
-                    .setSaveConsumer(v -> working.lootRefreshDays = v)
-                    .build());
-            feedback.addEntry(entry.startBooleanToggle(
-                            label("randomize_loot_on_refresh"), working.randomizeLootOnRefresh)
+                    .setSaveConsumer(v -> working.lootRefreshDays = v));
+            addServer(feedback, locked, entry.startBooleanToggle(
+                            label("randomize_loot_on_refresh"), serverView.randomizeLootOnRefresh)
                     .setDefaultValue(false)
                     .setTooltip(tooltip("randomize_loot_on_refresh"))
-                    .setSaveConsumer(v -> working.randomizeLootOnRefresh = v)
-                    .build());
-            feedback.addEntry(entry.startBooleanToggle(
-                            label("evict_absent_player_data"), working.evictAbsentPlayerData)
+                    .setSaveConsumer(v -> working.randomizeLootOnRefresh = v));
+            addServer(feedback, locked, entry.startBooleanToggle(
+                            label("evict_absent_player_data"), serverView.evictAbsentPlayerData)
                     .setDefaultValue(false)
                     .setTooltip(tooltip("evict_absent_player_data"))
-                    .setSaveConsumer(v -> working.evictAbsentPlayerData = v)
-                    .build());
-            feedback.addEntry(entry.startIntField(
-                            label("absent_player_eviction_days"), working.absentPlayerEvictionDays)
+                    .setSaveConsumer(v -> working.evictAbsentPlayerData = v));
+            addServer(feedback, locked, entry.startIntField(
+                            label("absent_player_eviction_days"), serverView.absentPlayerEvictionDays)
                     .setDefaultValue(60)
                     .setMin(1)
                     .setTooltip(tooltip("absent_player_eviction_days"))
-                    .setSaveConsumer(v -> working.absentPlayerEvictionDays = v)
-                    .build());
+                    .setSaveConsumer(v -> working.absentPlayerEvictionDays = v));
 
             // --- Extended ---
             ConfigCategory extended = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.extended"));
-            extended.addEntry(entry.startBooleanToggle(
-                            label("enable_container_protection"), working.enableContainerProtection)
+            lockNote(extended, entry, locked);
+            addServer(extended, locked, entry.startBooleanToggle(
+                            label("enable_container_protection"), serverView.enableContainerProtection)
                     .setDefaultValue(false)
                     .setTooltip(tooltip("enable_container_protection"))
-                    .setSaveConsumer(v -> working.enableContainerProtection = v)
-                    .build());
-            extended.addEntry(entry.startFloatField(
-                            label("protection_break_multiplier"), working.protectionBreakMultiplier)
+                    .setSaveConsumer(v -> working.enableContainerProtection = v));
+            addServer(extended, locked, entry.startFloatField(
+                            label("protection_break_multiplier"), serverView.protectionBreakMultiplier)
                     .setDefaultValue(4.0f)
                     .setMin(1.0f).setMax(100.0f)
                     .setTooltip(tooltip("protection_break_multiplier"))
-                    .setSaveConsumer(v -> working.protectionBreakMultiplier = v)
-                    .build());
-            extended.addEntry(entry.startBooleanToggle(
-                            label("protection_unbreakable"), working.protectionUnbreakable)
+                    .setSaveConsumer(v -> working.protectionBreakMultiplier = v));
+            addServer(extended, locked, entry.startBooleanToggle(
+                            label("protection_unbreakable"), serverView.protectionUnbreakable)
                     .setDefaultValue(false)
                     .setTooltip(tooltip("protection_unbreakable"))
-                    .setSaveConsumer(v -> working.protectionUnbreakable = v)
-                    .build());
-            extended.addEntry(entry.startBooleanToggle(
-                            label("enable_mob_loot_scaling"), working.enableMobLootScaling)
+                    .setSaveConsumer(v -> working.protectionUnbreakable = v));
+            addServer(extended, locked, entry.startBooleanToggle(
+                            label("enable_mob_loot_scaling"), serverView.enableMobLootScaling)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_mob_loot_scaling"))
-                    .setSaveConsumer(v -> working.enableMobLootScaling = v)
-                    .build());
-            extended.addEntry(entry.startBooleanToggle(
-                            label("enable_fishing_loot_scaling"), working.enableFishingLootScaling)
+                    .setSaveConsumer(v -> working.enableMobLootScaling = v));
+            addServer(extended, locked, entry.startBooleanToggle(
+                            label("enable_fishing_loot_scaling"), serverView.enableFishingLootScaling)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_fishing_loot_scaling"))
-                    .setSaveConsumer(v -> working.enableFishingLootScaling = v)
-                    .build());
-            extended.addEntry(entry.startBooleanToggle(
-                            label("enable_trial_chamber_scaling"), working.enableTrialChamberScaling)
+                    .setSaveConsumer(v -> working.enableFishingLootScaling = v));
+            addServer(extended, locked, entry.startBooleanToggle(
+                            label("enable_trial_chamber_scaling"), serverView.enableTrialChamberScaling)
                     .setDefaultValue(true)
                     .setTooltip(tooltip("enable_trial_chamber_scaling"))
-                    .setSaveConsumer(v -> working.enableTrialChamberScaling = v)
-                    .build());
-            extended.addEntry(entry.startBooleanToggle(
-                            label("party_loot_mode"), working.partyLootMode)
+                    .setSaveConsumer(v -> working.enableTrialChamberScaling = v));
+            addServer(extended, locked, entry.startBooleanToggle(
+                            label("party_loot_mode"), serverView.partyLootMode)
                     .setDefaultValue(false)
                     .setTooltip(tooltip("party_loot_mode"))
-                    .setSaveConsumer(v -> working.partyLootMode = v)
-                    .build());
-            extended.addEntry(entry.startIntField(
-                            label("team_leave_grace_minutes"), working.teamLeaveGraceMinutes)
+                    .setSaveConsumer(v -> working.partyLootMode = v));
+            addServer(extended, locked, entry.startIntField(
+                            label("team_leave_grace_minutes"), serverView.teamLeaveGraceMinutes)
                     .setDefaultValue(0)
                     .setMin(0)
                     .setTooltip(tooltip("team_leave_grace_minutes"))
-                    .setSaveConsumer(v -> working.teamLeaveGraceMinutes = v)
-                    .build());
+                    .setSaveConsumer(v -> working.teamLeaveGraceMinutes = v));
 
-            // --- HUD (client-only) ---
+            // --- HUD (client-only; always editable, even on a remote server) ---
             ConfigCategory hud = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.hud"));
             hud.addEntry(entry.startBooleanToggle(
@@ -265,9 +265,10 @@ public class ModMenuIntegration implements ModMenuApi {
                     .build());
 
             builder.setSavingRunnable(() -> {
-                working.save();
+                // When locked, persist only the client block; server fields stay the operator's.
+                RemoteConfigGate.persistedConfig(locked, Prosperity.getConfig(), working).save();
                 Prosperity.reloadConfig();
-                // Re-sync to clients when this client hosts the world; a remote server is unaffected.
+                // Re-sync to clients when this client hosts the world; a remote server has none.
                 MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
                 if (server != null) {
                     server.execute(() -> ProsperityNetworking.syncConfigToAll(server));
@@ -276,6 +277,27 @@ public class ModMenuIntegration implements ModMenuApi {
 
             return builder.build();
         };
+    }
+
+    /**
+     * Adds a server-authoritative entry to {@code category}, marking it read-only when {@code locked}.
+     * The save consumer still runs against the working copy on save, but {@link RemoteConfigGate}
+     * discards the working copy's server fields when locked, so a read-only widget can never write its
+     * (server-sourced) value over the local file.
+     */
+    private static void addServer(ConfigCategory category, boolean locked, FieldBuilder<?, ?, ?> builder) {
+        if (locked) {
+            builder.setRequirement(READ_ONLY);
+        }
+        category.addEntry(builder.build());
+    }
+
+    /** Prepends the "settings controlled by the server" note to a server category when {@code locked}. */
+    private static void lockNote(ConfigCategory category, ConfigEntryBuilder entry, boolean locked) {
+        if (locked) {
+            category.addEntry(entry.startTextDescription(
+                    Component.translatable("config.prosperity.server_locked_note")).build());
+        }
     }
 
     private static Component label(String key) {

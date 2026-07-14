@@ -7,6 +7,7 @@
     "config.prosperity.category.feedback": "Feedback",
     "config.prosperity.category.extended": "Extended",
     "config.prosperity.category.hud": "HUD",
+    "config.prosperity.server_locked_note": "§7These settings are controlled by the server operator. They are shown read-only with the server's current values; edit them from the server's config or with §f/prosperity reload§7. HUD settings below stay yours to change.",
     "config.prosperity.enable_instanced_loot": "Enable Instanced Loot",
     "config.prosperity.enable_instanced_loot.tooltip": "Give each player their own private loot from naturally-generated containers. Disable to fall back to vanilla shared loot.",
     "config.prosperity.enable_visual_indicators": "Enable Visual Indicators",
