@@ -13,6 +13,7 @@
       "plainTitle": true,
       "blocks": [
         { "type": "prose", "html": ["With <a class='text-accent2' href='https://modrinth.com/mod/modmenu'>Mod Menu</a> and <a class='text-accent2' href='https://modrinth.com/mod/cloth-config'>Cloth Config</a> installed, every setting is editable from an in-game screen (Mods &rarr; Prosperity &rarr; Configure), with labels and tooltips per key. Saving writes the file and applies the change live; distance tiers, structure overrides, and the blacklist are edited as one row per entry. Both mods are optional &mdash; without them, edit the file directly."] },
+        { "type": "prose", "html": ["When you are connected to a remote server, the server-authoritative settings are shown <strong>read-only</strong> with the server's own live values (the config it syncs on join), since only the server operator can change them &mdash; via the server's config file plus <code class='text-accent2'>/prosperity reload</code>. The client-only HUD settings stay editable and save to your local file as usual. In singleplayer, as a LAN host, or from the main menu, every setting is editable."] },
         { "type": "prose", "html": ["The config file is auto-generated with defaults on first launch at:"] },
         { "type": "code", "code": ".minecraft/config/prosperity.json", "bottomGap": true },
         { "type": "prose", "html": ["Server operators can apply changes without a restart with:"] },
