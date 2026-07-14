@@ -37,6 +37,7 @@
             "com.rfizzle.prosperity.gametest.PartyLootGameTest",
             "com.rfizzle.prosperity.gametest.MobLootScalingGameTest",
             "com.rfizzle.prosperity.gametest.ProsperityCommandGameTest",
+            "com.rfizzle.prosperity.gametest.ProspectorsCompassGameTest",
             "com.rfizzle.prosperity.gametest.ProspectorsCompassTooltipGameTest",
             "com.rfizzle.prosperity.gametest.StructureCompletionGameTest",
             "com.rfizzle.prosperity.gametest.StructureScalingGameTest",
