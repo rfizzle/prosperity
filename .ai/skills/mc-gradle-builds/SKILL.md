@@ -127,6 +127,11 @@ configurations {
 }
 ```
 
+The source set carries its own `src/gametest/resources/fabric.mod.json` declaring a
+`<modid>-gametest` mod, which is where the `fabric-gametest` entrypoints belong — putting them
+in the shipped manifest breaks every dev run set. See `mc-mod-testing`, "Registering the suite,"
+for the manifest and the literal-version requirement that comes with it.
+
 ### Run configurations
 ```groovy
 loom {
