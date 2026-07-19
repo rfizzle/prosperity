@@ -291,14 +291,111 @@ public class MyFeatureGameTest implements FabricGameTest {
 }
 ```
 
-Register via `fabric-gametest` entrypoint in `fabric.mod.json`:
+### Registering the suite
+
+Entrypoints go in a second manifest at `src/gametest/resources/fabric.mod.json`, declaring a
+separate `<modid>-gametest` mod that depends on the main mod. Never in the shipped
+`src/main/resources/fabric.mod.json`: Loom's dev runtime pulls in `fabric-gametest-api-v1`,
+whose `main` entrypoint is ungated and instantiates every declared `fabric-gametest` class on
+every dev launch. The default `server` run set does not carry the gametest source set, so
+`runServer` dies with a `ClassNotFoundException`. A released jar is unaffected — the shipped
+`fabric-api` does not bundle `fabric-gametest-api-v1`, so dangling entries there are inert —
+which is why this survives unnoticed until someone runs the dev server.
+
 ```json
 {
+    "schemaVersion": 1,
+    "id": "mymod-gametest",
+    "version": "1.0.0",
+    "name": "MyMod Gametests",
+    "description": "Fabric gametests for MyMod. Present only on the gametest run classpath — never bundled in the shipped jar.",
+    "environment": "*",
     "entrypoints": {
         "fabric-gametest": ["com.example.mymod.gametest.MyFeatureGameTest"]
+    },
+    "depends": {
+        "mymod": "*"
     }
 }
 ```
+
+`depends` needs only the main mod. Loader, Minecraft, Java, and Fabric API are all enforced
+transitively — the main mod cannot load without them — and restating their version floors here
+creates a second place to update on every Minecraft bump. The manifest carries no `icon`,
+`mixins`, `accessWidener`, or `provides`.
+
+Every dev run set is affected, not just `server`. A `source sourceSets.gametest` line in the
+`datagen` run block is this same problem papered over one run set at a time — it buys a passing
+datagen by putting the whole suite on that classpath too. With the entrypoints in their own
+manifest, no run set needs it.
+
+**Literal version string:** the gametest manifest hard-codes its version. `processResources` is
+configured for the `main` source set only; `processGametestResources` is an unconfigured
+`ProcessResources` task, so a `${version}` placeholder is copied through untouched and reaches
+the loader as that literal string, which is not a valid version.
+
+**Registration fails silently.** An unregistered `FabricGameTest` class does not warn — it
+simply never runs, and a suite can rot for months looking green. Guard it with a Tier 1 test
+that walks `src/gametest/java` and compares the suites on disk against the entrypoints declared
+in the gametest manifest, failing in both directions so a deleted class is caught alongside an
+unregistered one. Walk the tree rather than listing one directory, or suites in subpackages
+slip past.
+
+Decide what counts as a suite by the interface it implements, or by a naming convention the
+guard also enforces — never by an unstated filename suffix. The gametest source set holds
+helpers too, so a guard that treats every class as a suite flags the helpers as unregistered,
+and registering one to quiet the guard hands the ungated initializer a class that is not a
+test. Match on a bare suffix instead and the hole runs the other way: a suite named
+`BrewingTests` is missing from both sides of the comparison at once, so the guard stays green
+while the tests never run.
+
+The guard reads the source tree because the gametest source set is not on the test classpath
+and its classes cannot be enumerated from there. Gradle therefore sees no dependency between
+them — declare the inputs or the check stays `UP-TO-DATE` exactly when registration has
+drifted:
+
+```groovy
+test {
+    inputs.files(fileTree('src/gametest/java'), file('src/gametest/resources/fabric.mod.json'))
+            .withPropertyName('gametestRegistration')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+```
+
+### Test-only data
+
+Because the gametest manifest makes `src/gametest/resources` a discovered mod root, fixtures
+that exist only to serve the suite — structure templates, bespoke loot tables, any other data a
+test needs — live there, under the same `data/<namespace>/...` path they would occupy in the
+main source set:
+
+```
+src/gametest/resources/data/<namespace>/gametest/structure/<name>.snbt
+```
+
+The namespace segment stays the mod's own namespace even though the providing root is now the
+`-gametest` companion mod. Resolution is a namespace lookup against the merged
+`ResourceManager`, not a mod-id one, so `@GameTest(template = "mymod:empty_3x3")` resolves from
+the companion's `data/mymod/...` tree exactly as several mods can each contribute to
+`data/c/tags/...`. Written out it looks like a copy-paste error to anyone who does not know the
+mechanism, which is why it is worth saying.
+
+In `src/main/resources` fixtures ride along in the release jar. A loot table in the mod's
+namespace is then eagerly parsed and validated on every datapack reload on every server,
+including the integrated server behind a singleplayer world, purely to serve a test. A
+structure template is cheaper — it loads on demand — but it is still offered in
+`/place template` autocomplete, so a server running the jar surfaces test fixtures to operators
+as if they were content.
+
+Guard this one against the **test classpath**, not the source tree: the classpath is what the
+jar is built from. Walk every shipped root — under `splitEnvironmentSourceSets()` the client
+source set contributes to the jar too, so a guard that checks only `main` misses a fixture
+dropped into the other. Resolve each root by anchoring on a file known to sit at its top level,
+then assert the entries you expect directly beneath it, so an anchor that moves into a
+subdirectory fails loudly instead of silently narrowing the walk to that subdirectory. A source
+set with no resources at all contributes no anchor and belongs out of the list; assert the
+number of roots you expect to resolve, so adding `src/client/resources` later cannot leave it
+quietly unscanned.
 
 ### Source set setup in build.gradle
 ```groovy
@@ -327,12 +424,6 @@ loom {
     }
 }
 ```
-
-### Structure templates
-
-Templates: `src/main/resources/data/<modid>/gametest/structure/<name>.snbt`
-
-Templates must be in `src/main/resources`, not `src/gametest/resources`.
 
 ### Runtime patterns
 
@@ -384,6 +475,8 @@ try {
 - **Always** write at least one test per config toggle verifying the feature is inert when disabled.
 - **Never** write tests whose only assertion is `assertNotNull`, `assertDoesNotThrow`, or bare `helper.succeed()`. Assert specific observable behavior.
 - **Always** run the single test with `./gradlew test --tests '<FQN>'` before claiming it passes.
+- **Never** put a `fabric-gametest` entrypoint or a test-only fixture in the shipped `src/main/resources`. Entrypoints there break `runServer`; fixtures there ship to players.
+- **Always** guard both boundaries with a Tier 1 test — every gametest class registered, and no test-only data on the shipped classpath. Both fail silently otherwise.
 
 ## Concurrency test discipline
 

@@ -364,6 +364,11 @@ processResources {
 }
 ```
 
+This configures the `main` source set only. Other source sets get an unconfigured
+`ProcessResources` task, so a `${version}` placeholder in a manifest they own is copied through
+untouched and reaches the loader as that literal string — the gametest manifest carries a
+literal version for exactly this reason. See `mc-mod-testing` for that split.
+
 ## SemVer from the pushed tag
 
 The pushed `v*` tag is the single source of version truth. The release workflow injects
