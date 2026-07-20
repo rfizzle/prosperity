@@ -275,7 +275,7 @@ tasks.register('verifyDatagenIdempotent') {
                              : lines.join('\n')
         }
 
-        def statusResult = runGit(['git', 'status', '--porcelain', '--', genDir])
+        def statusResult = runGit(['git', '--no-optional-locks', 'status', '--porcelain', '--', genDir])
         def statusExit = statusResult.result.get().exitValue
         if (statusExit != 0) {
             throw new GradleException(
@@ -285,8 +285,11 @@ tasks.register('verifyDatagenIdempotent') {
         def dirty = statusResult.standardOutput.asText.get().trim()
         if (!dirty.isEmpty()) {
             throw new GradleException(
-                    'src/main/generated/ changed after runDatagen:\n' + firstLines(dirty) +
-                    '\nRun ./gradlew runDatagen, then git add and commit the results.')
+                    'src/main/generated/ is not clean after runDatagen:\n' +
+                    firstLines(dirty) +
+                    '\nRun ./gradlew runDatagen, then git add src/main/generated/ ' +
+                    'and commit the results ' +
+                    '(staged-but-uncommitted output also fails this check).')
         }
     }
 }
@@ -308,6 +311,25 @@ Each guard above earns its place:
   stdout rather than an exit code also means no exit value has to be
   reserved for "differences found", and unlike `git diff HEAD` it
   works in a repository with no commits yet.
+- **The remedy carries staging through to a commit.** Because the
+  check reports the index as well as the worktree, staged-but-
+  uncommitted output fails it, so a message that stops at `git add`
+  strands the developer on a step that changes nothing. Staging alone
+  does not clear the failure and a commit alone cannot reach untracked
+  or unstaged output — `git commit` never picks up untracked paths,
+  which is exactly what a mod's first datagen run produces. Only the
+  two together clear every shape the check reports, and `git add` on
+  already-staged content is a harmless no-op.
+- **`--no-optional-locks` keeps a read-only check from taking a
+  write lock.** `git status` rewrites `.git/index` when cached stat
+  info is stale, which is precisely the state `runDatagen` leaves
+  behind after rewriting every file under the generated directory.
+  With `org.gradle.parallel=true`, or a developer's IDE or git GUI
+  polling the same repository, that is an avoidable `index.lock`
+  contention window in a task that only ever reads. The flag is git's
+  documented form for tooling that inspects state without intending
+  to write, and it is a global option — it goes before the
+  subcommand, not after it.
 - **Separate git's failure from datagen's drift.** Any nonzero exit is
   git itself failing, and surfaces git's stderr instead of being
   relabelled as drift. A bare `!= 0` check tells the user to commit
@@ -334,7 +356,7 @@ Each guard above earns its place:
   reports nothing and the verification silently passes. Committing
   datagen output is the point — do not ignore the generated directory.
 
-The task needs Gradle 7.5+ (`providers.exec`; `notCompatibleWithConfigurationCache` needs 7.4+).
+The task needs Gradle 7.5+ (`providers.exec`; `notCompatibleWithConfigurationCache` needs 7.4+) and git 2.15+ (`--no-optional-locks`). On older git the flag is rejected before `status` runs, and the task reports `git status failed with exit 129` with git's own `unknown option` on the next line.
 
 ## Convention tags
 
