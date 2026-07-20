@@ -302,28 +302,43 @@ jacocoTestReport {
 }
 
 tasks.register('verifyDatagenIdempotent') {
-    description = 'Runs datagen and asserts no tracked diffs or untracked files in src/main/generated/'
+    description = 'Runs datagen and asserts git reports no changes in src/main/generated/'
     group = 'verification'
     dependsOn 'runDatagen'
+    notCompatibleWithConfigurationCache('shells out to git against live working-tree state')
     doLast {
         def genDir = file('src/main/generated').absolutePath
-        def diffResult = providers.exec {
-            commandLine 'git', 'diff', '--exit-code', genDir
-            ignoreExitValue = true
+        def runGit = { List<String> argv ->
+            try {
+                def out = providers.exec {
+                    commandLine argv
+                    ignoreExitValue = true
+                }
+                out.result.get() // force resolution so a failure to start lands in the catch
+                return out
+            } catch (Exception e) {
+                throw new GradleException(
+                        'verifyDatagenIdempotent needs git on PATH to inspect ' +
+                        'src/main/generated/, and could not run it: ' + e.message, e)
+            }
         }
-        if (diffResult.result.get().exitValue != 0) {
+        def firstLines = { String text ->
+            def lines = text.trim().readLines()
+            lines.size() > 5 ? lines.take(5).join('\n') + "\n… (${lines.size()} lines total)"
+                             : lines.join('\n')
+        }
+
+        def statusResult = runGit(['git', 'status', '--porcelain', '--', genDir])
+        def statusExit = statusResult.result.get().exitValue
+        if (statusExit != 0) {
             throw new GradleException(
-                    'src/main/generated/ has unstaged changes after runDatagen. ' +
-                    'Run ./gradlew runDatagen and commit the results.')
+                    "git status failed with exit ${statusExit} while checking src/main/generated/:\n" +
+                    firstLines(statusResult.standardError.asText.get()))
         }
-        def untrackedOutput = providers.exec {
-            commandLine 'git', 'ls-files', '--others', '--exclude-standard', genDir
-            ignoreExitValue = true
-        }
-        def untracked = untrackedOutput.standardOutput.asText.get().trim()
-        if (!untracked.isEmpty()) {
+        def dirty = statusResult.standardOutput.asText.get().trim()
+        if (!dirty.isEmpty()) {
             throw new GradleException(
-                    'src/main/generated/ has untracked files after runDatagen:\n' + untracked +
+                    'src/main/generated/ changed after runDatagen:\n' + firstLines(dirty) +
                     '\nRun ./gradlew runDatagen, then git add and commit the results.')
         }
     }
