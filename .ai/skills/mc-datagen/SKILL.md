@@ -245,27 +245,96 @@ loom {
 
 ## Idempotency verification
 
-Add a CI-friendly task that runs datagen and asserts no git diff in the generated directory:
+Add a CI-friendly task that runs datagen and asserts git reports no changes in the generated directory:
 
 ```groovy
 tasks.register('verifyDatagenIdempotent') {
-    description = 'Runs datagen and asserts no tracked diffs in src/main/generated/'
+    description = 'Runs datagen and asserts git reports no changes in src/main/generated/'
     group = 'verification'
     dependsOn 'runDatagen'
+    notCompatibleWithConfigurationCache('shells out to git against live working-tree state')
     doLast {
         def genDir = file('src/main/generated').absolutePath
-        def diffResult = providers.exec {
-            commandLine 'git', 'diff', '--exit-code', genDir
-            ignoreExitValue = true
+        def runGit = { List<String> argv ->
+            try {
+                def out = providers.exec {
+                    commandLine argv
+                    ignoreExitValue = true
+                }
+                out.result.get() // force resolution so a failure to start lands in the catch
+                return out
+            } catch (Exception e) {
+                throw new GradleException(
+                        'verifyDatagenIdempotent needs git on PATH to inspect ' +
+                        'src/main/generated/, and could not run it: ' + e.message, e)
+            }
         }
-        if (diffResult.result.get().exitValue != 0) {
+        def firstLines = { String text ->
+            def lines = text.trim().readLines()
+            lines.size() > 5 ? lines.take(5).join('\n') + "\n… (${lines.size()} lines total)"
+                             : lines.join('\n')
+        }
+
+        def statusResult = runGit(['git', 'status', '--porcelain', '--', genDir])
+        def statusExit = statusResult.result.get().exitValue
+        if (statusExit != 0) {
             throw new GradleException(
-                    'src/main/generated/ has unstaged changes after runDatagen. ' +
-                    'Run ./gradlew runDatagen and commit the results.')
+                    "git status failed with exit ${statusExit} while checking src/main/generated/:\n" +
+                    firstLines(statusResult.standardError.asText.get()))
+        }
+        def dirty = statusResult.standardOutput.asText.get().trim()
+        if (!dirty.isEmpty()) {
+            throw new GradleException(
+                    'src/main/generated/ changed after runDatagen:\n' + firstLines(dirty) +
+                    '\nRun ./gradlew runDatagen, then git add and commit the results.')
         }
     }
 }
 ```
+
+Each guard above earns its place:
+
+- **The `--` separator is required.** Without it git parses the path
+  as a revision-or-path and aborts with exit 128 (`ambiguous
+  argument`) whenever `src/main/generated/` is neither tracked nor
+  present — the steady state before a `fabric-datagen` entrypoint is
+  declared. With it, a missing directory is an empty pathspec and the
+  task passes.
+- **`git status --porcelain` covers all three drift shapes.**
+  Staged (`M `), unstaged (` M`), and untracked (`??`) output all
+  appear in one machine-readable listing. A `git diff` check sees only
+  the worktree-versus-index delta, so drift that has been `git add`-ed
+  slips through — a verification task passing on real drift. Reading
+  stdout rather than an exit code also means no exit value has to be
+  reserved for "differences found", and unlike `git diff HEAD` it
+  works in a repository with no commits yet.
+- **Separate git's failure from datagen's drift.** Any nonzero exit is
+  git itself failing, and surfaces git's stderr instead of being
+  relabelled as drift. A bare `!= 0` check tells the user to commit
+  results that do not exist.
+- **Force the lazy resolution inside the `try`.** `providers.exec`
+  starts the process on the first result read, so wrapping only the
+  `providers.exec` call catches nothing. `ignoreExitValue` covers a
+  nonzero exit, not a process that never starts — without
+  `out.result.get()` inside the `try`, an absent git binary surfaces
+  as a bare process-start exception naming neither datagen nor a
+  remedy.
+- **Cap both git outputs at five lines.** A run that rewrites a large
+  provider's output can list hundreds of changed files, and git's own
+  diagnostics are not bounded either. Neither belongs inlined wholesale
+  in a build failure, and the first few lines carry the diagnosis.
+- **Declare the configuration-cache incompatibility.** The check reads
+  live working-tree state, which Gradle cannot model as task inputs.
+  Declaring it keeps the intent explicit rather than leaving a hard
+  failure for whoever enables the cache. Note that marking any task
+  incompatible disables configuration-cache storing for the whole
+  build invocation.
+- **The check is only as good as what git tracks.** If
+  `src/main/generated/` is gitignored or has never been committed, git
+  reports nothing and the verification silently passes. Committing
+  datagen output is the point — do not ignore the generated directory.
+
+The task needs Gradle 7.5+ (`providers.exec`; `notCompatibleWithConfigurationCache` needs 7.4+).
 
 ## Convention tags
 
