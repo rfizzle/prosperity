@@ -189,7 +189,8 @@ will (Makefile targets when present):
 
 1. `./gradlew build` — compile, unit tests, jar.
 2. `./gradlew runGametest` — the in-world suite.
-3. `./gradlew jacocoTestReport` — coverage, where the project wires it.
+3. `./gradlew jacocoMergedReport` — merged unit + gametest coverage, where the
+   project wires it. Never read the number off the unit-only `jacocoTestReport`.
 
 On a failure: fix the code and re-run. If a failure traces back to a defect
 in the approved plan rather than the code, take it to the user — don't
