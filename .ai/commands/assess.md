@@ -109,12 +109,13 @@ the shipped feature set.
 
 **Build, tests & CI stability.** Read `.ai/skills/mc-gradle-builds/SKILL.md` first so
 output is captured fully and reruns aren't wasted. Run the build the way CI does —
-`./gradlew build`, `./gradlew runGametest`, `./gradlew jacocoTestReport`,
+`./gradlew build`, `./gradlew runGametest`, `./gradlew jacocoMergedReport`,
 `./gradlew printVersion` (use `Makefile` targets if present). Report: clean build vs
 failures; compiler warnings and deprecations; unit + gametest pass counts and any
 `@Disabled`/ignored or flaky tests; the JaCoCo coverage % from
-`build/reports/jacoco/test/jacocoTestReport.xml`; and that `printVersion` resolves to
-the expected `0.0.0+g<sha>` dev string — local builds are tag-less by design, so the
+`build/reports/jacoco/jacocoMergedReport/jacocoMergedReport.xml`; and that
+`printVersion` resolves to the expected `0.0.0+g<sha>` dev string — local builds
+are tag-less by design, so the
 released version comes from the pushed tag (injected by the release workflow), not from
 `gradle.properties`; do not treat the local dev version as a blocker. A red build or
 failing gametest is a release blocker, full stop.
