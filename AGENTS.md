@@ -39,7 +39,13 @@ in the local workspace. Normative for this repo:
 ./gradlew runClient      # launch dev client
 ./gradlew runServer      # launch dev server
 ./gradlew genSources     # decompile MC sources for IDE nav
+
+./gradlew test runGametest jacocoMergedReport   # the mod's real coverage number
 ```
+
+`jacocoMergedReport` merges unit-test and gametest execution data over
+`src/main` — read coverage from it, never from the unit-test-only
+`jacocoTestReport`, which scores every gametest-only line as 0%.
 
 Run a single JUnit test:
 `./gradlew test --tests "com.rfizzle.prosperity.SomeTest"`
