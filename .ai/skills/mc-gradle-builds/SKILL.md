@@ -175,7 +175,21 @@ tasks.named('runGametest') {
     jacoco.applyTo(it)
     it.jacoco.destinationFile = layout.buildDirectory.file('jacoco/runGametest.exec').get().asFile
     it.jacoco.includes = ['com.example.mymod.*']
+    // The agent's exec file is an @OutputFile, which would otherwise make this
+    // JavaExec up-to-date-checkable and silently skip the whole in-world suite
+    // on a repeat run — re-emitting the previous coverage number as if it were
+    // fresh. A gametest sweep must always execute.
+    it.outputs.upToDateWhen { false }
 }
+```
+
+Loom registers `runGametest` during `afterEvaluate`, so `tasks.named` resolves
+it only in repos where that has already happened by the time this block is
+evaluated. Where it hasn't, use the lazy form in both the agent attachment and
+the `mustRunAfter` below — same body, matched by name instead of resolved eagerly:
+
+```groovy
+tasks.matching { it.name == 'runGametest' }.configureEach { … }
 ```
 
 Then merge both exec files into one report:
@@ -183,6 +197,11 @@ Then merge both exec files into one report:
 ```groovy
 // Single source of coverage truth: unit tests + gametests merged over src/main.
 tasks.register('jacocoMergedReport', JacocoReport) {
+    // The report reads compileJava/processResources output, so it must depend
+    // on them — without this, any invocation that compiles without also
+    // scheduling a test task (e.g. `gradlew jar jacocoMergedReport`) fails
+    // Gradle's implicit-dependency validation.
+    dependsOn tasks.named('classes')
     // Ordering only — not dependsOn, so the report can run from existing exec
     // data without forcing a gametest server spin-up.
     mustRunAfter test, tasks.named('runGametest')
@@ -192,13 +211,28 @@ tasks.register('jacocoMergedReport', JacocoReport) {
         include 'test.exec', 'runGametest.exec'
     }
     sourceSets sourceSets.main
+    // A sweep that never ran leaves its exec file absent, and one that was
+    // interrupted leaves it empty — Gradle deletes the file before the run and
+    // the agent only dumps at JVM exit. Either way the result is a partial
+    // number under the "merged" label with no indication, so say so.
+    doFirst {
+        ['test.exec', 'runGametest.exec'].each { name ->
+            def execFile = layout.buildDirectory.file("jacoco/${name}").get().asFile
+            if (!execFile.exists() || execFile.length() == 0) {
+                logger.warn("jacocoMergedReport: ${name} is missing or empty — this report is NOT merged coverage")
+            }
+        }
+    }
     // Mixin bodies execute inside the transformed vanilla classes, so the
     // agent can never attribute coverage to the mixin class files — excluding
     // them keeps the denominator honest. Mixins stay thin (delegate to
     // handlers, see mc-mixin-craft) so nothing measurable hides here.
-    classDirectories.setFrom(files(classDirectories.files.collect {
-        fileTree(dir: it, exclude: ['com/example/mymod/mixin/**'])
-    }))
+    // Derive from sourceSets.main lazily: the eager
+    // `files(classDirectories.files.collect { … })` form resolves at
+    // configuration time and discards the task dependency on `classes`.
+    classDirectories.setFrom(files(sourceSets.main.output).asFileTree.matching {
+        exclude 'com/example/mymod/mixin/**'
+    })
     reports {
         xml.required = true
         html.required = true
