@@ -316,6 +316,11 @@ tasks.matching { it.name == 'runGametest' }.configureEach {
 tasks.register('jacocoMergedReport', JacocoReport) {
     description = 'Merged unit-test + gametest coverage report over src/main'
     group = 'verification'
+    // The report reads compileJava/processResources output, so it must depend on
+    // them — without this, any invocation that compiles without also scheduling a
+    // test task (e.g. `gradlew jar jacocoMergedReport`) fails Gradle's
+    // implicit-dependency validation.
+    dependsOn tasks.named('classes')
     // Ordering only — not dependsOn, so the report can run from existing exec
     // data without forcing a gametest server spin-up.
     mustRunAfter test, 'runGametest'
@@ -323,6 +328,16 @@ tasks.register('jacocoMergedReport', JacocoReport) {
     // one of the two sweeps hasn't.
     executionData fileTree(layout.buildDirectory.dir('jacoco')) {
         include 'test.exec', 'runGametest.exec'
+    }
+    // A sweep that never ran leaves its exec file absent, which would otherwise
+    // yield a partial number under the "merged" label with no indication.
+    doFirst {
+        ['test.exec', 'runGametest.exec'].each { name ->
+            def execFile = layout.buildDirectory.file("jacoco/${name}").get().asFile
+            if (!execFile.exists() || execFile.length() == 0) {
+                logger.warn("jacocoMergedReport: ${name} is missing or empty — this report is NOT merged coverage")
+            }
+        }
     }
     sourceSets sourceSets.main
     // Mixin bodies execute inside the transformed vanilla classes, so the agent
