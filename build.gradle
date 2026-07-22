@@ -301,6 +301,43 @@ jacocoTestReport {
     }
 }
 
+// Attach the JaCoCo agent to the gametest server so code only exercised in-game
+// (interception, indicators, commands, registration) counts toward coverage. Loom's
+// run task is a JavaExec, so the task extension applies. The includes filter keeps
+// the agent from instrumenting Minecraft/Fabric classes. Matched lazily for the same
+// reason as the onlyIf block above — Loom registers runGametest during afterEvaluate.
+tasks.matching { it.name == 'runGametest' }.configureEach {
+    jacoco.applyTo(it)
+    it.jacoco.destinationFile = layout.buildDirectory.file('jacoco/runGametest.exec').get().asFile
+    it.jacoco.includes = ['com.rfizzle.prosperity.*']
+}
+
+// Single source of coverage truth: unit tests + gametests merged over src/main.
+tasks.register('jacocoMergedReport', JacocoReport) {
+    description = 'Merged unit-test + gametest coverage report over src/main'
+    group = 'verification'
+    // Ordering only — not dependsOn, so the report can run from existing exec
+    // data without forcing a gametest server spin-up.
+    mustRunAfter test, 'runGametest'
+    // fileTree only picks up exec files that exist, so the report still runs when
+    // one of the two sweeps hasn't.
+    executionData fileTree(layout.buildDirectory.dir('jacoco')) {
+        include 'test.exec', 'runGametest.exec'
+    }
+    sourceSets sourceSets.main
+    // Mixin bodies execute inside the transformed vanilla classes, so the agent
+    // can never attribute coverage to the mixin class files — excluding them keeps
+    // the denominator honest. Mixins stay thin (delegate to handlers) so nothing
+    // measurable hides here.
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: ['com/rfizzle/prosperity/mixin/**'])
+    }))
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
 tasks.register('verifyDatagenIdempotent') {
     description = 'Runs datagen and asserts git reports no changes in src/main/generated/'
     group = 'verification'
