@@ -310,6 +310,11 @@ tasks.matching { it.name == 'runGametest' }.configureEach {
     jacoco.applyTo(it)
     it.jacoco.destinationFile = layout.buildDirectory.file('jacoco/runGametest.exec').get().asFile
     it.jacoco.includes = ['com.rfizzle.prosperity.*']
+    // The agent's exec file is an @OutputFile, which would otherwise make this
+    // JavaExec up-to-date-checkable and silently skip the whole in-world suite on
+    // a repeat run — re-emitting the previous coverage number as if it were fresh.
+    // A gametest sweep must always execute.
+    it.outputs.upToDateWhen { false }
 }
 
 // Single source of coverage truth: unit tests + gametests merged over src/main.
@@ -343,10 +348,12 @@ tasks.register('jacocoMergedReport', JacocoReport) {
     // Mixin bodies execute inside the transformed vanilla classes, so the agent
     // can never attribute coverage to the mixin class files — excluding them keeps
     // the denominator honest. Mixins stay thin (delegate to handlers) so nothing
-    // measurable hides here.
-    classDirectories.setFrom(files(classDirectories.files.collect {
-        fileTree(dir: it, exclude: ['com/rfizzle/prosperity/mixin/**'])
-    }))
+    // measurable hides here. Deriving from sourceSets.main.output lazily keeps the
+    // task dependency on `classes` inside the file collection itself, rather than
+    // resolving eagerly at configuration time.
+    classDirectories.setFrom(files(sourceSets.main.output).asFileTree.matching {
+        exclude 'com/rfizzle/prosperity/mixin/**'
+    })
     reports {
         xml.required = true
         html.required = true
