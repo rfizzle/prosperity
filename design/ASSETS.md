@@ -29,6 +29,23 @@
 | 256px treasure chest | `art/glyphs/chest-256.glyph` (from `chest-256.gen.py`) | `art/chest-256.png` master |
 | Mod icon (chest medallion) | `art/glyphs/icon.glyph` (from `icon.gen.py`: computed medallion + baked-in chest) | `art/icon-512.png`/`art/icon-128.png` masters → `assets/prosperity/icon.png` (256, in-jar), `site/assets/icon.png` |
 
+### Verification coverage
+
+Each spec names its shipped master with a `ships:` line, so
+`glyph.py --verify-all` re-renders it and compares pixel for pixel — a hand-patched
+PNG or a stale asset behind an edited spec fails the check. Four of the five specs
+are covered that way. Two deliverables sit outside its reach:
+
+- **The mod icon's smaller tiers.** `ships:` verifies `art/icon-512.png`, the native
+  tier. `art/icon-128.png` and the 256px in-jar and site copies are ImageMagick
+  downscales, and a `ships:` tier must be an integer *upscale* of the spec's grid,
+  so no line can express them. `icon.gen.py` re-derives the 128 from the verified
+  512 on every run, which is what keeps them honest.
+- **The unlooted-container sparkle.** It ships as standalone per-frame PNGs because
+  the overlay is bound in code rather than animated by the vanilla atlas.
+  `--verify-all` checks every spec as a strip + `.mcmeta`, so the spec stays
+  `ships:`-less; `glyph.py … --split-frames --verify` checks it by hand.
+
 ## Not yet created
 
 The EMI/REI/JEI loot-index tab reuses the mod brand icon (`assets/prosperity/icon.png`); no
