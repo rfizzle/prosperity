@@ -80,6 +80,7 @@ USAGE
     python3 .ai/skills/mc-audio/scripts/sfx.py - < SPEC.sfx           # spec on stdin
     python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx --no-report   # skip the PNG
     python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx --verify      # shipped cue still matches the spec? (uses ships)
+    python3 .ai/skills/mc-audio/scripts/sfx.py --verify-all           # ... same check over every cue in art/audio/
     python3 .ai/skills/mc-audio/scripts/sfx.py --list-waveforms       # available oscillators
 
 Exits non-zero when it could not write the `.ogg` — that file is the
@@ -533,6 +534,60 @@ VERIFY_TOLERANCE = {
 }
 
 
+def spec_ships(path):
+    """The `ships` target a .sfx declares, or None."""
+    try:
+        return json.loads(Path(path).read_text()).get("ships")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def verify_tree(root, verbose=False):
+    """Verify every cue under `root` that declares where it ships.
+
+    This lives in the synth rather than in a separate tool because the synth is
+    what gets vendored into each member repo — a checker that only exists in
+    concord could not be run by the repos whose audio it holds.
+
+    Returns (checked, drifted, unlinked).
+    """
+    root = Path(root)
+    if not root.exists():
+        print(f"  {root}: no such directory — nothing to verify")
+        return 0, 0, 0
+    checked = drifted = 0
+    unlinked = []
+    for spec_path in sorted(root.glob("*.sfx")):
+        shipped = spec_ships(spec_path)
+        if not shipped:
+            unlinked.append(spec_path)
+            continue
+        checked += 1
+        try:
+            spec = parse_spec(spec_path.read_text())
+            samples, sr = synthesize(spec)
+            target = spec["loudness_lufs"]
+            if target is None:
+                samples, _ = normalize(samples, spec["peak_dbfs"])
+            else:
+                samples, _, _, _ = normalize_loudness(
+                    samples, sr, target, spec["peak_dbfs"])
+            problems = verify_render(shipped, samples, sr,
+                                     compute_stats(samples, sr))
+        except SpecError as e:
+            problems = [f"{spec_path}: {e}"]
+        if problems:
+            drifted += 1
+            print(f"  DRIFT    {spec_path}")
+            for p in problems:
+                print(f"           {p}")
+        elif verbose:
+            print(f"  ok       {spec_path} -> {shipped}")
+    for spec_path in unlinked:
+        print(f"  unlinked {spec_path} — no 'ships' target, so nothing verifies it")
+    return checked, drifted, len(unlinked)
+
+
 def verify_render(shipped, samples, sr, stats):
     """Compare a shipped cue against what the spec synthesizes right now.
 
@@ -910,6 +965,13 @@ def main(argv=None):
                          "decoding that file so what is measured is what ships. "
                          "Exits non-zero on drift — the CI form of the "
                          "repeatability rule")
+    ap.add_argument("--verify-all", nargs="?", const="art/audio", metavar="DIR",
+                    help="verify every cue in DIR (default art/audio) against "
+                         "the .ogg it declares with 'ships', and report the ones "
+                         "that declare none. Exits non-zero on drift — run it in "
+                         "CI to hold the whole repo's audio to its specs")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                    help="with --verify-all, also list the cues that verified clean")
     ap.add_argument("--list-waveforms", action="store_true", help="print the oscillators and exit")
     args = ap.parse_args(argv)
 
@@ -917,6 +979,11 @@ def main(argv=None):
         for w in WAVEFORMS:
             print(w)
         return 0
+
+    if args.verify_all:
+        checked, drifted, unlinked = verify_tree(args.verify_all, args.verbose)
+        print(f"  {checked} verified, {drifted} drifted, {unlinked} unlinked")
+        return 1 if drifted else 0
     if not args.spec:
         ap.error("a spec path (or -) is required")
 
