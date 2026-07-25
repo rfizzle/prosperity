@@ -91,6 +91,7 @@ USAGE
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --preview-scale 24 --no-preview
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --tile-preview  # + 2×2 tiled seam check (block textures)
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --verify        # shipped master still matches the spec? (uses ships:)
+    python3 .ai/skills/mc-textures/scripts/glyph.py --verify-all               # ... same check over every spec in art/glyphs/
     python3 .ai/skills/mc-textures/scripts/glyph.py --ramp emerald             # tonal ramp as paste-ready legend lines
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --snap-palette  # nearest token for each raw-hex entry
     python3 .ai/skills/mc-textures/scripts/glyph.py --list-kinds               # texture kinds and the checks each earns
@@ -925,6 +926,83 @@ def master_artifacts(frames_px, size, meta, out, split_frames=False, scale_to=No
     return ([(out, strip_px, sw, sh)], (out.with_name(out.name + ".mcmeta"), mcmeta))
 
 
+def spec_ships(path):
+    """The `ships:` targets a spec declares, in order (empty when it has none).
+
+    Reads the header only: past the legend or the first grid, a line that looks
+    like `ships:` is content, not a directive.
+    """
+    out = []
+    for line in Path(path).read_text().splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("ships:"):
+            parts = _directive_value(stripped).split()
+            if parts:
+                out.append(parts[0])
+        elif stripped.lower() in ("legend:", "frame:", "grid:"):
+            break
+    return out
+
+
+def verify_spec(spec_path, targets=None, split_frames=False):
+    """Check one spec against the masters it ships. Returns (checked, problems).
+
+    `targets` overrides the spec's own `ships:` lines with [(path, tier), …].
+    """
+    legend, frames_rows, declared_size, meta, _used = parse_spec(
+        Path(spec_path).read_text())
+    frames_px, size = build_frames(legend, frames_rows, declared_size)
+    if targets is None:
+        targets = [(Path(p), tier) for p, tier in meta.get("ships", [])]
+    problems, checked = [], []
+    for path, tier in targets:
+        try:
+            artifacts, mcmeta = master_artifacts(
+                frames_px, size, meta, Path(path), split_frames, tier)
+        except SpecError as e:
+            problems.append(f"{path}: {e}")
+            continue
+        problems += verify_artifacts(artifacts, mcmeta)
+        checked += [str(a[0]) for a in artifacts]
+    return checked, problems
+
+
+def verify_tree(root, verbose=False):
+    """Verify every spec under `root` that declares where it ships.
+
+    This lives in the renderer rather than in a separate tool because the
+    renderer is what gets vendored into each member repo — a checker that only
+    exists in concord could not be run by the repos whose art it holds.
+
+    Returns (checked, drifted, unlinked).
+    """
+    root = Path(root)
+    if not root.exists():
+        print(f"  {root}: no such directory — nothing to verify")
+        return 0, 0, 0
+    checked = drifted = 0
+    unlinked = []
+    for spec_path in sorted(root.glob("*.glyph")):
+        if not spec_ships(spec_path):
+            unlinked.append(spec_path)
+            continue
+        checked += 1
+        try:
+            shipped, problems = verify_spec(spec_path)
+        except SpecError as e:
+            shipped, problems = [], [f"{spec_path}: {e}"]
+        if problems:
+            drifted += 1
+            print(f"  DRIFT    {spec_path}")
+            for p in problems:
+                print(f"           {p}")
+        elif verbose:
+            print(f"  ok       {spec_path} -> {', '.join(shipped)}")
+    for spec_path in unlinked:
+        print(f"  unlinked {spec_path} — no 'ships:' target, so nothing verifies it")
+    return checked, drifted, len(unlinked)
+
+
 def verify_artifacts(artifacts, mcmeta):
     """Compare shipped files against what the spec renders. Returns a list of
     human-readable mismatches — empty means the shipped copy is reproducible.
@@ -1411,6 +1489,12 @@ def main(argv=None):
                          "the shipped master(s) already at the output path, "
                          "reporting any pixel that drifted. Exits non-zero on "
                          "drift — the CI form of the repeatability rule")
+    ap.add_argument("--verify-all", nargs="?", const="art/glyphs", metavar="DIR",
+                    help="verify every spec in DIR (default art/glyphs) against "
+                         "the masters it declares with 'ships:', and report the "
+                         "ones that declare none. Exits non-zero on drift — run "
+                         "it in CI to hold the whole repo's textures to their "
+                         "specs")
     ap.add_argument("--ramp", metavar="TOKEN",
                     help="print a tonal ramp off a named token as paste-ready "
                          "legend lines, and exit. A legend can name any step of "
@@ -1424,6 +1508,8 @@ def main(argv=None):
                          "design-system token or ramp step and how far off it "
                          "is — the migration path for a legend written before "
                          "ramp steps existed. Suggests; never rewrites")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                    help="with --verify-all, also list the specs that verified clean")
     ap.add_argument("--no-preview", action="store_true", help="skip the scaled preview PNG")
     ap.add_argument("--list-colors", action="store_true", help="print the named palette and exit")
     ap.add_argument("--list-kinds", action="store_true",
@@ -1448,6 +1534,11 @@ def main(argv=None):
               f"highlight,\n  '<token>-N' drops toward shadow (N up to "
               f"{RAMP_MAX_STEP}). Run --ramp <token> for a ready-made ramp.")
         return 0
+
+    if args.verify_all:
+        checked, drifted, unlinked = verify_tree(args.verify_all, args.verbose)
+        print(f"  {checked} verified, {drifted} drifted, {unlinked} unlinked")
+        return 1 if drifted else 0
 
     if args.ramp:
         try:
@@ -1507,22 +1598,12 @@ def main(argv=None):
     if args.verify:
         # An explicit -o wins; otherwise the spec's own `ships:` lines say what
         # to check, so a size ladder verifies every tier it declares in one run.
-        targets = [(out, args.scale_to)] if args.out else [
-            (Path(p), tier) for p, tier in meta.get("ships", [])]
-        if not targets:
+        targets = [(out, args.scale_to)] if args.out else None
+        if targets is None and not meta.get("ships"):
             print(f"glyph: {args.spec} declares no 'ships:' target and no -o was "
                   f"given — nothing to verify against", file=sys.stderr)
             return 1
-        problems, checked = [], []
-        for path, tier in targets:
-            try:
-                artifacts, mcmeta = master_artifacts(
-                    frames_px, size, meta, path, args.split_frames, tier)
-            except SpecError as e:
-                problems.append(f"{path}: {e}")
-                continue
-            problems += verify_artifacts(artifacts, mcmeta)
-            checked += [str(a[0]) for a in artifacts]
+        checked, problems = verify_spec(args.spec, targets, args.split_frames)
         for p in problems:
             print(f"glyph: drift: {p}", file=sys.stderr)
         if problems:

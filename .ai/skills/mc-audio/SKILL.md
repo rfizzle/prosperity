@@ -103,8 +103,8 @@ the `.sfx` and re-rendering.
 Every spec carries a **`ships`** field naming that shipped path, which is what holds the
 rule up: `sfx.py CUE.sfx --verify` re-synthesizes the spec, decodes the `.ogg` that
 shipped, and compares duration, peak, loudness, and spectral centroid — so what gets
-measured is what the game actually plays, not the pre-encode buffer. `make art-verify`
-runs that across the whole repo. A spec with no `ships` field is reported as unlinked —
+measured is what the game actually plays, not the pre-encode buffer. `sfx.py --verify-all`
+runs that across every cue in `art/audio/` (exit non-zero on drift, so it belongs in CI). A spec with no `ships` field is reported as unlinked —
 it has no declared deliverable, so nothing holds it to anything.
 
 ## Quick checklist

@@ -198,8 +198,8 @@ re-rendering — never hand-patching pixels.
 Every spec carries a **`ships:`** line naming that shipped path — one per shipped file,
 so a size ladder declares each tier (`ships: docs/img/icon-128.png 128`) — and that is
 what holds the rule up: `glyph.py SPEC.glyph --verify` re-renders the spec and compares
-it pixel for pixel against the assets that shipped, and `make art-verify` runs that
-across the whole repo. A hand-patched PNG, a stale asset behind an edited spec, or a `.mcmeta` whose
+it pixel for pixel against the assets that shipped, and `glyph.py --verify-all` runs
+that across every spec in `art/glyphs/` (exit non-zero on drift, so it belongs in CI). A hand-patched PNG, a stale asset behind an edited spec, or a `.mcmeta` whose
 frametime no longer matches all fail the check. A spec with no `ships:` line is reported
 as unlinked — it has no declared deliverable, so nothing holds it to anything.
 
