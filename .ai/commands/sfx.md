@@ -109,9 +109,9 @@ python3 .ai/skills/mc-audio/scripts/sfx.py art/audio/<cue>.sfx --verify
 `--verify` re-synthesizes the spec, decodes the shipped `.ogg`, and compares
 them — so the check measures what the game plays rather than the pre-encode
 buffer. That is what makes the `.sfx` the source of truth in practice rather
-than by convention; `sfx.py --verify-all` runs the same check over every cue in
-`art/audio/`. A spec without a `"ships"` field is reported as unlinked, so add it
-whenever a cue ships.
+than by convention; `sfx.py --verify-all` runs the same check over every cue
+under `art/audio/`, at any depth. A spec without a `"ships"` field is reported as
+unlinked, so add it whenever a cue ships.
 
 Then wire the Minecraft side (see the `mc-audio` and `mc-registration` skills):
 
