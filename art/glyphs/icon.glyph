@@ -3,6 +3,8 @@
 # cyan gem studs at the four cardinals. Self-contained: the frame is computed
 # and the exact chest art is baked in, so glyph.py renders it with no compositing.
 size: 512
+kind: icon
+ships: art/icon-512.png
 
 legend:
   . transparent

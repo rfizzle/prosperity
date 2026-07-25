@@ -4,8 +4,17 @@
 # itself is already Prosperity's static glyph (§5), so this marker is a sparkle,
 # not another chest, to stay distinct.
 size: 16
+kind: sprite
 frametime: 5          # ticks/frame → ~1s full twinkle cycle
 interpolate: false
+
+# No 'ships:' target. This is a code-bound overlay, so it ships as standalone
+# per-frame PNGs (--split-frames → overlay/unlooted_0.png … _3.png) rather than a
+# strip + .mcmeta. --verify-all checks every animated spec as a strip, so a 'ships:'
+# line here would report drift against frames that are in fact correct. Render with:
+#   glyph.py art/glyphs/unlooted-sparkle.glyph --split-frames \
+#     -o src/main/resources/assets/prosperity/textures/overlay/unlooted.png
+# Add --verify to that command to check the shipped frames instead of writing them.
 
 legend:
   . transparent

@@ -3,6 +3,8 @@
 # programmatic accent; the centered chest watermark is drawn in code
 # (a 9-slice center is stretched, so it cannot be baked here).
 size: 64
+kind: ui
+ships: src/main/resources/assets/prosperity/textures/gui/loot_detail_panel.png
 
 legend:
   K #0a0a0a
