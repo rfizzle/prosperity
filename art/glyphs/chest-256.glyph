@@ -2,6 +2,8 @@
 # Exact transcription of the 256px master art/chest-256.png: an open treasure chest
 # overflowing with gold coins and a diamond-cyan gem. Re-run to refresh from the master.
 size: 256
+kind: sprite
+ships: art/chest-256.png
 
 legend:
   . transparent
