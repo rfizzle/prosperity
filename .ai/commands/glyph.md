@@ -226,8 +226,8 @@ python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph --verify
 
 `--verify` re-renders the spec and compares it against the shipped master pixel
 for pixel (and the `.mcmeta` for an animated strip), which is what makes the
-`.glyph` the source of truth in practice rather than by convention — `make
-art-verify` runs the same check over every spec in the repo. A spec without a
+`.glyph` the source of truth in practice rather than by convention —
+`glyph.py --verify-all` runs the same check over every spec in `art/glyphs/`. A spec without a
 `ships:` line is reported as unlinked and nothing holds it to its asset, so add
 it whenever a glyph ships.
 
