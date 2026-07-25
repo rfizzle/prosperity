@@ -21,7 +21,16 @@ A texture is conformant when it:
 - **uses the design-system palette** — reference colors as named tokens, never raw hex
   (`python3 .ai/skills/mc-textures/scripts/glyph.py --list-colors` dumps them: shared neutrals like `ink`,
   `bone`, `gold`, plus per-mod accents like `mercantile.emerald`). A mod's accents never
-  appear in another mod's art.
+  appear in another mod's art. The tonal steps a shaded surface needs are **ramp
+  steps off those tokens** — `emerald+1` toward the highlight, `emerald-2` toward
+  shadow — so shading stays inside the palette instead of scattering raw hex through
+  the legend. `--ramp <token>` prints a ready-made ramp as paste-ready legend lines, and
+  `--snap-palette` reports the nearest token for each raw-hex entry in an existing legend;
+  steps cool and saturate going down, warm and pale going up, which is what makes a
+  ramp read as light on a form rather than as a dimmer switch. A raw-hex legend entry
+  draws a note; a master that genuinely sits outside the system — a transcribed
+  raster, a hand-painted neutral like `examples/skull-shaded.glyph` — says so with
+  `palette: free` instead of quietly ignoring the rule.
 - **reads as Minecraft** — sits naturally beside vanilla sprites at the same size. Wrap
   the motif in an `ink` (`#0a0a0a`) 1px outline so it reads against any background.
   Silhouette first, detail second.
@@ -44,9 +53,16 @@ so the centered-motif and transparent-margin rules above are *sprite* rules. A b
 - **Side faces tile and join at the corners.** Design the sides as one texture whose **right
   edge continues into its left edge** and **top into bottom** with no visible seam when
   copies sit adjacent. Going around the block, each side's right edge meets the next side's
-  left edge — so a side that tiles cleanly left-to-right also corners cleanly. Verify with
-  `--tile-preview`: it renders a 2×2 tiled `@2x2.png` — read it back and check the seams
-  and the shared corner.
+  left edge — so a side that tiles cleanly left-to-right also corners cleanly. Every
+  `kind: block` texture is measured for this automatically: the render reports what share
+  of each join jumps beyond the texture's own interior gradients, and warns past a quarter
+  of the join's length. Note that a *hard* edge at the seam is not itself a fault — vertical
+  stripes tile perfectly — which is why the seam is judged against the jumps the texture
+  already contains rather than against zero. `--tile-preview` adds two pictures: a 2×2
+  `@2x2.png` (does the pattern repeat and corner correctly) and a seam-centred `@seam.png`
+  (the texture rolled by half, so both joins cross the middle of the image — a seam shows
+  up there as a line through the centre). A full-bleed face that never repeats is a
+  `kind: cap` (a block top or bottom) or a `kind: ui` (a panel), not a block.
 - **Top and bottom are separate textures**, not the side repeated. Design them to agree with
   the **top and bottom edges of the side faces** so the seam where a side meets the cap
   reads continuously — the side's top trim lines up with the top face's perimeter, and
@@ -54,6 +70,24 @@ so the centered-motif and transparent-margin rules above are *sprite* rules. A b
 
 `examples/block-stone-bricks.glyph` is a tileable **side** reference (running-bond brick:
 the offset courses carry the bond across the left/right seam and corners).
+
+## Say what the texture is
+
+Every spec declares a **`kind:`** — `sprite`, `block`, `cap`, `ui`, or `icon` — because
+the same pixels mean different things and each kind earns different checks
+(`--list-kinds` prints the table):
+
+| kind | what it is | checked for |
+|---|---|---|
+| `sprite` | a centred motif on transparency — items, HUD glyphs, pips | transparent margin, `ink` outline, flat fill |
+| `block` | a tiling side face; repeats against copies of itself | full bleed, seam continuity, flat fill |
+| `cap` | a single full-bleed face that never tiles — a block top or bottom | full bleed, flat fill |
+| `ui` | a panel, plate, or 9-slice frame | nothing geometric — a flat field is the design |
+| `icon` | mod, store, or hero art, read in a launcher rather than on a HUD | flat fill |
+
+A spec with no `kind:` is classified from its edge geometry, which cannot tell a tiling
+block from a cap or a UI plate — they all bleed — so it gets a note asking for the
+declaration and only the checks that hold regardless.
 
 ## The pipeline
 
@@ -83,12 +117,22 @@ reference: four pulse frames + `frametime:`).
 G=.ai/skills/mc-textures/scripts/glyph.py
 python3 $G SPEC.glyph                  # render + preview
 python3 $G --list-colors              # named palette
+python3 $G --ramp mercantile.emerald  # tonal ramp as legend lines
 python3 $G SPEC.glyph --scale-to 128 -o out-128.png   # upscaled master
+python3 $G SPEC.glyph --verify        # shipped master still matches the spec?
 python3 $G --from-png MASTER.png      # raster -> .glyph spec (transcription)
 ```
 
 Always **read the rendered `@Nx` preview back** and judge it honestly against the motif,
-then iterate the grid — fixing pixel art is fast (edit the `.glyph`, re-run).
+then iterate the grid — fixing pixel art is fast (edit the `.glyph`, re-run). The render
+also measures the grid against this quality bar and says where it falls short. **Warnings**
+are quality-bar violations — a surface left as a flat fill, a silhouette with no `ink`
+outline, an edge that is half sprite and half block, a join that would seam when tiled, an
+animation frame identical to the one before it, a legend borrowing another mod's accent.
+**Notes** are advisory — raw hex where a token would do, a missing `kind:`. Fix the
+warnings; work through the notes as you touch the art. It reports the motif's detached pieces too — a
+glint or a hanging link is deliberate, a stray pixel is not, and only you can tell which
+you meant.
 
 ## Generated specs: `.gen.py` authoring
 
@@ -151,16 +195,25 @@ the only committed copy (web `docs/` copies are likewise rendered from the spec)
 `.glyph` re-renders reproducibly, so re-touching a texture means editing the spec and
 re-rendering — never hand-patching pixels.
 
+Every spec carries a **`ships:`** line naming that shipped path — one per shipped file,
+so a size ladder declares each tier (`ships: docs/img/icon-128.png 128`) — and that is
+what holds the rule up: `glyph.py SPEC.glyph --verify` re-renders the spec and compares
+it pixel for pixel against the assets that shipped, and `make art-verify` runs that
+across the whole repo. A hand-patched PNG, a stale asset behind an edited spec, or a `.mcmeta` whose
+frametime no longer matches all fail the check. A spec with no `ships:` line is reported
+as unlinked — it has no declared deliverable, so nothing holds it to anything.
+
 ## Quick checklist
 
-- [ ] Pixel art: hard edges, limited palette, design-system named tokens, no foreign
-      mod's accents
+- [ ] Pixel art: hard edges, limited palette, design-system named tokens (ramp steps
+      for the tonal range, not raw hex), no foreign mod's accents
 - [ ] `ink` outline, single centered motif, legible at native size
 - [ ] Rendered via `.ai/skills/mc-textures/scripts/glyph.py`; preview read back and judged
 - [ ] Animated? Strip + `.mcmeta` only when the atlas animates it; a code-bound texture
       ships `--split-frames` standalone frames (no strip, no `.mcmeta`)
 - [ ] `.glyph` source committed in `art/glyphs/`; the shipping master in
       `assets/<mod>/textures/…` (renders in `art/glyphs/` are gitignored throwaways)
+- [ ] `ships:` names that shipping path, and `--verify` passes on it
 - [ ] Generated spec? The `.gen.py` committed beside the `.glyph` it emits; edits go
       through the generator, never the emitted grid
 - [ ] Derived web `docs/` copies re-rendered from the spec, not hand-copied
