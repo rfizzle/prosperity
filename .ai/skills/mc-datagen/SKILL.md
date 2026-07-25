@@ -348,9 +348,12 @@ Each guard above earns its place:
 - **Declare the configuration-cache incompatibility.** The check reads
   live working-tree state, which Gradle cannot model as task inputs.
   Declaring it keeps the intent explicit rather than leaving a hard
-  failure for whoever enables the cache. Note that marking any task
-  incompatible disables configuration-cache storing for the whole
-  build invocation.
+  failure for whoever enables the cache. The marker only discards the
+  configuration-cache entry for invocations whose task graph actually
+  contains this task; builds that never schedule it store and reuse
+  their entries normally. The contained cost is smaller still — the
+  task `dependsOn runDatagen`, which forks a Minecraft server, so any
+  invocation that schedules it was never going to be cache-fast anyway.
 - **The check is only as good as what git tracks.** If
   `src/main/generated/` is gitignored or has never been committed, git
   reports nothing and the verification silently passes. Committing
