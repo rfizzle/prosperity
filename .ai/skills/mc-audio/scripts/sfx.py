@@ -980,7 +980,10 @@ def main(argv=None):
             print(w)
         return 0
 
-    if args.verify_all:
+    # `is not None`, not truthiness: the question is whether the flag was
+    # given, and an empty DIR would otherwise fall through to the render
+    # path and complain about a missing spec.
+    if args.verify_all is not None:
         checked, drifted, unlinked = verify_tree(args.verify_all, args.verbose)
         print(f"  {checked} verified, {drifted} drifted, {unlinked} unlinked")
         return 1 if drifted else 0
