@@ -12,9 +12,11 @@ The model can't hear the result, so the report is the feedback loop: read the
 shape back, check the numbers, iterate the spec. The final ear-check is a human's.
 
 Synthesis is stdlib-only (`math`, `array`, `wave`, `zlib`) so it runs anywhere
-Python 3 does. The single external tool is **ffmpeg**, used only to encode the
-rendered WAV to Ogg Vorbis (`-c:a libvorbis`) — Minecraft needs `.ogg`. If ffmpeg
-is absent the WAV and report are still written and the script says so.
+Python 3 does. The single external tool is **ffmpeg**, used to encode the
+rendered WAV to Ogg Vorbis (`-c:a libvorbis`) — Minecraft needs `.ogg` — and to
+decode a shipped cue back for `--verify`. Without ffmpeg the WAV and report are
+still written, but the run exits non-zero: the `.ogg` is the deliverable, and a
+render that produced none has not succeeded.
 
 SPEC FORMAT
 -----------
@@ -23,11 +25,25 @@ A `.sfx` file is JSON. Top-level fields (all optional except `layers`):
     {
       "name": "pylon-alarm",      # output basename (default: spec filename stem)
       "sample_rate": 44100,       # 44100 or 48000
-      "peak_dbfs": -1.0,          # normalize so the loudest peak hits this (headroom)
+      "loudness_lufs": -14.0,     # target perceived loudness (null = peak-only)
+      "peak_dbfs": -1.0,          # ceiling the loudness match may not exceed
       "subtitle": "mercantile.subtitle.pylon_alarm",  # accessibility key (reminder only)
       "seed": 1234,               # seeds noise so renders are reproducible
+      "ships": "src/main/resources/assets/mercantile/sounds/pylon_alarm.ogg",
       "layers": [ ... ]           # one or more synthesis layers, mixed together
     }
+
+`loudness_lufs` is what makes cues sit together in game. Peak normalization
+alone does not: a square-wave klaxon and a sine blip both peaked at -1 dBFS
+differ by ~10 dB to the ear, so one buries vanilla and the other hides under it.
+Cues are matched on K-weighted loudness (ITU-R BS.1770) with `peak_dbfs` kept
+only as a ceiling — a spiky cue that hits the ceiling before reaching the target
+says so rather than being silently quiet.
+
+`ships` records where the encoded master belongs in the mod's resource tree. It
+is what `--verify` checks against, and what makes the repeatability rule
+enforceable: the `.sfx` is the source of truth, the shipped `.ogg` is derived,
+and drift between them is now a build failure rather than a silent edit.
 
 Each layer:
 
@@ -59,11 +75,15 @@ extends a note past its `duration`. Total cue length is inferred from the layers
 
 USAGE
 -----
-    python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx               # -> SPEC.ogg + SPEC.wav + SPEC.report.png + stats
+    python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx               # -> SPEC.ogg + SPEC.report.png + stats
     python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx -o art/audio/alarm.ogg
     python3 .ai/skills/mc-audio/scripts/sfx.py - < SPEC.sfx           # spec on stdin
     python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx --no-report   # skip the PNG
+    python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx --verify      # shipped cue still matches the spec? (uses ships)
     python3 .ai/skills/mc-audio/scripts/sfx.py --list-waveforms       # available oscillators
+
+Exits non-zero when it could not write the `.ogg` — that file is the
+deliverable, so a run that produced only the WAV fallback has not succeeded.
 """
 
 import argparse
@@ -86,8 +106,16 @@ WAVEFORMS = ("sine", "square", "triangle", "saw", "noise")
 DEFAULTS = {
     "sample_rate": 44100,
     "peak_dbfs": -1.0,
+    "loudness_lufs": -14.0,
     "seed": 0,
 }
+# How far a cue may sit from the loudness target before it is worth saying so.
+LOUDNESS_TOLERANCE_DB = 1.0
+# DC offset, as a share of peak, past which a cue is worth flagging. A pulse
+# wave carries an offset by construction — it grows as the duty leaves 50% —
+# so the bar sits above what the reference cues measure (klaxon 28%, chiptune
+# 14%) and catches only the levels a bare thin pulse reaches (duty 0.25 is 48%).
+DC_OFFSET_WARN_PCT = 40.0
 DEFAULT_ENV = {"attack": 0.005, "decay": 0.04, "sustain": 1.0, "release": 0.04}
 
 
@@ -115,6 +143,12 @@ def parse_spec(text):
     spec["peak_dbfs"] = float(spec.get("peak_dbfs", DEFAULTS["peak_dbfs"]))
     if spec["peak_dbfs"] > 0:
         raise SpecError("peak_dbfs must be <= 0 (it is dB below full scale)")
+    target = spec.get("loudness_lufs", DEFAULTS["loudness_lufs"])
+    if target is not None:
+        target = float(target)
+        if target > 0:
+            raise SpecError("loudness_lufs must be <= 0 (it is dB below full scale)")
+    spec["loudness_lufs"] = target
     spec["seed"] = int(spec.get("seed", DEFAULTS["seed"]))
     return spec
 
@@ -140,17 +174,47 @@ def _glide_freq(note, t, dur):
 # Synthesis
 # --------------------------------------------------------------------------- #
 
-def _osc(waveform, phase, rng, duty=0.5):
+def _poly_blep(t, dt):
+    """Polynomial band-limited step correction around a discontinuity.
+
+    A square or saw built by direct waveshaping has instantaneous jumps, whose
+    harmonics run past Nyquist and fold back down as inharmonic partials — a
+    5 kHz saw at 44.1 kHz lands audible junk at 19 kHz. PolyBLEP smears each
+    jump across the two samples either side of it, which cancels most of that
+    fold-back while leaving the waveform's shape (and its duty) intact.
+    """
+    if t < dt:
+        t /= dt
+        return t + t - t * t - 1.0
+    if t > 1.0 - dt:
+        t = (t - 1.0) / dt
+        return t * t + t + t + 1.0
+    return 0.0
+
+
+def _osc(waveform, phase, rng, duty=0.5, dt=0.0):
+    """One oscillator sample. `dt` is the phase increment per sample (freq/sr),
+    which the band-limited waveforms need to size their step correction."""
     if waveform == "sine":
         return math.sin(phase)
+    frac = (phase / (2 * math.pi)) % 1.0
+    # dt >= 0.5 means the fundamental is at or above Nyquist; there is nothing
+    # left to band-limit, so fall through to the naive shape.
+    blep = 0.0 < dt < 0.5
     if waveform == "square":
-        frac = (phase / (2 * math.pi)) % 1.0
-        return 1.0 if frac < duty else -1.0
+        v = 1.0 if frac < duty else -1.0
+        if blep:
+            v += _poly_blep(frac, dt)                       # rising edge at 0
+            v -= _poly_blep((frac + 1.0 - duty) % 1.0, dt)  # falling edge at duty
+        return v
     if waveform == "saw":
-        frac = (phase / (2 * math.pi)) % 1.0
-        return 2.0 * frac - 1.0
+        v = 2.0 * frac - 1.0
+        if blep:
+            v -= _poly_blep(frac, dt)
+        return v
     if waveform == "triangle":
-        frac = (phase / (2 * math.pi)) % 1.0
+        # Triangle's harmonics roll off at 12 dB/octave (vs 6 for square/saw),
+        # so its aliasing sits far enough down to leave the naive shape alone.
         return 4.0 * abs(frac - 0.5) - 1.0
     if waveform == "noise":
         return rng.uniform(-1.0, 1.0)
@@ -231,7 +295,7 @@ def _render_note(note, waveform, env, filt, gain, sr, rng, duty=0.5, vibrato=Non
         f = _glide_freq(note, t, body_t)
         if vibrato:
             f *= 2.0 ** (vib_depth * math.sin(2 * math.pi * vib_rate * t) / 12.0)
-        buf[i] = _osc(waveform, phase, rng, duty)
+        buf[i] = _osc(waveform, phase, rng, duty, f / sr)
         phase += 2 * math.pi * f / sr
     eg = _envelope(n, sr, env, tail)
     for i in range(n):
@@ -247,15 +311,31 @@ def _render_note(note, waveform, env, filt, gain, sr, rng, duty=0.5, vibrato=Non
     return [x * g for x in buf], n
 
 
-def synthesize(spec):
-    """Mix all layers into a single float buffer. Returns (samples, sample_rate)."""
+def _note_rng(seed, layer, rep_i, note_i):
+    """A stable RNG for one rendered note, keyed by the layer's own definition.
+
+    Every noise-bearing note draws from its own stream. A single shared stream
+    consumed in render order would mean adding or reordering a noise layer
+    silently re-rolled every later one — the spec would still be reproducible,
+    but editing it would not be *safe*, which is the property that matters while
+    iterating. Keying on the layer's content rather than its index extends that
+    to insertion: only editing a layer changes that layer's noise. `rep_i` and
+    `note_i` keep a repeated layer from firing the same burst twice, and crc32
+    keeps the key stable across runs, unlike `hash()` on a string.
+    """
     import random
 
+    ident = json.dumps(layer, sort_keys=True, separators=(",", ":"))
+    key = f"{seed}:{ident}:{rep_i}:{note_i}".encode()
+    return random.Random(zlib.crc32(key))
+
+
+def synthesize(spec):
+    """Mix all layers into a single float buffer. Returns (samples, sample_rate)."""
     sr = spec["sample_rate"]
-    rng = random.Random(spec["seed"])
     rendered = []  # (offset_samples, float_buffer)
     end = 0
-    for layer in spec["layers"]:
+    for layer_i, layer in enumerate(spec["layers"]):
         waveform = layer.get("waveform", "sine")
         env = _env(layer)
         filt = layer.get("filter")
@@ -274,7 +354,8 @@ def synthesize(spec):
         layer_start = float(layer.get("start", 0.0))
         for r in range(count):
             base = layer_start + r * interval
-            for note in notes:
+            for note_i, note in enumerate(notes):
+                rng = _note_rng(spec["seed"], layer, r, note_i)
                 buf, n = _render_note(note, waveform, env, filt, gain, sr, rng,
                                       duty, note.get("vibrato", vibrato))
                 off = int((base + float(note.get("start", 0.0))) * sr)
@@ -296,6 +377,90 @@ def normalize(samples, peak_dbfs):
     return [x * scale for x in samples], scale
 
 
+def _biquad(samples, b, a):
+    """Direct-form-I biquad. `b`/`a` are 3-tuples; a[0] normalizes the rest."""
+    b0, b1, b2 = (c / a[0] for c in b)
+    a1, a2 = a[1] / a[0], a[2] / a[0]
+    x1 = x2 = y1 = y2 = 0.0
+    out = [0.0] * len(samples)
+    for i, x in enumerate(samples):
+        y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+        out[i] = y
+        x2, x1 = x1, x
+        y2, y1 = y1, y
+    return out
+
+
+def k_weighting_coeffs(sr):
+    """ITU-R BS.1770 K-weighting biquads for `sr`: (shelf_b, shelf_a, hp_b, hp_a).
+
+    Derived from the standard's filter parameters via the bilinear transform, so
+    any sample rate works — the coefficient tables published in BS.1770 itself
+    are 48 kHz only, and reproducing them at 48 kHz is how this is tested.
+    """
+    # Stage 1 — the "head effect" high shelf, ~+4 dB above 1.7 kHz.
+    fc, q, gain_db = 1681.974450955533, 0.7071752369554196, 3.999843853973347
+    k = math.tan(math.pi * fc / sr)
+    vh = 10 ** (gain_db / 20.0)
+    vb = vh ** 0.4996667741545416
+    denom = 1.0 + k / q + k * k
+    shelf_b = ((vh + vb * k / q + k * k) / denom,
+               2.0 * (k * k - vh) / denom,
+               (vh - vb * k / q + k * k) / denom)
+    shelf_a = (1.0,
+               2.0 * (k * k - 1.0) / denom,
+               (1.0 - k / q + k * k) / denom)
+    # Stage 2 — the RLB high-pass at ~38 Hz.
+    fc, q = 38.13547087602444, 0.5003270373238773
+    k = math.tan(math.pi * fc / sr)
+    denom = 1.0 + k / q + k * k
+    hp_b = (1.0, -2.0, 1.0)
+    hp_a = (1.0, 2.0 * (k * k - 1.0) / denom, (1.0 - k / q + k * k) / denom)
+    return shelf_b, shelf_a, hp_b, hp_a
+
+
+def _k_weight(samples, sr):
+    shelf_b, shelf_a, hp_b, hp_a = k_weighting_coeffs(sr)
+    return _biquad(_biquad(samples, shelf_b, shelf_a), hp_b, hp_a)
+
+
+def measure_loudness(samples, sr):
+    """Ungated K-weighted loudness, in LUFS.
+
+    BS.1770's block gating exists to stop silence dragging down a long
+    programme's average; an SFX cue is shorter than one 400 ms gating block and
+    is trimmed to its transient anyway, so the ungated mean square over the whole
+    cue is the honest measure here.
+    """
+    if not samples:
+        return -float("inf")
+    y = _k_weight(samples, sr)
+    ms = sum(v * v for v in y) / len(y)
+    return -0.691 + 10 * math.log10(ms) if ms > 0 else -float("inf")
+
+
+def normalize_loudness(samples, sr, target_lufs, peak_ceiling_dbfs):
+    """Scale to `target_lufs`, then pull back if that would break the peak ceiling.
+
+    Peak normalization alone does not deliver a consistent perceived level: a
+    square-wave klaxon and a sine blip both peak-normalized to -1 dBFS differ by
+    ~10 dB to the ear, so one buries vanilla and the other hides under it.
+    Matching loudness and keeping the peak only as a ceiling is what makes cues
+    sit together. Returns (samples, measured_lufs, scale, peak_limited_by_db).
+    """
+    measured = measure_loudness(samples, sr)
+    if measured == -float("inf"):
+        return samples, measured, 1.0, 0.0
+    scale = 10 ** ((target_lufs - measured) / 20.0)
+    peak = max((abs(x) for x in samples), default=0.0) * scale
+    ceiling = 10 ** (peak_ceiling_dbfs / 20.0)
+    limited = 0.0
+    if peak > ceiling:
+        limited = 20 * math.log10(peak / ceiling)
+        scale *= ceiling / peak
+    return [x * scale for x in samples], measured, scale, limited
+
+
 # --------------------------------------------------------------------------- #
 # Output: WAV + ffmpeg OGG
 # --------------------------------------------------------------------------- #
@@ -315,12 +480,83 @@ def write_wav(path, samples, sr):
 
 
 def encode_ogg(wav_path, ogg_path, quality=5):
-    """Encode WAV -> Ogg Vorbis via ffmpeg. Returns True on success."""
+    """Encode WAV -> Ogg Vorbis via ffmpeg.
+
+    Returns (ok, reason) — reason distinguishes a missing ffmpeg from one that
+    ran and failed, because the fixes are different.
+    """
     if not shutil.which("ffmpeg"):
-        return False
+        return False, "ffmpeg is not installed"
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav_path),
            "-c:a", "libvorbis", "-q:a", str(quality), "-ac", "1", str(ogg_path)]
-    return subprocess.run(cmd).returncode == 0
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode == 0:
+        return True, ""
+    detail = (proc.stderr or "").strip().splitlines()
+    return False, f"ffmpeg failed: {detail[-1] if detail else 'no output'}"
+
+
+def decode_audio(path, sr):
+    """Decode an encoded cue back to mono float samples at `sr`, via ffmpeg.
+
+    This is how the shipped `.ogg` gets measured rather than assumed: every
+    stat before this point describes the pre-encode float buffer, and Vorbis is
+    lossy. Returns None when ffmpeg can't produce samples.
+    """
+    if not shutil.which("ffmpeg"):
+        return None
+    cmd = ["ffmpeg", "-v", "error", "-i", str(path),
+           "-f", "s16le", "-ac", "1", "-ar", str(sr), "-"]
+    proc = subprocess.run(cmd, capture_output=True)
+    if proc.returncode != 0 or not proc.stdout:
+        return None
+    pcm = array.array("h")
+    pcm.frombytes(proc.stdout[: len(proc.stdout) // 2 * 2])
+    if sys.byteorder == "big":
+        pcm.byteswap()
+    return [v / 32768.0 for v in pcm]
+
+
+# Tolerances for --verify. Vorbis is lossy, so a shipped cue never matches the
+# synth sample-for-sample; these bound how far the encode may move each measure
+# before the file stops being the spec's cue. Generous enough that a re-encode
+# passes, tight enough that a different cue fails.
+VERIFY_TOLERANCE = {
+    "duration_s": 0.02,
+    "peak_dbfs": 1.5,       # Vorbis overshoots; a clean re-encode moves ~0.5 dB
+    "loudness_lufs": 1.0,
+    # Fractional. Vorbis discards high-frequency detail, which pulls the
+    # centroid down several percent on every encode — and further at a low
+    # -q:a — so this is the loosest of the four by necessity. Duration, peak,
+    # and loudness are what actually discriminate one cue from another.
+    "centroid_hz": 0.18,
+}
+
+
+def verify_render(shipped, samples, sr, stats):
+    """Compare a shipped cue against what the spec synthesizes right now.
+
+    Returns a list of human-readable mismatches — empty means the shipped `.ogg`
+    still is what the `.sfx` describes.
+    """
+    if not Path(shipped).exists():
+        return [f"{shipped}: missing — the spec renders it, nothing ships it"]
+    got = decode_audio(shipped, sr)
+    if got is None:
+        return [f"{shipped}: could not be decoded for comparison "
+                f"(ffmpeg missing or the file is not audio)"]
+    got_stats = compute_stats(got, sr)
+    problems = []
+    for key, tol in VERIFY_TOLERANCE.items():
+        a, b = got_stats[key], stats[key]
+        limit = tol * max(abs(b), 1e-9) if key == "centroid_hz" else tol
+        if abs(a - b) > limit:
+            unit = {"duration_s": "s", "peak_dbfs": "dBFS",
+                    "loudness_lufs": "LUFS", "centroid_hz": "Hz"}[key]
+            problems.append(
+                f"{shipped}: {key.rsplit('_', 1)[0]} is {a:.3f} {unit}, the spec "
+                f"renders {b:.3f} {unit} (tolerance {limit:.3f})")
+    return problems
 
 
 # --------------------------------------------------------------------------- #
@@ -343,16 +579,28 @@ def _fft(a):
 
 
 def _stft(samples, win=1024, hop=512):
-    """Magnitude spectra per frame. Returns (frames, bins) where bins = win/2."""
+    """Magnitude spectra per frame. Returns (frames, bins) where bins = win/2.
+
+    Each frame is mean-removed before windowing. A waveform with a DC offset —
+    a thin-duty square is the usual source — otherwise dumps its offset into
+    bin 0, and the window leaks that into bin 1, painting a bright band along
+    the bottom of the spectrogram and dragging the spectral centroid toward
+    zero. Neither is audible content, so neither belongs in the analysis.
+    """
     window = [0.5 - 0.5 * math.cos(2 * math.pi * i / (win - 1)) for i in range(win)]
     frames = []
     n = len(samples)
     pos = 0
     while pos < n:
         chunk = samples[pos:pos + win]
+        # Measure the offset on the real samples, then pad with it rather than
+        # with zero: padding a cue that sits above zero with silence would fake
+        # a step discontinuity in the last frame and smear broadband energy
+        # across it.
+        dc = sum(chunk) / len(chunk) if chunk else 0.0
         if len(chunk) < win:
-            chunk = chunk + [0.0] * (win - len(chunk))
-        windowed = [chunk[i] * window[i] for i in range(win)]
+            chunk = chunk + [dc] * (win - len(chunk))
+        windowed = [(chunk[i] - dc) * window[i] for i in range(win)]
         spec = _fft(windowed)
         frames.append([abs(spec[k]) for k in range(win // 2)])
         pos += hop
@@ -383,10 +631,20 @@ def compute_stats(samples, sr):
     lead = next((i for i, x in enumerate(samples) if abs(x) >= thresh), n)
     tail = next((i for i, x in enumerate(reversed(samples)) if abs(x) >= thresh), n)
 
+    # DC offset — the mix's mean sample. Inaudible alone, but it displaces the
+    # whole waveform: several offset cues playing at once sum their offsets and
+    # eat master headroom, and a cue cut before its release can click. Real chip
+    # hardware AC-couples its output, so removing it is also the more faithful
+    # rendering of a pulse wave, not a departure from one.
+    dc = sum(samples) / n if n else 0.0
+
     return {
         "duration_s": n / sr if sr else 0.0,
         "peak_dbfs": dbfs(peak),
         "rms_dbfs": dbfs(rms),
+        "loudness_lufs": measure_loudness(samples, sr),
+        "dc_offset": dc,
+        "dc_pct": 100.0 * abs(dc) / peak if peak > 0 else 0.0,
         "centroid_hz": centroid,
         "lead_silence_s": lead / sr if sr else 0.0,
         "tail_silence_s": tail / sr if sr else 0.0,
@@ -422,6 +680,45 @@ def _write_png_rgba(path, buf, width, height):
     Path(path).write_bytes(body)
 
 
+# A 3×5 pixel font, just wide enough to label the report's axes. Each glyph is
+# five rows of three bits, high bit leftmost. Without labels the report is a
+# picture with no scale on it — you can see that something rises, but not from
+# what to what, which is most of what there is to judge.
+_FONT = {
+    "0": (0b111, 0b101, 0b101, 0b101, 0b111),
+    "1": (0b010, 0b110, 0b010, 0b010, 0b111),
+    "2": (0b111, 0b001, 0b111, 0b100, 0b111),
+    "3": (0b111, 0b001, 0b111, 0b001, 0b111),
+    "4": (0b101, 0b101, 0b111, 0b001, 0b001),
+    "5": (0b111, 0b100, 0b111, 0b001, 0b111),
+    "6": (0b111, 0b100, 0b111, 0b101, 0b111),
+    "7": (0b111, 0b001, 0b010, 0b010, 0b010),
+    "8": (0b111, 0b101, 0b111, 0b101, 0b111),
+    "9": (0b111, 0b101, 0b111, 0b001, 0b111),
+    ".": (0b000, 0b000, 0b000, 0b000, 0b010),
+    "-": (0b000, 0b000, 0b111, 0b000, 0b000),
+    "+": (0b000, 0b010, 0b111, 0b010, 0b000),
+    ":": (0b000, 0b010, 0b000, 0b010, 0b000),
+    " ": (0b000, 0b000, 0b000, 0b000, 0b000),
+    "k": (0b100, 0b101, 0b110, 0b101, 0b101),
+    "H": (0b101, 0b101, 0b111, 0b101, 0b101),
+    "z": (0b000, 0b111, 0b001, 0b010, 0b111),
+    "s": (0b000, 0b011, 0b110, 0b011, 0b110),
+    "m": (0b000, 0b111, 0b111, 0b101, 0b101),
+    "d": (0b001, 0b001, 0b111, 0b101, 0b111),
+    "B": (0b110, 0b101, 0b110, 0b101, 0b110),
+    "F": (0b111, 0b100, 0b110, 0b100, 0b100),
+    "S": (0b011, 0b100, 0b010, 0b001, 0b110),
+    "L": (0b100, 0b100, 0b100, 0b100, 0b111),
+    "U": (0b101, 0b101, 0b101, 0b101, 0b111),
+}
+_FONT_W, _FONT_H = 3, 5
+
+
+def _text_width(text, scale=1, spacing=1):
+    return len(text) * (_FONT_W + spacing) * scale - spacing * scale
+
+
 def _heat(v):
     """Map 0..1 to a black->purple->red->yellow->white heat ramp (R,G,B)."""
     v = max(0.0, min(1.0, v))
@@ -435,12 +732,39 @@ def _heat(v):
             int(a[2] + (b[2] - a[2]) * f))
 
 
-def write_report(path, samples, sr, stats):
-    W, H = 900, 520
-    wave_h, gap = 200, 20
-    spec_top = wave_h + gap
-    spec_h = H - spec_top
+def _layer_onsets(spec):
+    """Every moment a layer (or one of its repeats) starts, in seconds.
+
+    Marking these on the waveform is what turns "the shape looks about right"
+    into a check: the spec says a layer lands at 0.3 s, and the picture shows
+    whether anything actually happens there.
+    """
+    onsets = []
+    for layer in spec.get("layers", []):
+        start = float(layer.get("start", 0.0))
+        rep = layer.get("repeat") or {}
+        count = max(1, int(rep.get("count", 1)))
+        interval = float(rep.get("interval", 0.0))
+        for r in range(count):
+            onsets.append(start + r * interval)
+    return sorted(set(onsets))
+
+
+# Frequency gridlines, chosen to read on a log axis across the audible band.
+_FREQ_TICKS = (100, 200, 500, 1000, 2000, 5000, 10000, 20000)
+_SPEC_FLOOR_DB = -60.0  # spectrogram black point
+
+
+def write_report(path, samples, sr, stats, spec=None):
+    W, H = 900, 576
+    left, right_pad = 44, 8          # gutter for the axis labels
+    head_h, wave_h, gap, axis_h = 16, 190, 34, 16
+    plot_w = W - left - right_pad
+    spec_top = head_h + wave_h + gap
+    spec_h = H - spec_top - axis_h
     bg = (18, 18, 22, 255)
+    grid = (58, 58, 68, 255)
+    label = (150, 150, 165, 255)
     buf = bytearray(bg * (W * H))
 
     def px(x, y, rgba):
@@ -448,36 +772,125 @@ def write_report(path, samples, sr, stats):
             o = (y * W + x) * 4
             buf[o:o + 4] = bytes(rgba)
 
-    # --- waveform (top) ---
-    mid = wave_h // 2
+    def vline(x, y0, y1, rgba):
+        for y in range(max(0, y0), min(H, y1)):
+            px(x, y, rgba)
+
+    def hline(y, x0, x1, rgba):
+        for x in range(max(0, x0), min(W, x1)):
+            px(x, y, rgba)
+
+    def text(s, x, y, rgba, scale=1):
+        """Draw `s` with its top-left at (x, y). Unknown chars render blank."""
+        cx = x
+        for ch in s:
+            rows = _FONT.get(ch, _FONT[" "])
+            for ry, bits in enumerate(rows):
+                for cxi in range(_FONT_W):
+                    if bits & (1 << (_FONT_W - 1 - cxi)):
+                        for sy in range(scale):
+                            for sx in range(scale):
+                                px(cx + cxi * scale + sx, y + ry * scale + sy, rgba)
+            cx += (_FONT_W + 1) * scale
+        return cx
+
+    duration = stats["duration_s"] or (len(samples) / sr if sr else 0.0)
+
+    # --- waveform (top): amplitude against time, in dBFS-labelled thirds ---
+    top = head_h + 4
+    mid = top + wave_h // 2
+    half = wave_h // 2 - 2
+    for frac, tag in ((1.0, "0dBFS"), (0.5, "-6"), (0.0, "")):
+        y = mid - int(frac * half)
+        hline(y, left, W - right_pad, grid if frac else (78, 78, 90, 255))
+        if frac:
+            hline(mid + int(frac * half), left, W - right_pad, grid)
+        if tag:
+            text(tag, 2, y - _FONT_H, label, 2)
     n = len(samples)
-    for x in range(W):
-        lo = int(x * n / W)
-        hi = max(lo + 1, int((x + 1) * n / W))
+    for i in range(plot_w):
+        x = left + i
+        lo = int(i * n / plot_w)
+        hi = max(lo + 1, int((i + 1) * n / plot_w))
         seg = samples[lo:hi]
         smin = min(seg) if seg else 0.0
         smax = max(seg) if seg else 0.0
-        y0 = mid - int(smax * (mid - 2))
-        y1 = mid - int(smin * (mid - 2))
+        y0 = mid - int(smax * half)
+        y1 = mid - int(smin * half)
         for y in range(min(y0, y1), max(y0, y1) + 1):
             px(x, y, (90, 200, 160, 255))
-    for x in range(W):  # center line
-        px(x, mid, (70, 70, 80, 255))
 
-    # --- spectrogram (bottom) ---
+    # Layer onsets — dashed verticals over the waveform, so the timing the spec
+    # declares can be read against the sound that came out.
+    if spec and duration > 0:
+        for onset in _layer_onsets(spec):
+            if 0 < onset < duration:
+                x = left + int(onset / duration * plot_w)
+                for y in range(top, top + wave_h, 4):
+                    px(x, y, (120, 110, 200, 255))
+                    px(x, y + 1, (120, 110, 200, 255))
+
+    # --- time axis, shared by both panels ---
+    if duration > 0:
+        step = next(s for s in (0.05, 0.1, 0.25, 0.5, 1.0, 2.0)
+                    if duration / s <= 10) if duration > 0.05 else 0.01
+        t = 0.0
+        while t <= duration + 1e-9:
+            x = left + int(t / duration * plot_w)
+            vline(x, spec_top, spec_top + spec_h, (255, 255, 255, 40))
+            tag = f"{t:.2f}".rstrip("0").rstrip(".") or "0"
+            text(f"{tag}s", x - _text_width(f"{tag}s", 2) // 2,
+                 spec_top + spec_h + 4, label, 2)
+            t += step
+
+    # --- spectrogram (bottom): log frequency, dB magnitude ---
     frames = stats["frames"]
     if frames:
         bins = len(frames[0])
-        peak = max((max(fr) for fr in frames), default=1.0) or 1.0
-        for x in range(W):
-            fi = int(x * len(frames) / W)
+        bin_hz = sr / 2.0 / bins
+        # Normalize against audible content only. Bin 0 is DC, and a waveform
+        # with an offset (a thin-duty square, say) puts more energy there than
+        # anywhere else — letting it set the scale flattens the whole picture.
+        peak = max((max(fr[1:]) for fr in frames if len(fr) > 1), default=1.0) or 1.0
+        # Start the axis at the first real bin. Below it every row would resolve
+        # to bin 0 — DC plus window leakage — and paint a solid bright band that
+        # reads as sub-bass the cue does not contain.
+        f_min, f_max = max(40.0, bin_hz), sr / 2.0
+        log_min, log_max = math.log10(f_min), math.log10(f_max)
+
+        def y_of(freq):
+            """Row for a frequency — low at the bottom, log-spaced."""
+            frac = (math.log10(max(f_min, freq)) - log_min) / (log_max - log_min)
+            return spec_top + int((1.0 - frac) * (spec_h - 1))
+
+        for x in range(plot_w):
+            fi = min(len(frames) - 1, int(x * len(frames) / plot_w))
             fr = frames[fi]
             for y in range(spec_h):
-                b = int((1.0 - y / spec_h) * (bins - 1))  # low freq at bottom
+                # Invert y_of: which frequency this row shows, then which bin.
+                frac = 1.0 - y / max(1, spec_h - 1)
+                freq = 10 ** (log_min + frac * (log_max - log_min))
+                b = min(bins - 1, max(1, int(freq / bin_hz)))
                 mag = fr[b] / peak
-                val = math.log10(1 + 9 * mag)  # log compress
+                db = 20 * math.log10(mag) if mag > 0 else _SPEC_FLOOR_DB
+                val = max(0.0, min(1.0, (db - _SPEC_FLOOR_DB) / -_SPEC_FLOOR_DB))
                 r, g, bl = _heat(val)
-                px(x, spec_top + y, (r, g, bl, 255))
+                px(left + x, spec_top + y, (r, g, bl, 255))
+
+        for freq in _FREQ_TICKS:
+            if freq >= f_max:
+                continue
+            y = y_of(freq)
+            hline(y, left, W - right_pad, (255, 255, 255, 45))
+            tag = f"{freq // 1000}k" if freq >= 1000 else str(freq)
+            ty = min(max(y - _FONT_H, spec_top), spec_top + spec_h - _FONT_H * 2)
+            text(tag, 2, ty, label, 2)
+
+    # --- header: the numbers, so the picture carries its own scale ---
+    head = (f"{duration:.3f}s  peak {stats['peak_dbfs']:.1f}dBFS  "
+            f"{stats['loudness_lufs']:.1f}LUFS  centroid "
+            f"{stats['centroid_hz'] / 1000:.2f}kHz")
+    text(head.replace("centroid ", ""), left, 2, (125, 125, 140, 255), 2)
     _write_png_rgba(path, buf, W, H)
 
 
@@ -491,6 +904,12 @@ def main(argv=None):
     ap.add_argument("-o", "--output", help="output .ogg path (default: spec name)")
     ap.add_argument("--no-report", action="store_true", help="skip the waveform/spectrogram PNG")
     ap.add_argument("--ogg-quality", type=int, default=5, help="libvorbis -q:a (0..10, default 5)")
+    ap.add_argument("--verify", action="store_true",
+                    help="don't write: re-synthesize the spec and compare it "
+                         "against the shipped .ogg already at the output path, "
+                         "decoding that file so what is measured is what ships. "
+                         "Exits non-zero on drift — the CI form of the "
+                         "repeatability rule")
     ap.add_argument("--list-waveforms", action="store_true", help="print the oscillators and exit")
     args = ap.parse_args(argv)
 
@@ -517,6 +936,16 @@ def main(argv=None):
     name = spec.get("name") or stem
     if args.output:
         ogg_path = Path(args.output)
+    elif args.verify:
+        # `ships` records where the master lands in the mod's resource tree, so
+        # the spec knows its own deliverable and --verify can find it unaided.
+        # Without one there is no shipped cue to check — falling back to the
+        # gitignored render beside the spec would pass on a stale local file.
+        if not spec.get("ships"):
+            print(f"sfx: {args.spec} declares no 'ships' target and no -o was "
+                  f"given — nothing to verify against", file=sys.stderr)
+            return 1
+        ogg_path = Path(spec["ships"])
     elif args.spec != "-":
         ogg_path = Path(args.spec).with_suffix(".ogg")
     else:
@@ -524,46 +953,84 @@ def main(argv=None):
     base = ogg_path.with_suffix("")
     wav_path = base.with_suffix(".wav")
     report_path = base.with_name(base.name + ".report.png")
-    ogg_path.parent.mkdir(parents=True, exist_ok=True)
 
     samples, sr = synthesize(spec)
-    samples, _ = normalize(samples, spec["peak_dbfs"])
+    target = spec["loudness_lufs"]
+    if target is None:
+        # Opted out: peak normalization only. Two cues normalized this way can
+        # still differ by ~10 dB to the ear — see normalize_loudness.
+        samples, _ = normalize(samples, spec["peak_dbfs"])
+        measured_before, peak_limited = None, 0.0
+    else:
+        samples, measured_before, _scale, peak_limited = normalize_loudness(
+            samples, sr, target, spec["peak_dbfs"])
+
+    stats = compute_stats(samples, sr)
+
+    if args.verify:
+        problems = verify_render(ogg_path, samples, sr, stats)
+        for p in problems:
+            print(f"sfx: drift: {p}", file=sys.stderr)
+        if problems:
+            print(f"sfx: the shipped cue no longer matches {args.spec} — "
+                  f"re-render the spec to the shipped path", file=sys.stderr)
+            return 1
+        print(f"  verified {ogg_path} matches {args.spec} "
+              f"(decoded and re-measured within tolerance)")
+        return 0
+
+    ogg_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Render to a temp WAV for encoding; the .ogg is the master. Keep the WAV
     # beside the output only as a fallback when ffmpeg can't produce the .ogg.
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
     write_wav(tmp.name, samples, sr)
-    ogg_ok = encode_ogg(tmp.name, ogg_path, args.ogg_quality)
+    ogg_ok, ogg_why = encode_ogg(tmp.name, ogg_path, args.ogg_quality)
     if ogg_ok:
         os.unlink(tmp.name)
     else:
         shutil.move(tmp.name, wav_path)
 
-    stats = compute_stats(samples, sr)
     if not args.no_report:
-        write_report(report_path, samples, sr, stats)
+        write_report(report_path, samples, sr, stats, spec)
 
     print(f"name:       {name}")
     if ogg_ok:
         print(f"ogg:        {ogg_path}")
     else:
-        print(f"ogg:        SKIPPED — ffmpeg not found; install it, then re-run "
-              f"(WAV fallback kept at {wav_path})", file=sys.stderr)
+        print(f"ogg:        NOT WRITTEN — {ogg_why}; the shipped master must be "
+              f".ogg (WAV fallback kept at {wav_path})", file=sys.stderr)
     if not args.no_report:
         print(f"report:     {report_path}  (read this back)")
     print(f"duration:   {stats['duration_s']:.3f} s")
     print(f"peak:       {stats['peak_dbfs']:.2f} dBFS")
+    print(f"loudness:   {stats['loudness_lufs']:.2f} LUFS "
+          f"(K-weighted, ungated{'' if target is None else f'; target {target:.1f}'})")
     print(f"rms:        {stats['rms_dbfs']:.2f} dBFS")
     print(f"centroid:   {stats['centroid_hz']:.0f} Hz")
+    print(f"dc:         {stats['dc_offset']:+.4f}  ({stats['dc_pct']:.0f}% of peak)")
     print(f"silence:    lead {stats['lead_silence_s'] * 1000:.0f} ms, "
           f"tail {stats['tail_silence_s'] * 1000:.0f} ms  (below -60 dBFS)")
+    if target is not None and peak_limited > LOUDNESS_TOLERANCE_DB:
+        print(f"sfx: warning: {peak_limited:.1f} dB below the {target:.1f} LUFS "
+              f"target — the peak ceiling ({spec['peak_dbfs']:.1f} dBFS) hit "
+              f"first, so this cue is spikier than it is loud. Soften the "
+              f"transient (longer attack, or trim the layer that spikes) to let "
+              f"it reach the target", file=sys.stderr)
     if stats["lead_silence_s"] > 0.025:
         print("sfx: warning: leading silence over 25 ms — the cue should start "
               "at the transient; pull the first onset to t=0", file=sys.stderr)
     if stats["tail_silence_s"] > 0.12:
         print("sfx: warning: trailing silence over 120 ms — tighten the last "
               "note's duration/release so the cue ends when the sound does", file=sys.stderr)
+    if stats["dc_pct"] > DC_OFFSET_WARN_PCT:
+        print(f"sfx: warning: the mix sits {stats['dc_pct']:.0f}% of peak off "
+              f"centre (DC {stats['dc_offset']:+.3f}) — a very thin pulse duty "
+              f"does this. It costs headroom in the game's mix and can click "
+              f"when the cue is cut; add a highpass to that layer "
+              f"(\"filter\": {{\"type\": \"highpass\", \"cutoff\": 20}}) to "
+              f"centre it without touching the timbre", file=sys.stderr)
     if stats["duration_s"] > 2.5:
         print(f"sfx: warning: {stats['duration_s']:.2f} s is long for an SFX cue — "
               f"most read best under ~2 s", file=sys.stderr)
@@ -573,7 +1040,9 @@ def main(argv=None):
     else:
         print("subtitle:   MISSING — add a subtitle key (accessibility)", file=sys.stderr)
     print("ear-check:  a human must listen before this lands.")
-    return 0
+    # The deliverable is the .ogg. Without it the run produced no shippable
+    # master, so it must not report success — CI has no other way to notice.
+    return 0 if ogg_ok else 1
 
 
 if __name__ == "__main__":
