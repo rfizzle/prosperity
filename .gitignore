@@ -49,6 +49,13 @@ hs_err_pid*.log
 replay_pid*.log
 gametest_output.log
 
+# Python bytecode from the vendored art tooling. A mod repo has no Python of its
+# own, but the .glyph/.sfx renderers under .ai/skills/*/scripts/ are Python, and
+# running one leaves a __pycache__ beside it. Unanchored: it appears wherever a
+# script was invoked, and the name can never collide with a Java source,
+# package, or resource directory.
+__pycache__/
+
 # Glyph & SFX pipeline byproducts (mc-textures /glyph, mc-audio /sfx). art/ holds
 # the .glyph/.sfx specs — the committed source of truth. Every rendered byproduct
 # is throwaway: the shipping master lives in the mod's src/main/resources/assets/
