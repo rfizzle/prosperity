@@ -4,6 +4,7 @@
 # The loop is small -> medium -> large -> medium. A glint glows, so it carries
 # no ink outline (outline selectively — a hard rim would kill the shimmer).
 size: 16
+kind: sprite
 frametime: 6
 
 legend:
