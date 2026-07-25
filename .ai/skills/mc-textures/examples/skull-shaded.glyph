@@ -3,6 +3,10 @@
 # a rim/edge light, and a dark silhouette outline. ~49 colors over only a few base hues:
 # "limited palette" means few base HUES, not few tones. Flat single-tone fills read cartoony.
 size: 32
+kind: sprite
+palette: free   # a hand-painted neutral master: the ~49 tones here are a
+                # continuous rendering of one form, not design-system accents.
+                # A mod's own art names its accents (or ramp steps off them).
 
 legend:
   @ #000000

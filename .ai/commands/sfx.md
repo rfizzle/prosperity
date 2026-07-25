@@ -28,8 +28,11 @@ glyph. Keep it short (most cues are well under ~2 seconds).
 
 ## Step 2 — Write the spec
 
-A `.sfx` file is JSON: global fields (`name`, `sample_rate`, `peak_dbfs` ≈ −1.0,
-`subtitle`, `seed`) plus a list of `layers`. Each layer is a `waveform`
+A `.sfx` file is JSON: global fields (`name`, `sample_rate`, `loudness_lufs`
+≈ −14.0, `peak_dbfs` ≈ −1.0, `subtitle`, `seed`) plus a list of `layers`. Cues are
+matched on perceived loudness with the peak as a ceiling, so leave both at their
+defaults unless you have a reason — that is what makes a blip and a klaxon sit at
+the same level in game. Each layer is a `waveform`
 (`sine`/`square`/`triangle`/`saw`/`noise` — run
 `python3 .ai/skills/mc-audio/scripts/sfx.py --list-waveforms`), a `freq` or a
 pitch glide (`from`→`to`, `glide` `exp`|`lin`), an `env`
@@ -57,16 +60,28 @@ suite `.gitignore` already ignores every render (`.ogg`, `.wav`, `.report.png`):
 python3 .ai/skills/mc-audio/scripts/sfx.py art/audio/<cue>.sfx
 ```
 
-This writes `<cue>.ogg`, `<cue>.wav`, and `<cue>.report.png` (a waveform +
-spectrogram) beside the spec, and prints stats: duration, peak dBFS, RMS,
-spectral centroid. These renders are throwaway review artifacts — gitignored, so
+This writes `<cue>.ogg` and `<cue>.report.png` (a waveform + spectrogram) beside
+the spec, and prints stats: duration, peak dBFS, loudness LUFS, RMS, spectral
+centroid, DC offset. These renders are throwaway review artifacts — gitignored, so
 they can sit beside the source for review without ever being committable. Close
 the loop on **objective signals**: **read the `.report.png`
 back** and check the shape matches the gesture (envelope, sweep direction,
-harmonic content); confirm peak ≈ −1 dBFS (no clipping), the duration is tight,
-and the centroid suits the character (bright vs. dark). Iterate the spec until
-they match — editing a `.sfx` and re-running is fast. Show the user the report
-each iteration.
+harmonic content); confirm the loudness landed on target with no peak-ceiling
+warning, the duration is tight, and the centroid suits the character (bright vs.
+dark). Iterate the spec until they match — editing a `.sfx` and re-running is
+fast. Show the user the report each iteration.
+
+The report is labelled, so read it quantitatively rather than impressionistically:
+the frequency axis is logarithmic with ticks from 100 Hz to 20 kHz, the time axis
+is in seconds, the waveform is scaled in dBFS, and each layer onset is a dashed
+vertical. Check the partials land where the spec says (a `from`→`to` glide should
+trace a straight diagonal on a log axis), and that each dashed marker has sound
+arriving at it.
+
+A peak-ceiling warning means the cue is spikier than it is loud: one transient
+is eating all the headroom, so the whole cue plays quieter than everything
+around it. Soften that spike (longer attack, or trim the layer that spikes)
+rather than accepting the shortfall.
 
 **The final ear-check is the human's.** You cannot judge timbre by eye — when the
 report looks right, tell the user the sound needs a listen before it lands.
@@ -84,6 +99,19 @@ Two locations, no duplication:
 
 So the review renders (step 3) stay uncommitted beside the spec — once the cue is
 approved, re-render with `-o` pointing at the final `assets/<mod>/sounds/…` path.
+
+Then record that path in the spec as a `"ships"` field and confirm the link:
+
+```bash
+python3 .ai/skills/mc-audio/scripts/sfx.py art/audio/<cue>.sfx --verify
+```
+
+`--verify` re-synthesizes the spec, decodes the shipped `.ogg`, and compares
+them — so the check measures what the game plays rather than the pre-encode
+buffer. That is what makes the `.sfx` the source of truth in practice rather
+than by convention; `make art-verify` runs the same check over every spec in the
+repo. A spec without a `"ships"` field is reported as unlinked, so add it
+whenever a cue ships.
 
 Then wire the Minecraft side (see the `mc-audio` and `mc-registration` skills):
 

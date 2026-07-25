@@ -29,7 +29,24 @@ in your legend (e.g. `mercantile.emerald`, `ink`, `gold`), not raw hex, so the
 glyph stays tied to the system. A mod's accents never appear in another mod's
 glyph.
 
+The tonal steps your shading needs come from those same tokens: write
+`emerald+1` for one step toward the highlight, `emerald-2` for two toward
+shadow. Run `python3 .ai/skills/mc-textures/scripts/glyph.py --ramp <token>` to
+get a whole ramp as paste-ready legend lines (`--ramp-steps N` for a 3- or
+7-step ladder). Reach for raw hex only when a tone genuinely sits off the
+palette — a ramp step keeps the glyph inside the design system, and the steps
+cool going down and warm going up so the ramp reads as light on a form.
+
+The renderer warns about raw-hex legend entries. If the master is deliberately
+off-palette (a transcribed raster, a hand-painted neutral), declare
+`palette: free` in the spec so the exception is recorded rather than repeated.
+
 ## Step 2 — Design the grid
+
+Open the spec with a **`kind:`** line — `sprite`, `block`, `cap`, `ui`, or
+`icon` (`--list-kinds` explains each). It decides which checks the render
+applies, and the geometry alone can't tell a tiling block from a block cap or a
+UI plate, since all three bleed to every edge.
 
 Honor the design-system glyph conventions:
 
@@ -99,11 +116,24 @@ python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph
 
 This writes `<name>.png` (the render) and `<name>@16x.png` (a 256px
 nearest-neighbor preview) beside the spec, and prints read-back stats: opaque
-color count, edge margin vs. full bleed, and the largest single-tone region —
-with warnings when a surface reads as a flat fill, an edge is half-bled, or the
-legend mixes two mods' accents. For a tiling block texture, add
-`--tile-preview` and read the `@2x2.png` back to check seams and the shared
-corner. **Read the @16x preview back** and
+color count, edge margin vs. full bleed, the largest single-tone region, how
+much of the silhouette edge reads as outline, and how many detached pieces the
+motif has. Findings come at two severities: **warnings** are quality-bar
+violations (a flat fill, a missing `ink` outline, a half-bled edge, a join that
+would seam, a repeated animation frame, mixed mod accents) and **notes** are
+advisory (raw hex where a token would do, a missing `kind:`). Fix the warnings
+before shipping; notes can wait for the next time you touch the art. Treat the
+detached-pieces count as a question: a glint or a chain link is deliberate, a
+stray pixel is a typo.
+
+A `kind: block` texture is seam-checked automatically — the stats report how
+much of each wrap join jumps beyond the texture's own interior, and a warning
+means copies will show a line where they meet. Add `--tile-preview` for the two
+pictures: `@2x2.png` (the pattern repeating and cornering) and `@seam.png` (the
+texture rolled by half so both joins cross the centre — read this one back; a
+seam appears as a line straight through the middle). A full-bleed face that
+never repeats is a `kind: cap` or a `kind: ui`, not a block.
+**Read the @16x preview back** and
 judge it honestly against the motif. Then iterate the grid until it's right —
 fixing pixel art is fast: edit the `.glyph` and re-run. Show the user the
 preview each iteration. These rendered PNGs are throwaway review artifacts —
@@ -185,6 +215,21 @@ Two locations, no duplication:
 So the review renders (step 3) stay uncommitted beside the spec — once the glyph
 is approved, re-render with `-o` pointing at the final `assets/<mod>/textures/…`
 path.
+
+Then record that path in the spec as a `ships:` line — one per shipped file, so a
+size ladder declares every tier it mints (`ships: art/icon-128.png 128`) — and
+confirm the link:
+
+```bash
+python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph --verify
+```
+
+`--verify` re-renders the spec and compares it against the shipped master pixel
+for pixel (and the `.mcmeta` for an animated strip), which is what makes the
+`.glyph` the source of truth in practice rather than by convention — `make
+art-verify` runs the same check over every spec in the repo. A spec without a
+`ships:` line is reported as unlinked and nothing holds it to its asset, so add
+it whenever a glyph ships.
 
 Keep going until the glyph reads clearly at native size and matches the mod's
 identity. Show the user the preview each iteration.
