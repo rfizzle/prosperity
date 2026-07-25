@@ -944,14 +944,14 @@ def spec_ships(path):
     return out
 
 
-def verify_spec(spec_path, targets=None, split_frames=False):
-    """Check one spec against the masters it ships. Returns (checked, problems).
+def verify_spec(frames_px, size, meta, targets=None, split_frames=False):
+    """Check one parsed spec against the masters it ships.
 
-    `targets` overrides the spec's own `ships:` lines with [(path, tier), …].
+    Takes the already-parsed spec rather than a path: the caller has read it
+    once already, and a spec can arrive on stdin, where there is no path to
+    re-open. Returns (checked, problems). `targets` overrides the spec's own
+    `ships:` lines with [(path, tier), …].
     """
-    legend, frames_rows, declared_size, meta, _used = parse_spec(
-        Path(spec_path).read_text())
-    frames_px, size = build_frames(legend, frames_rows, declared_size)
     if targets is None:
         targets = [(Path(p), tier) for p, tier in meta.get("ships", [])]
     problems, checked = [], []
@@ -988,7 +988,9 @@ def verify_tree(root, verbose=False):
             continue
         checked += 1
         try:
-            shipped, problems = verify_spec(spec_path)
+            legend, rows, declared, meta, _used = parse_spec(spec_path.read_text())
+            frames_px, size = build_frames(legend, rows, declared)
+            shipped, problems = verify_spec(frames_px, size, meta)
         except SpecError as e:
             shipped, problems = [], [f"{spec_path}: {e}"]
         if problems:
@@ -1535,7 +1537,10 @@ def main(argv=None):
               f"{RAMP_MAX_STEP}). Run --ramp <token> for a ready-made ramp.")
         return 0
 
-    if args.verify_all:
+    # `is not None`, not truthiness: the question is whether the flag was
+    # given, and an empty DIR would otherwise fall through to the render
+    # path and complain about a missing spec.
+    if args.verify_all is not None:
         checked, drifted, unlinked = verify_tree(args.verify_all, args.verbose)
         print(f"  {checked} verified, {drifted} drifted, {unlinked} unlinked")
         return 1 if drifted else 0
@@ -1603,7 +1608,8 @@ def main(argv=None):
             print(f"glyph: {args.spec} declares no 'ships:' target and no -o was "
                   f"given — nothing to verify against", file=sys.stderr)
             return 1
-        checked, problems = verify_spec(args.spec, targets, args.split_frames)
+        checked, problems = verify_spec(frames_px, size, meta, targets,
+                                        args.split_frames)
         for p in problems:
             print(f"glyph: drift: {p}", file=sys.stderr)
         if problems:
