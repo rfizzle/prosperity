@@ -5,6 +5,7 @@
 # shadow). Top and bottom would be separate faces, aligned to this face's top/bottom edges.
 # Mod-neutral; retint the face for themed stone.
 size: 16
+kind: block
 
 legend:
   K ink     # #0a0a0a mortar
