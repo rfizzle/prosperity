@@ -80,7 +80,7 @@ USAGE
     python3 .ai/skills/mc-audio/scripts/sfx.py - < SPEC.sfx           # spec on stdin
     python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx --no-report   # skip the PNG
     python3 .ai/skills/mc-audio/scripts/sfx.py SPEC.sfx --verify      # shipped cue still matches the spec? (uses ships)
-    python3 .ai/skills/mc-audio/scripts/sfx.py --verify-all           # ... same check over every cue in art/audio/
+    python3 .ai/skills/mc-audio/scripts/sfx.py --verify-all           # ... same check over every cue under art/audio/, at any depth
     python3 .ai/skills/mc-audio/scripts/sfx.py --list-waveforms       # available oscillators
 
 Exits non-zero when it could not write the `.ogg` — that file is the
@@ -543,26 +543,44 @@ def spec_ships(path):
 
 
 def verify_tree(root, verbose=False):
-    """Verify every cue under `root` that declares where it ships.
+    """Verify every cue under `root`, at any depth, that declares where it ships.
+
+    The walk recurses: a repo with enough audio to sort it into subdirectories
+    is exactly the repo that most needs the check, and a walk that stopped at
+    the top level would report a confident green over cues it never opened.
 
     This lives in the synth rather than in a separate tool because the synth is
     what gets vendored into each member repo — a checker that only exists in
     concord could not be run by the repos whose audio it holds.
 
-    Returns (checked, drifted, unlinked).
+    Returns (checked, drifted, broken, blocked, unlinked). The three failures
+    are counted apart because they accuse different things: drift means a
+    shipped cue was re-encoded outside its spec, malformed means the spec itself
+    doesn't parse, and blocked means ffmpeg is missing, so the cue was never
+    decoded and nothing about it was actually checked. A caller that wraps this
+    can only word its error correctly if it can tell them apart — and one that
+    quietly passed the blocked ones would report a green it never earned.
     """
     root = Path(root)
     if not root.exists():
         print(f"  {root}: no such directory — nothing to verify")
-        return 0, 0, 0
-    checked = drifted = 0
+        return 0, 0, 0, 0, 0
+    checked = drifted = broken = blocked = 0
     unlinked = []
-    for spec_path in sorted(root.glob("*.sfx")):
+    # Verification decodes the shipped .ogg, so without ffmpeg there is no
+    # comparison to make — every linked cue is blocked, not drifted.
+    have_ffmpeg = shutil.which("ffmpeg") is not None
+    for spec_path in sorted(root.rglob("*.sfx")):
         shipped = spec_ships(spec_path)
         if not shipped:
             unlinked.append(spec_path)
             continue
-        checked += 1
+        if not have_ffmpeg:
+            blocked += 1
+            print(f"  BLOCKED  {spec_path}")
+            print(f"           ffmpeg is not installed, so the shipped cue "
+                  f"cannot be decoded and compared")
+            continue
         try:
             spec = parse_spec(spec_path.read_text())
             samples, sr = synthesize(spec)
@@ -575,7 +593,11 @@ def verify_tree(root, verbose=False):
             problems = verify_render(shipped, samples, sr,
                                      compute_stats(samples, sr))
         except SpecError as e:
-            problems = [f"{spec_path}: {e}"]
+            broken += 1
+            print(f"  BROKEN   {spec_path}")
+            print(f"           {e}")
+            continue
+        checked += 1
         if problems:
             drifted += 1
             print(f"  DRIFT    {spec_path}")
@@ -585,7 +607,7 @@ def verify_tree(root, verbose=False):
             print(f"  ok       {spec_path} -> {shipped}")
     for spec_path in unlinked:
         print(f"  unlinked {spec_path} — no 'ships' target, so nothing verifies it")
-    return checked, drifted, len(unlinked)
+    return checked, drifted, broken, blocked, len(unlinked)
 
 
 def verify_render(shipped, samples, sr, stats):
@@ -966,9 +988,10 @@ def main(argv=None):
                          "Exits non-zero on drift — the CI form of the "
                          "repeatability rule")
     ap.add_argument("--verify-all", nargs="?", const="art/audio", metavar="DIR",
-                    help="verify every cue in DIR (default art/audio) against "
-                         "the .ogg it declares with 'ships', and report the ones "
-                         "that declare none. Exits non-zero on drift — run it in "
+                    help="verify every cue under DIR (default art/audio), at any "
+                         "depth, against the .ogg it declares with 'ships', and "
+                         "report the ones that declare none. Exits non-zero on "
+                         "drift or on a spec that no longer parses — run it in "
                          "CI to hold the whole repo's audio to its specs")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="with --verify-all, also list the cues that verified clean")
@@ -984,9 +1007,11 @@ def main(argv=None):
     # given, and an empty DIR would otherwise fall through to the render
     # path and complain about a missing spec.
     if args.verify_all is not None:
-        checked, drifted, unlinked = verify_tree(args.verify_all, args.verbose)
-        print(f"  {checked} verified, {drifted} drifted, {unlinked} unlinked")
-        return 1 if drifted else 0
+        checked, drifted, broken, blocked, unlinked = verify_tree(
+            args.verify_all, args.verbose)
+        print(f"  {checked} verified, {drifted} drifted, {broken} malformed, "
+              f"{blocked} blocked, {unlinked} unlinked")
+        return 1 if (drifted or broken or blocked) else 0
     if not args.spec:
         ap.error("a spec path (or -) is required")
 
