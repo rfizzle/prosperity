@@ -31,7 +31,7 @@
 
 ### Verification coverage
 
-Each spec names its shipped master with a `ships:` line, so
+Every spec with a committed master names it with a `ships:` line, so
 `glyph.py --verify-all` re-renders it and compares pixel for pixel — a hand-patched
 PNG or a stale asset behind an edited spec fails the check. Four of the five specs
 are covered that way. Two deliverables sit outside its reach:
@@ -39,12 +39,15 @@ are covered that way. Two deliverables sit outside its reach:
 - **The mod icon's smaller tiers.** `ships:` verifies `art/icon-512.png`, the native
   tier. `art/icon-128.png` and the 256px in-jar and site copies are ImageMagick
   downscales, and a `ships:` tier must be an integer *upscale* of the spec's grid,
-  so no line can express them. `icon.gen.py` re-derives the 128 from the verified
-  512 on every run, which is what keeps them honest.
+  so no line can express them. `icon.gen.py` re-derives `art/icon-128.png` from the
+  verified 512 on every run. The in-jar and site 256px copies are cut by hand with
+  `convert art/icon-512.png -resize 256x256`, so re-running that recipe after an
+  icon edit is what keeps them in step.
 - **The unlooted-container sparkle.** It ships as standalone per-frame PNGs because
   the overlay is bound in code rather than animated by the vanilla atlas.
-  `--verify-all` checks every spec as a strip + `.mcmeta`, so the spec stays
-  `ships:`-less; `glyph.py … --split-frames --verify` checks it by hand.
+  `--verify-all` checks every animated spec as a strip + `.mcmeta`, so the spec
+  stays `ships:`-less; its own header carries the `--split-frames` command that
+  renders and checks it by hand.
 
 ## Not yet created
 

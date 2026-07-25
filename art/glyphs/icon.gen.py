@@ -198,5 +198,8 @@ with open(OUT_GLYPH, "w") as f:
 
 subprocess.run(["python3", ".ai/skills/mc-textures/scripts/glyph.py", OUT_GLYPH,
                 "-o", OUT_MASTER, "--no-preview"], check=True, stdout=subprocess.DEVNULL)
-subprocess.run(["convert", OUT_MASTER, "-resize", "128x128", OUT_128], check=True)
+# Exclude the wall-clock chunks ImageMagick stamps in, so a re-run that changes no
+# pixel also changes no bytes and leaves the committed master out of the diff.
+subprocess.run(["convert", OUT_MASTER, "-resize", "128x128",
+                "-define", "png:exclude-chunk=date,tIME", OUT_128], check=True)
 print(f"wrote {OUT_GLYPH} ({len(used)} colors), {OUT_MASTER}, {OUT_128}")
