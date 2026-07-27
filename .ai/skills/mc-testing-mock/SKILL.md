@@ -139,22 +139,108 @@ This player has `connection == null`, is NOT in the player list, but supports at
 
 ## Cleanup: always discard
 
-Mock players should be discarded at the end of the test to avoid leaking into subsequent tests:
+Scope is the connected replica. `makeMockPlayer` and directly constructed `ServerPlayer` instances are never added to the level or the player list, so they need no cleanup.
+
+The framework never removes a mock player for you — `GameTestInfo#succeed()` and the batch sweep in `StructureUtils` both filter `Player` instances out of their bounds sweep. A connected replica that is not discarded stays in the level, ticked for the rest of the run and holding a chunk ticket. An assertion that throws before a trailing `player.discard()` skips it entirely, so the guarantee is weakest exactly when the suite is unhealthy and the output is hardest to read.
+
+Discard in a `finally`, so cleanup survives a failing assertion:
 
 ```java
-player.discard();
-helper.succeed();
+ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
+try {
+    player.teleportTo(...);
+    helper.assertTrue(..., "...");
+    helper.succeed();
+} finally {
+    player.discard();
+}
 ```
 
-For connected replica players, `discard()` removes the entity from the level. The player list entry may linger but is harmless in gametest context since each test gets a fresh server state.
+`helper.succeed()` belongs inside the `try`. `GameTestHelper#succeed()` sets a done flag and returns — it does not throw a control-flow sentinel — so the `finally` runs and the test still passes.
 
-For manager cleanup (e.g., `FollowManager`), explicitly stop/clear state before discarding:
+Wrap the body the player is used in, not the whole method reflexively. Setup that runs before the player exists has nothing to clean up.
+
+`discard()` removes the entity from the level and releases its chunk ticket. The player list entry stays; clearing it means `PlayerList#remove`, which this rule does not require.
+
+Cultivation's `MockPlayerDiscardTest` shows one way to hold this rule for a suite, as a tier-1 source scan.
+
+### One `finally` per method
+
+Where the method already owns a `try`/`finally` for another reason — restoring a config field, disarming a process-wide listener, stopping a manager — the discard folds into that `finally` rather than nesting a second one. The acquisition sits above the `try` so the `finally` can name it:
 
 ```java
-FollowManager.stopFollowing(villager);
-player.discard();
-helper.succeed();
+boolean saved = CultivationConfig.get().enableBroadcastSowing;
+ServerPlayer player = rakeWith(helper, Items.WHEAT_SEEDS, 9);
+try {
+    CultivationConfig.get().enableBroadcastSowing = false;
+    helper.assertTrue(sow(helper, player, FARM) == InteractionResult.PASS,
+            "with the toggle off the rake is inert");
+    helper.succeed();
+} finally {
+    CultivationConfig.get().enableBroadcastSowing = saved;
+    player.discard();
+}
 ```
+
+Order the `finally` body process-wide restore first, `discard()` last, when the restore is a plain field assignment that cannot throw: a suite-wide toggle left flipped poisons every later test, while a leaked player costs only ticks. When the restore itself can throw — `FollowManager.stopFollowing(villager)`, a `Files.write` of the original config file — nest it so the discard still runs:
+
+```java
+} finally {
+    try {
+        FollowManager.stopFollowing(villager);
+    } finally {
+        player.discard();
+    }
+}
+```
+
+State the test switches on rather than saves — a break-protection denier, a temporary listener — is armed inside the `try`, so the `finally` that disarms it is the one that already discards the player.
+
+### When the player outlives the synchronous body
+
+A test that schedules a deferred callback and still uses the player inside it must not wrap the scheduling code in a discarding `finally`. Those methods return as soon as they register the callback, so the `finally` would run before the callback ever runs and remove the player out from under the test. Where the discard goes instead depends on which family the method belongs to.
+
+**One-shot — `runAfterDelay`, `runAtTickTime`, `startSequence`.** The callback fires exactly once, so it carries the `try`/`finally` itself:
+
+```java
+boolean saved = InstinctConfig.get().enableFlocking;
+InstinctConfig.get().enableFlocking = false;
+ServerPlayer driver = wheatHolder(helper, new BlockPos(1, 2, 3));   // teleports and hands it wheat
+try {
+    helper.runAfterDelay(30, () -> {
+        try {
+            helper.assertTrue(..., "...");
+            helper.succeed();
+        } finally {
+            InstinctConfig.get().enableFlocking = saved;
+            driver.discard();
+        }
+    });
+} catch (Throwable t) {
+    InstinctConfig.get().enableFlocking = saved;
+    driver.discard();
+    throw t;
+}
+```
+
+The acquisition sits above the outer `try` so the `catch` can name it. That `catch`-and-rethrow covers a failure in the synchronous portion — setup between the acquisition and the scheduling call — which would otherwise leave the toggle flipped and the player leaked. Catch `Throwable`, not `RuntimeException`: an `Error` from a helper whose signature drifted must not escape with process-wide state still mutated.
+
+**Polled — `succeedWhen`, `succeedIf`, `succeedOnTickWhen`, `onEachTick`.** The runnable is re-polled every tick and its assertion exception is swallowed until either the poll succeeds or the test times out, so a `finally` inside it would discard on the first failing poll. Discard on the success path only, as the last statements of the callback:
+
+```java
+ServerPlayer driver = wheatHolder(helper, new BlockPos(1, 2, 3));
+Cow cow = helper.spawn(EntityType.COW, new BlockPos(13, 2, 3));
+helper.succeedWhen(() -> {
+    helper.assertTrue(flockingGoal(cow).getTemptedPlayer() == driver,
+            "flocking tempts a cow 12 blocks out");
+    cow.discard();
+    driver.discard();
+});
+```
+
+A polled test that times out leaks its player — there is no further callback to run the discard. That residual is bounded to one player per failing test and is the price of the deferral; it is not a reason to move the discard into a `finally` that would fire on every unsuccessful poll.
+
+Config isolation is `mc-mod-testing`'s rule, and its synchronous save/restore form assumes the assertion runs before the test method returns. A deferred test is the carve-out: the flag has to stay set across the delay, so the restore moves into the callback alongside the discard.
 
 ## Fake-player guard in production code
 
@@ -187,8 +273,11 @@ Centralise this in one utility (see `FakePlayers.isFakePlayer` in prosperity's `
 ```java
 FakePlayer fake = FakePlayer.get(helper.getLevel());   // real Fabric fake player, not a mock
 fake.teleportTo(...);                                   // then drive the real event/callback path
-// assert PASS-through + no state, discard, then repeat with MockPlayers.serverPlayerInLevel(helper)
-// and assert the real player still triggers first-visit behavior
+// assert PASS-through + no state, then repeat with MockPlayers.serverPlayerInLevel(helper)
+// and assert the real player still triggers first-visit behavior; the replica is discarded in
+// a finally per the cleanup rule above. Do NOT discard the fake player: FakePlayer.get(...)
+// returns a per-world cached instance that is never added to the level or the player list, and
+// removal is sticky — discarding it hands a dead instance to the next test that asks for one.
 ```
 
 See prosperity's `FakePlayerGuardGameTest` for the full pattern, driven through `UseBlockCallback.EVENT.invoker()` exactly as a live interaction fires.
