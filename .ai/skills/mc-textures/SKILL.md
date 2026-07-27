@@ -41,8 +41,12 @@ A texture is conformant when it:
   tell what it is at native size, simplify the shape. Don't *resample* a large drawing
   down into a small slot — it goes muddy; author for the slot instead.
 - **stays on one motif (sprites)** — one object per glyph, centered, with a 1px transparent
-  margin unless it intentionally bleeds to the edge. *Block* textures are the exception —
-  they bleed to all four edges and tile (see below).
+  margin. The margin earns its keep on the item/block atlas, where it stops a neighbour
+  bleeding in, and in a slot, where it gives the item room. Art the margin doesn't serve
+  says so in the spec with an `edge:` line (see **Say what the texture is**) — a lock
+  whose shackle grows out of the frame is `edge: shaped`, and a spark that spends every
+  one of its 8×8 pixels on the motif is a `kind: particle`. *Block* textures are the
+  standing exception — they bleed to all four edges and tile (see below).
 
 ## Block textures: tiling and faces
 
@@ -62,7 +66,9 @@ so the centered-motif and transparent-margin rules above are *sprite* rules. A b
   `@2x2.png` (does the pattern repeat and corner correctly) and a seam-centred `@seam.png`
   (the texture rolled by half, so both joins cross the middle of the image — a seam shows
   up there as a line through the centre). A full-bleed face that never repeats is a
-  `kind: cap` (a block top or bottom) or a `kind: ui` (a panel), not a block.
+  `kind: cap` or a `kind: ui` (a panel), not a block — what makes a cap a cap is that it
+  never tiles, so a decorative side face that deliberately doesn't repeat is one too, not
+  just a block's top and bottom.
 - **Top and bottom are separate textures**, not the side repeated. Design them to agree with
   the **top and bottom edges of the side faces** so the seam where a side meets the cap
   reads continuously — the side's top trim lines up with the top face's perimeter, and
@@ -73,21 +79,32 @@ the offset courses carry the bond across the left/right seam and corners).
 
 ## Say what the texture is
 
-Every spec declares a **`kind:`** — `sprite`, `block`, `cap`, `ui`, or `icon` — because
-the same pixels mean different things and each kind earns different checks
-(`--list-kinds` prints the table):
+Every spec declares a **`kind:`** — because the same pixels mean different things and
+each kind earns different checks (`--list-kinds` prints the table):
 
 | kind | what it is | checked for |
 |---|---|---|
 | `sprite` | a centred motif on transparency — items, HUD glyphs, pips | transparent margin, `ink` outline, flat fill |
+| `particle` | a spark, mote, or pip whose motif fills the canvas it is given | flat fill |
 | `block` | a tiling side face; repeats against copies of itself | full bleed, seam continuity, flat fill |
-| `cap` | a single full-bleed face that never tiles — a block top or bottom | full bleed, flat fill |
+| `cap` | a full-bleed face that never repeats — a block top or bottom | full bleed, flat fill |
 | `ui` | a panel, plate, or 9-slice frame | nothing geometric — a flat field is the design |
+| `atlas` | a sheet read through UV sub-windows, never drawn as one face | flat fill — nothing geometric, since no window is the whole canvas |
 | `icon` | mod, store, or hero art, read in a launcher rather than on a HUD | flat fill |
 
 A spec with no `kind:` is classified from its edge geometry, which cannot tell a tiling
-block from a cap or a UI plate — they all bleed — so it gets a note asking for the
-declaration and only the checks that hold regardless.
+block from a cap, a UI plate, or an atlas — they all bleed — so it gets a note asking for
+the declaration and only the checks that hold regardless.
+
+A kind implies what the motif does at the canvas border: a sprite sits inside a margin, a
+block or a cap bleeds. Art that means to do otherwise says so with an **`edge:`** line —
+`margin` (a clean 1px transparent ring), `shaped` (the motif deliberately meets some
+edges), or `bleed` (opaque all the way round). Declaring it settles the question the way
+`palette: free` settles the palette one: the tool asks once, the spec answers, and the
+answer is measured against the grid rather than taken on trust — a spec claiming
+`edge: bleed` over art that doesn't bleed is told so. The one thing a declaration cannot
+do is excuse a block from bleeding: a side face that stops short of its border shows the
+void where copies meet, whatever the spec intended.
 
 ## The pipeline
 
@@ -127,8 +144,9 @@ Always **read the rendered `@Nx` preview back** and judge it honestly against th
 then iterate the grid — fixing pixel art is fast (edit the `.glyph`, re-run). The render
 also measures the grid against this quality bar and says where it falls short. **Warnings**
 are quality-bar violations — a surface left as a flat fill, a silhouette with no `ink`
-outline, an edge that is half sprite and half block, a join that would seam when tiled, an
-animation frame identical to the one before it, a legend borrowing another mod's accent.
+outline, a border neither the spec's `kind:` nor its `edge:` accounts for, a join that
+would seam when tiled, an animation frame identical to the one before it, a legend
+borrowing another mod's accent.
 **Notes** are advisory — raw hex where a token would do, a missing `kind:`. Fix the
 warnings; work through the notes as you touch the art. It reports the motif's detached pieces too — a
 glint or a hanging link is deliberate, a stray pixel is not, and only you can tell which
@@ -161,6 +179,11 @@ hand-patch its emitted grid. Two flavors:
 Transcription is how a raster that predates its spec joins the repeatability rule: run
 it once, review the emitted `.glyph`, and from then on the spec is the source of truth.
 
+A generator that shells out to ImageMagick passes `-define png:exclude-chunk=date,tIME`.
+Without it `convert` stamps wall-clock metadata into the PNG, so re-running the generator
+to confirm the art is still correct dirties the file with a timestamp-only diff —
+identical image bytes, different file, and a `git status` that lies about what changed.
+
 ## Animated textures: pick the packaging by who animates it
 
 An animated glyph (2+ `frame:` blocks + a `frametime:`) ships one of two ways — chosen by
@@ -174,7 +197,10 @@ An animated glyph (2+ `frame:` blocks + a `frametime:`) ships one of two ways �
   `<name>_0.png`, `<name>_1.png`, …). A texture you bind yourself — a custom `RenderType`
   billboard/overlay, a HUD icon, a GUI blit — is *not* on the atlas, so the vanilla
   animator never runs: your code picks the frame index and samples the whole texture. Ship
-  each frame as its own PNG with **no strip and no `.mcmeta`**.
+  each frame as its own PNG with **no strip and no `.mcmeta`**. Record that in the spec
+  with **`frames: split`** (`strip` is the default): packaging is a property of the
+  deliverable, and a `--verify` that had to be reminded of it on the command line would
+  look for a strip nobody meant to write.
 
 **Never hand-slice frames out of a directly-bound strip.** The `.mcmeta` still declares "N
 frames of 16×16," and a resource/texture mod that honours that declaration on a non-atlas
@@ -199,18 +225,49 @@ Every spec carries a **`ships:`** line naming that shipped path — one per ship
 so a size ladder declares each tier (`ships: docs/img/icon-128.png 128`) — and that is
 what holds the rule up: `glyph.py SPEC.glyph --verify` re-renders the spec and compares
 it pixel for pixel against the assets that shipped, and `glyph.py --verify-all` runs
-that across every spec in `art/glyphs/` (exit non-zero on drift, so it belongs in CI). A hand-patched PNG, a stale asset behind an edited spec, or a `.mcmeta` whose
-frametime no longer matches all fail the check. A spec with no `ships:` line is reported
-as unlinked — it has no declared deliverable, so nothing holds it to anything.
+that across every spec under `art/glyphs/`, at any depth (exit non-zero, so it belongs in
+CI). A hand-patched PNG, a stale asset behind an edited spec, or a `.mcmeta` whose
+frametime no longer matches all fail the check as **drift**; a spec that no longer parses
+fails as **malformed**; and a spec whose render needs a tool this machine doesn't have
+fails as **blocked** — the art was never compared either way, so passing it would be a
+green nobody earned. The three are counted and labelled apart so a CI wrapper can say
+which happened. A spec with no `ships:` line is reported as unlinked — it has no declared
+deliverable, so nothing holds it to anything.
+
+A tier runs either way from the native grid. Upward is always nearest-neighbor: an
+integer multiple, mechanically enlarged, which is how the 128/256 tiers of a texture
+ladder are minted. Downward is the direction a mod-icon ladder runs — one 512 master
+deriving its 256 and 128 copies — and how it resamples is the spec's call, declared with
+**`downscale:`**:
+
+- **`box`** (the default) is the built-in alpha-weighted area average. It needs no
+  external tool and is exact at a whole factor: a master that is itself an upscale of a
+  smaller grid averages straight back to that grid's pixels.
+- **`point`, `triangle`, `catrom`, `mitchell`, `lanczos`** hand the frame to
+  **ImageMagick**, which is worth reaching for when the master is painted or traced
+  rather than authored cell by cell, and which resamples any ratio rather than only whole
+  factors. Either entry point serves — v7's `magick` or v6's `convert` — and which one a
+  machine has cannot change the shipped file: the resized pixels come back and are
+  re-encoded by the renderer's own writer, so ImageMagick's PNG bytes are never what
+  ships. A `convert` that turns out to be some other program (on Windows it is the
+  system's filesystem tool) is rejected rather than run.
+
+The spec picks the engine so the machine can't: were it chosen by whatever happens to be
+installed, two checkouts would mint different pixels and each would call the other's
+output drift. The trade for an ImageMagick tier is that its pixels are ImageMagick's — a
+version that resamples differently reads as drift, and a repo without ImageMagick reports
+that ladder as blocked rather than verified. A spec that wants the check to outlive its
+toolchain stays on `box`.
 
 ## Quick checklist
 
 - [ ] Pixel art: hard edges, limited palette, design-system named tokens (ramp steps
       for the tonal range, not raw hex), no foreign mod's accents
 - [ ] `ink` outline, single centered motif, legible at native size
+- [ ] `kind:` declared, and an `edge:` line wherever the motif meets the border on purpose
 - [ ] Rendered via `.ai/skills/mc-textures/scripts/glyph.py`; preview read back and judged
 - [ ] Animated? Strip + `.mcmeta` only when the atlas animates it; a code-bound texture
-      ships `--split-frames` standalone frames (no strip, no `.mcmeta`)
+      declares `frames: split` and ships standalone frames (no strip, no `.mcmeta`)
 - [ ] `.glyph` source committed in `art/glyphs/`; the shipping master in
       `assets/<mod>/textures/…` (renders in `art/glyphs/` are gitignored throwaways)
 - [ ] `ships:` names that shipping path, and `--verify` passes on it

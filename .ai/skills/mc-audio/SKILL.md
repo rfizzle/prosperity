@@ -104,8 +104,12 @@ Every spec carries a **`ships`** field naming that shipped path, which is what h
 rule up: `sfx.py CUE.sfx --verify` re-synthesizes the spec, decodes the `.ogg` that
 shipped, and compares duration, peak, loudness, and spectral centroid — so what gets
 measured is what the game actually plays, not the pre-encode buffer. `sfx.py --verify-all`
-runs that across every cue in `art/audio/` (exit non-zero on drift, so it belongs in CI). A spec with no `ships` field is reported as unlinked —
-it has no declared deliverable, so nothing holds it to anything.
+runs that across every cue under `art/audio/`, at any depth (exit non-zero, so it belongs
+in CI) — a re-encoded `.ogg` fails as **drift**, a spec that no longer parses fails as
+**malformed**, and a machine with no ffmpeg to decode the shipped cue fails as
+**blocked**, counted apart so a CI wrapper can say which of the three happened. A spec
+with no `ships` field is reported as unlinked — it has no declared deliverable, so nothing
+holds it to anything.
 
 ## Quick checklist
 

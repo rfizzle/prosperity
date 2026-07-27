@@ -20,10 +20,21 @@ come with either packaging: a horizontal filmstrip (every frame side-by-side, to
 eyeball each one) and an `@Nx-anim` **animated PNG** (full RGBA, true alpha, real
 motion — to watch the loop).
 
-`--scale-to N` mints a true high-res master by nearest-neighbor upscale (N an
-integer multiple of the native grid), the honest way to fill the large tiers of
-a 16/32/64/128/256 size ladder from a native master — for static glyphs and
-animated strips alike.
+`--scale-to N` mints a real master at another tier of the ladder: a multiple of
+the native grid upscales nearest-neighbor — the honest way to fill the large
+tiers of a 16/32/64/128/256 ladder — and a smaller N downscales, which is the
+direction a mod-icon ladder runs (a 512 master deriving its 256 and 128 copies).
+Both work for static glyphs and animated strips alike.
+
+The downscale is what the spec's `downscale:` line selects, and the *spec*
+selects it so that the machine can't: `box` (the default) is a built-in
+alpha-weighted area average, exact at an integer factor and reproducible
+anywhere Python runs; any other filter — `point`, `triangle`, `catrom`,
+`mitchell`, `lanczos` — hands the frame to **ImageMagick**, which also lifts the
+integer-factor restriction. What that buys is a better-looking ladder for a
+painted or traced master; what it costs is that those pixels are ImageMagick's,
+so `--verify` will report drift if the installed version resamples differently.
+A spec that wants the check to outlive its toolchain stays on `box`.
 
 `--from-png IN.png` runs the pipeline in reverse: it transcribes a finished
 raster master into a .glyph spec (transparent pixels -> '.', each distinct
@@ -32,7 +43,9 @@ spec joins the repeatability rule. The emitted spec re-renders pixel-identical
 — verified before it is written.
 
 Zero dependencies: every PNG/APNG is encoded with the stdlib (`zlib` + manual
-chunks), so this runs anywhere Python 3 does, no `pip install` required.
+chunks), so this runs anywhere Python 3 does, no `pip install` required. One
+optional external tool: **ImageMagick**, and only for a spec that asks for a
+resampling filter the built-in downscale doesn't do (see `downscale:` below).
 
 SPEC FORMAT
 -----------
@@ -45,13 +58,24 @@ non-blank line is a row.
     size: 16                # optional; inferred from the grid if omitted
     frametime: 6            # ticks per frame (animated specs only; default 6)
     interpolate: false      # optional; blend between frames
-    kind: sprite            # what this texture IS — sprite | block | cap | ui |
-                            # icon. Picks which checks apply (--list-kinds)
+    kind: sprite            # what this texture IS — sprite | particle | block |
+                            # cap | ui | atlas | icon. Picks which checks apply
+                            # (--list-kinds)
+    edge: shaped            # optional; what the motif does at the border when
+                            # that isn't its kind's default — margin | shaped |
+                            # bleed. Declared once, still measured
     palette: tokens         # default; 'free' for a deliberately off-palette
                             # master (a transcribed raster, a hand-painted one)
+    frames: split           # animated specs only; 'strip' (default) ships a
+                            # strip + .mcmeta, 'split' ships per-frame PNGs
+    downscale: lanczos      # how a `ships:` tier *smaller* than the grid is
+                            # resampled — 'box' (default, built-in, exact) or an
+                            # ImageMagick filter, which needs ImageMagick
     ships: src/main/resources/assets/prosperity/textures/item/sparkle.png
     ships: docs/img/sparkle-128.png 128   # one line per shipped tier; the
-                                          # optional size is that tier's upscale
+                                          # optional size is that tier — a
+                                          # multiple of the grid upscales, a
+                                          # divisor averages down
 
     legend:
       . transparent         # '.' is transparent by convention
@@ -91,7 +115,7 @@ USAGE
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --preview-scale 24 --no-preview
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --tile-preview  # + 2×2 tiled seam check (block textures)
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --verify        # shipped master still matches the spec? (uses ships:)
-    python3 .ai/skills/mc-textures/scripts/glyph.py --verify-all               # ... same check over every spec in art/glyphs/
+    python3 .ai/skills/mc-textures/scripts/glyph.py --verify-all               # ... same check over every spec under art/glyphs/, at any depth
     python3 .ai/skills/mc-textures/scripts/glyph.py --ramp emerald             # tonal ramp as paste-ready legend lines
     python3 .ai/skills/mc-textures/scripts/glyph.py SPEC.glyph --snap-palette  # nearest token for each raw-hex entry
     python3 .ai/skills/mc-textures/scripts/glyph.py --list-kinds               # texture kinds and the checks each earns
@@ -99,17 +123,24 @@ USAGE
     python3 .ai/skills/mc-textures/scripts/glyph.py --list-colors              # dump the named palette
 
 Every render prints read-back stats and findings at two severities. A
-**warning** is a quality-bar violation: a flat fill, an edge that is neither
-margin nor bleed, an unoutlined silhouette, a join that would seam when tiled,
-an animation frame identical to the one before it, a legend mixing two mods'
-accents. A **note** is advisory: raw hex where a token would do, an undeclared
-kind. Keeping them apart is what stops a hundred palette notes from burying one
-real seam. (Malformed specs are neither — they fail outright.)
+**warning** is a quality-bar violation: a flat fill, a border neither the spec's
+`kind:` nor its `edge:` accounts for, an unoutlined silhouette, a join that
+would seam when tiled, an animation frame identical to the one before it, a
+legend mixing two mods' accents. A **note** is advisory: raw hex where a token
+would do, an undeclared kind. Keeping them apart is what stops a hundred palette
+notes from burying one real seam. (Malformed specs are neither — they fail
+outright.)
 
 Which checks run depends on `kind:`, because the same pixel geometry means
-different things: a tiling block side, a single cap, and a UI plate all bleed to
-every edge, but only the first can seam, and only the last is allowed a flat
-field. A spec that declares no kind is classified from its edges and told so.
+different things: a tiling block side, a single cap, a UI plate and a UV sheet
+all bleed to every edge, but only the first can seam, and only the plate is
+allowed a flat field. A spec that declares no kind is classified from its edges
+and told so. Where the art means to do something other than its kind's default
+at the border — a mote that spends all 4×4 of its pixels on the motif, a lock
+whose shackle grows out of the frame — an `edge:` line records that once, in
+the spec, the way `palette: free` records a deliberate off-palette master. The
+declaration is checked against the grid rather than trusted: it settles the
+question, it doesn't hide the answer.
 
 A seam is judged against the texture's own gradients rather than in absolute
 terms, because that is what the eye does: vertical stripes jump hard at the
@@ -131,8 +162,11 @@ thousands of block characters say less than the PNG does.
 import argparse
 import json
 import math
+import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 import zlib
 from pathlib import Path
 
@@ -241,6 +275,16 @@ TOKEN_POOL = "".join(dict.fromkeys(
 
 class SpecError(ValueError):
     """A malformed glyph spec, reported with enough context to fix it."""
+
+
+class ToolError(RuntimeError):
+    """A render step needs an external tool this machine doesn't have.
+
+    Kept apart from SpecError on purpose: the spec is fine and the shipped art
+    may be fine — what failed is the environment. A check that reported this as
+    drift would accuse the art, and one that swallowed it would pass a spec it
+    never actually looked at.
+    """
 
 
 def _directive_value(line):
@@ -434,6 +478,34 @@ def parse_spec(text):
                     f"line {lineno}: kind: must be one of "
                     + ", ".join(f"{k} ({KIND_HELP[k]})" for k in KINDS))
             meta["kind"] = value
+            continue
+        if low.startswith("edge:"):
+            value = _directive_value(line).lower()
+            if value not in EDGES:
+                raise SpecError(
+                    f"line {lineno}: edge: must be one of "
+                    + ", ".join(f"{e} ({EDGE_HELP[e]})" for e in EDGES))
+            meta["edge"] = value
+            continue
+        if low.startswith("frames:"):
+            value = _directive_value(line).lower()
+            if value not in FRAME_PACKAGINGS:
+                raise SpecError(
+                    f"line {lineno}: frames: must be 'strip' (the default — a "
+                    f"vertical strip plus a .mcmeta, which the vanilla atlas "
+                    f"animates) or 'split' (standalone per-frame PNGs, for a "
+                    f"texture your own code binds and advances)")
+            meta["frames"] = value
+            continue
+        if low.startswith("downscale:"):
+            value = _directive_value(line).lower()
+            if value not in DOWNSCALE_FILTERS:
+                raise SpecError(
+                    f"line {lineno}: downscale: must be 'box' (the default — "
+                    f"the built-in area average, exact at a whole factor and "
+                    f"needing no external tool) or an ImageMagick filter: "
+                    + ", ".join(MAGICK_FILTERS))
+            meta["downscale"] = value
             continue
         if low.startswith("ships:"):
             # `ships: <path> [size]` — where a rendered master lands. Repeat the
@@ -653,6 +725,153 @@ def scale_nearest(pixels, width, height, factor):
         for x in range(width * factor):
             out.append(pixels[sy * width + (x // factor)])
     return out, width * factor, height * factor
+
+
+def scale_box(pixels, width, height, factor):
+    """Area-average downscale by an integer factor, weighted by alpha.
+
+    Exact for the case that motivates it: when the master is itself a
+    nearest-neighbor upscale of a smaller grid, every factor×factor block holds
+    one colour and the average gives that colour straight back — so a tier
+    derived this way is the same art, not a resample of it. RGB is weighted by
+    alpha so a fading edge doesn't drag the transparent side's colour inward,
+    and the arithmetic is integer throughout so two machines agree to the pixel.
+    """
+    out = []
+    n = factor * factor
+    for y in range(height // factor):
+        for x in range(width // factor):
+            r = g = b = a = 0
+            for dy in range(factor):
+                row = (y * factor + dy) * width + x * factor
+                for dx in range(factor):
+                    px = pixels[row + dx]
+                    r += px[0] * px[3]
+                    g += px[1] * px[3]
+                    b += px[2] * px[3]
+                    a += px[3]
+            if a == 0:
+                out.append(TRANSPARENT)
+            else:
+                out.append(((r + a // 2) // a, (g + a // 2) // a,
+                            (b + a // 2) // a, (a + n // 2) // n))
+    return out, width // factor, height // factor
+
+
+# Memoised (binary_or_None, [rejected paths]) — the identity probe below shells
+# out, and an animated spec would otherwise re-run it once per frame.
+_MAGICK_LOOKUP = []
+
+
+def magick_binary():
+    """ImageMagick's entry point on this machine, or None.
+
+    v7 installs `magick`; v6 installs `convert`, which many v7 packages keep as
+    a compatibility alias. Either is fine — they take the same arguments here,
+    and what they hand back is the same image, since the pixels come home to be
+    re-encoded by this script's own writer rather than shipped as ImageMagick
+    wrote them.
+
+    A candidate is confirmed to *be* ImageMagick before it is used. `convert` is
+    a common enough name to collide: on Windows it is the system's filesystem
+    conversion utility, and handing that a resize command would fail in a way
+    that reads as ImageMagick misbehaving rather than as ImageMagick missing.
+    """
+    if not _MAGICK_LOOKUP:
+        found, rejected = None, []
+        for name in ("magick", "convert"):
+            path = shutil.which(name)
+            if not path:
+                continue
+            if _is_imagemagick(path):
+                found = path
+                break
+            rejected.append(path)
+        _MAGICK_LOOKUP.append((found, rejected))
+    return _MAGICK_LOOKUP[0][0]
+
+
+def _is_imagemagick(path):
+    """Does `path` identify itself as ImageMagick? Read-only, and cheap once."""
+    try:
+        proc = subprocess.run([path, "-version"], capture_output=True,
+                              text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "ImageMagick" in (proc.stdout or "") + (proc.stderr or "")
+
+
+def magick_resize(pixels, size, target, filt):
+    """Resample one frame to target×target through ImageMagick.
+
+    The frame goes out and comes back as PNG32 — 8-bit RGBA, no palette, no
+    16-bit channels — so what returns is directly comparable to what the
+    renderer produces itself. `-background none` keeps a fully transparent
+    surround from tinting the edge, and the date chunks are excluded so a
+    re-render doesn't dirty the file with a timestamp-only diff.
+    """
+    binary = magick_binary()
+    if binary is None:
+        rejected = _MAGICK_LOOKUP[0][1] if _MAGICK_LOOKUP else []
+        wrong = (f" ({', '.join(rejected)} answered to the name but is not "
+                 f"ImageMagick — on Windows 'convert' is the system's "
+                 f"filesystem tool)" if rejected else "")
+        raise ToolError(
+            f"this spec's {target}px tier is resampled with the '{filt}' "
+            f"filter, which is ImageMagick's, and ImageMagick is not installed "
+            f"(looked for 'magick', then 'convert'){wrong}. Install it, or set "
+            f"'downscale: box' to use the built-in area average instead")
+    with tempfile.TemporaryDirectory() as tmp:
+        src, dst = Path(tmp) / "in.png", Path(tmp) / "out.png"
+        write_png(src, pixels, size, size)
+        proc = subprocess.run(
+            [binary, str(src), "-background", "none", "-filter", filt,
+             "-resize", f"{target}x{target}!",
+             "-define", "png:exclude-chunk=date,tIME", f"PNG32:{dst}"],
+            capture_output=True, text=True)
+        if proc.returncode != 0 or not dst.exists():
+            detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+            raise ToolError(
+                f"ImageMagick could not resize to {target}px with the '{filt}' "
+                f"filter: {detail[-1] if detail else 'no output'}")
+        out, w, h = read_png(dst)
+    if (w, h) != (target, target):
+        raise ToolError(
+            f"ImageMagick returned {w}×{h} for a {target}×{target} tier")
+    return out
+
+
+def scale_tier(frames_px, size, scale_to, downscale="box"):
+    """Re-render every frame at `scale_to`, up or down. Returns (frames, size).
+
+    A texture ladder runs upward from a native grid; the mod-icon ladder runs
+    the other way, deriving its 256 and 128 copies from a 512 master. Upscaling
+    is always nearest-neighbor — anything else would blur pixel art, and there
+    is nothing to gain from interpolating pixels that were authored as cells.
+
+    Downscaling is what `downscale:` selects, and it is read off the spec rather
+    than off the machine: were the engine chosen by what happens to be
+    installed, two checkouts of the same spec would mint different pixels and
+    each would call the other's output drift.
+    """
+    if scale_to > size and scale_to % size == 0:
+        factor = scale_to // size
+        return [scale_nearest(px, size, size, factor)[0] for px in frames_px], scale_to
+    if 0 < scale_to < size:
+        # The built-in average is exact at a whole factor and only there; every
+        # other downscale — a different filter, or a ratio like 512 -> 200 — is
+        # ImageMagick's, which is what `downscale:` is declaring.
+        if downscale == "box" and size % scale_to == 0:
+            factor = size // scale_to
+            return [scale_box(px, size, size, factor)[0] for px in frames_px], scale_to
+        return [magick_resize(px, size, scale_to, downscale)
+                for px in frames_px], scale_to
+    raise SpecError(
+        f"a {scale_to}px tier of a {size}px grid is not a whole multiple of it "
+        f"— an upscaled tier is an integer multiple of the native size (e.g. "
+        f"{size * 2}, {size * 4}), rendered nearest-neighbor. Any tier smaller "
+        f"than the grid downscales instead, at whatever ratio 'downscale:' can "
+        f"resample")
 
 
 def read_png(path):
@@ -901,19 +1120,21 @@ def master_artifacts(frames_px, size, meta, out, split_frames=False, scale_to=No
     throwaway review renders, not part of the deliverable. Both the write path
     and --verify read this, so what gets checked is by construction what gets
     written.
+
+    Packaging comes from the spec's `frames:` directive as well as the
+    `--split-frames` flag: a code-bound animation ships standalone frames every
+    time it is rendered, and a check that only knew about the flag would expect
+    a strip nobody meant to write.
     """
     nframes = len(frames_px)
+    split_frames = split_frames or meta.get("frames") == "split"
     if split_frames and nframes == 1:
-        raise SpecError("--split-frames needs an animated spec (2+ frames)")
+        raise SpecError(
+            "split-frame packaging needs an animated spec (2+ frames)")
 
-    if scale_to is not None:
-        if scale_to < size or scale_to % size != 0:
-            raise SpecError(
-                f"--scale-to {scale_to} must be a positive integer multiple of "
-                f"the native size {size} (e.g. {size*2}, {size*4}, {size*8})")
-        factor = scale_to // size
-        frames_px = [scale_nearest(px, size, size, factor)[0] for px in frames_px]
-        size = scale_to
+    if scale_to is not None and scale_to != size:
+        frames_px, size = scale_tier(frames_px, size, scale_to,
+                                     meta.get("downscale", "box"))
 
     if split_frames:
         return ([(out.with_name(f"{out.stem}_{i}{out.suffix}"), px, size, size)
@@ -951,48 +1172,68 @@ def verify_spec(frames_px, size, meta, targets=None, split_frames=False):
     once already, and a spec can arrive on stdin, where there is no path to
     re-open. Returns (checked, problems). `targets` overrides the spec's own
     `ships:` lines with [(path, tier), …].
+
+    Raises SpecError when the spec cannot describe what it ships at all — a
+    tier that is not an integer factor, split frames declared on a static grid.
+    That is a malformed spec, not drift, and a caller that reported it as drift
+    would tell its user the shipped art was edited when it never was.
     """
     if targets is None:
         targets = [(Path(p), tier) for p, tier in meta.get("ships", [])]
     problems, checked = [], []
     for path, tier in targets:
-        try:
-            artifacts, mcmeta = master_artifacts(
-                frames_px, size, meta, Path(path), split_frames, tier)
-        except SpecError as e:
-            problems.append(f"{path}: {e}")
-            continue
+        artifacts, mcmeta = master_artifacts(
+            frames_px, size, meta, Path(path), split_frames, tier)
         problems += verify_artifacts(artifacts, mcmeta)
         checked += [str(a[0]) for a in artifacts]
     return checked, problems
 
 
 def verify_tree(root, verbose=False):
-    """Verify every spec under `root` that declares where it ships.
+    """Verify every spec under `root`, at any depth, that declares where it ships.
+
+    The walk recurses: a repo with enough art to sort it into subdirectories is
+    exactly the repo that most needs the check, and a walk that stopped at the
+    top level would report a confident green over art it never opened.
 
     This lives in the renderer rather than in a separate tool because the
     renderer is what gets vendored into each member repo — a checker that only
     exists in concord could not be run by the repos whose art it holds.
 
-    Returns (checked, drifted, unlinked).
+    Returns (checked, drifted, broken, blocked, unlinked). The three failures
+    are counted apart because they accuse different things: drift means a
+    shipped asset was edited outside its spec, malformed means the spec itself
+    doesn't parse, and blocked means a tool the spec needs isn't installed, so
+    the art was never looked at either way. A caller that wraps this can only
+    word its error correctly if it can tell them apart — and a walk that
+    quietly passed the blocked ones would be back to reporting a confident
+    green over art it never opened.
     """
     root = Path(root)
     if not root.exists():
         print(f"  {root}: no such directory — nothing to verify")
-        return 0, 0, 0
-    checked = drifted = 0
+        return 0, 0, 0, 0, 0
+    checked = drifted = broken = blocked = 0
     unlinked = []
-    for spec_path in sorted(root.glob("*.glyph")):
+    for spec_path in sorted(root.rglob("*.glyph")):
         if not spec_ships(spec_path):
             unlinked.append(spec_path)
             continue
-        checked += 1
         try:
             legend, rows, declared, meta, _used = parse_spec(spec_path.read_text())
             frames_px, size = build_frames(legend, rows, declared)
             shipped, problems = verify_spec(frames_px, size, meta)
         except SpecError as e:
-            shipped, problems = [], [f"{spec_path}: {e}"]
+            broken += 1
+            print(f"  BROKEN   {spec_path}")
+            print(f"           {e}")
+            continue
+        except ToolError as e:
+            blocked += 1
+            print(f"  BLOCKED  {spec_path}")
+            print(f"           {e}")
+            continue
+        checked += 1
         if problems:
             drifted += 1
             print(f"  DRIFT    {spec_path}")
@@ -1002,7 +1243,7 @@ def verify_tree(root, verbose=False):
             print(f"  ok       {spec_path} -> {', '.join(shipped)}")
     for spec_path in unlinked:
         print(f"  unlinked {spec_path} — no 'ships:' target, so nothing verifies it")
-    return checked, drifted, len(unlinked)
+    return checked, drifted, broken, blocked, len(unlinked)
 
 
 def verify_artifacts(artifacts, mcmeta):
@@ -1070,34 +1311,81 @@ OUTLINE_MIN_AREA = 40      # below this a motif is a pip or a spark, not a form
 OUTLINE_DARK_PCT = 50.0    # share of the silhouette edge that must read as dark
 OUTLINE_DARK_LUM = 0.25    # relative luminance below which a pixel reads as ink
 
-# What a texture *is*. Inferring this from pixel geometry conflates three
-# different things — a tiling block side, a single face or cap, and a UI plate
-# all bleed to every edge — so each check specialises on the declared kind
-# instead of guessing. A spec that declares none is classified from its edges,
-# which is what every spec written before this directive relies on.
-KINDS = ("sprite", "block", "cap", "ui", "icon")
+# What a texture *is*. Inferring this from pixel geometry conflates several
+# different things — a tiling block side, a single face or cap, a UI plate and
+# a UV sheet all bleed to every edge — so each check specialises on the
+# declared kind instead of guessing. A spec that declares none is classified
+# from its edges, which is what every spec written before this directive
+# relies on.
+KINDS = ("sprite", "particle", "block", "cap", "ui", "atlas", "icon")
 KIND_HELP = {
     "sprite": "a centred motif on transparency — items, HUD glyphs, pips",
+    "particle": "a spark, mote, or pip whose motif fills the canvas it is given",
     "block": "a tiling block side face; repeats against copies of itself",
-    "cap": "a single full-bleed face that never tiles — a block top or bottom",
+    "cap": "a full-bleed face that never repeats — a block top or bottom",
     "ui": "a UI plate, panel, or 9-slice frame; flat areas are the point",
+    "atlas": "a sheet read through UV sub-windows, never drawn as one face",
     "icon": "mod, store, or hero art — read in a launcher, not on a HUD",
 }
 # Which checks each kind earns. A cap bleeds like a block but never repeats, so
 # seam-checking it reports a break that cannot happen; a UI frame's flat centre
-# is the design, not a missing tonal ramp; and an icon is never composited over
+# is the design, not a missing tonal ramp; an atlas is only ever sampled through
+# windows, so nothing about its whole-canvas geometry means anything, though the
+# surfaces inside those windows owe the same shading as any other face; a particle
+# is drawn at the size of the effect and spends every pixel on it, where a 1px
+# ring would cost 44% of an 8px canvas; and an icon is never composited over
 # an unknown background, so it owes nothing to the `ink` outline rule.
 KIND_CHECKS = {
     "sprite": {"outline", "flat", "margin"},
+    "particle": {"flat"},
     "block": {"seam", "flat", "bleed"},
     "cap": {"flat", "bleed"},
     "ui": set(),
+    "atlas": {"flat"},
     "icon": {"flat"},
 }
 # A spec that declares no kind still earns the one check that holds for almost
 # everything. The flat-fill message names `kind: ui` as the way out, so the
 # single exception is self-correcting rather than silently unchecked.
 UNDECLARED_CHECKS = {"flat"}
+
+# How the motif meets the canvas border. A kind implies one — a sprite sits on
+# a transparent margin, a block or a cap bleeds — but art that deliberately
+# does otherwise says so once, in the spec, exactly as `palette: free` does: an
+# 11px lock whose shackle grows out of the frame is drawn that way on purpose,
+# and no amount of re-rendering will change its mind. The declaration is still
+# measured against the grid, so it records intent rather than muting the check.
+EDGES = ("margin", "shaped", "bleed")
+EDGE_HELP = {
+    "margin": "a clean 1px transparent ring on all four sides",
+    "shaped": "the motif deliberately meets some edges but not all",
+    "bleed": "opaque along all four edges",
+}
+# What the grid actually does, phrased for a warning about the mismatch.
+EDGE_ACTUAL = {
+    "margin": "sitting on a clean transparent margin",
+    "shaped": "opaque on some of its border but not all",
+    "bleed": "opaque along all four edges",
+}
+
+# How an animated spec is packaged: a vertical strip + `.mcmeta` for the vanilla
+# atlas to animate, or standalone per-frame PNGs for a texture your own code
+# binds and indexes. It belongs in the spec rather than in a CLI flag because it
+# is a property of the deliverable — `--verify` has to expect the same files the
+# render writes, and nothing on the command line is remembered between the two.
+FRAME_PACKAGINGS = ("strip", "split")
+
+# How a `ships:` tier below the native grid is resampled. `box` is the built-in
+# alpha-weighted area average: exact at a whole factor, and reproducible by any
+# machine with Python on it. The rest are ImageMagick's, worth reaching for when
+# the master is painted or traced rather than authored cell by cell — and they
+# also lift the whole-factor restriction, since ImageMagick will resample any
+# ratio. The trade is that those pixels belong to ImageMagick, so a version that
+# resamples differently reads as drift; a spec that wants the repeatability
+# check to outlive its toolchain stays on `box`. The list is closed rather than
+# free text so a typo is caught here instead of becoming a subprocess argument.
+MAGICK_FILTERS = ("point", "triangle", "catrom", "mitchell", "lanczos")
+DOWNSCALE_FILTERS = ("box",) + MAGICK_FILTERS
 
 # Seam continuity for tiling textures. A seam is visible when the jump across
 # the wrap is unlike the jumps already inside the texture — not merely when it
@@ -1251,7 +1539,8 @@ def infer_kind(frames_px, size):
     return None, opaque, len(ring)
 
 
-def analyze(frames_px, size, used_tokens, raw_hex=(), palette="tokens", kind=None):
+def analyze(frames_px, size, used_tokens, raw_hex=(), palette="tokens",
+            kind=None, edge=None):
     """Objective read-back stats mirroring the mc-textures quality bar.
 
     Returns (lines, findings). `lines` are stat lines to print; `findings` are
@@ -1261,6 +1550,8 @@ def analyze(frames_px, size, used_tokens, raw_hex=(), palette="tokens", kind=Non
 
     `kind` selects which checks apply (see KIND_CHECKS); when it is None the
     kind is inferred from the edges and the inference is reported as a note.
+    `edge` is the spec's declared edge intent (see EDGES), which answers the
+    margin question for good instead of leaving it asked on every render.
     """
     lines, findings = [], []
 
@@ -1301,24 +1592,34 @@ def analyze(frames_px, size, used_tokens, raw_hex=(), palette="tokens", kind=Non
     else:
         lines.append(f"kind:     {kind} ({KIND_HELP[kind]})")
 
-    if ring_opaque == 0:
-        lines.append("edge:     transparent 1px margin (sprite)")
-        if "bleed" in checks:
-            warn(f"a {kind} bleeds to all four edges, but this one sits on a "
-                 f"transparent margin — it will not join its neighbours")
-    elif ring_opaque == ring_len:
-        lines.append("edge:     full bleed on all four edges")
-        if "margin" in checks:
-            warn("a sprite wants a 1px transparent margin so it reads as one "
-                 "motif — this one bleeds to every edge")
-    else:
-        lines.append(f"edge:     mixed — {ring_opaque}/{ring_len} edge px opaque")
-        if "margin" in checks or "bleed" in checks:
-            warn(f"a {kind} wants a definite edge — this one is neither a clean "
-                 f"transparent margin nor a full bleed; pick one deliberately")
-        elif declared is None:
-            note("edge is neither a clean transparent margin nor a full bleed, so "
-                 "the kind could not be inferred — declare it")
+    # What the border actually does, then what the spec asked for. A declared
+    # `edge:` settles the margin question — the skill has always allowed a
+    # sprite to reach its border on purpose, and this is where the author says
+    # so — but it cannot settle the bleed one: a block side that stops short of
+    # its border shows the void when it tiles, whatever the spec intended.
+    actual = ("margin" if ring_opaque == 0
+              else "bleed" if ring_opaque == ring_len else "shaped")
+    described = {"margin": "transparent 1px margin",
+                 "bleed": "full bleed on all four edges",
+                 "shaped": f"shaped — {ring_opaque}/{ring_len} edge px opaque"}[actual]
+    lines.append(f"edge:     {described}"
+                 + (f" (declared: {edge})" if edge else ""))
+
+    if edge is not None and actual != edge:
+        warn(f"declares 'edge: {edge}' — {EDGE_HELP[edge]} — but the grid is "
+             f"{EDGE_ACTUAL[actual]}; make the declaration and the art agree")
+    if "margin" in checks and edge is None and actual != "margin":
+        warn(f"a {kind} wants a 1px transparent margin so it reads as one "
+             f"motif — this one is {EDGE_ACTUAL[actual]}. If the motif is "
+             f"drawn to reach the border, declare it once with "
+             f"'edge: {actual}' (a spark or mote that fills its canvas is a "
+             f"'kind: particle')")
+    if "bleed" in checks and actual != "bleed":
+        warn(f"a {kind} bleeds to all four edges — this one is "
+             f"{EDGE_ACTUAL[actual]}, so it will not join its neighbours")
+    if declared is None and edge is None and actual == "shaped":
+        note("edge is neither a clean transparent margin nor a full bleed, so "
+             "the kind could not be inferred — declare it")
 
     # Seam continuity, for the one kind that repeats against copies of itself.
     if "seam" in checks:
@@ -1447,7 +1748,7 @@ def emit_review(out, frames_px, size, used_tokens, meta, args):
     lines, findings = analyze(frames_px, size, used_tokens,
                               meta.get("raw_hex", ()),
                               meta.get("palette", "tokens"),
-                              meta.get("kind"))
+                              meta.get("kind"), meta.get("edge"))
     for ln in lines:
         print(f"  {ln}")
     # Warnings are quality-bar violations; notes are advisory. Keeping them
@@ -1466,17 +1767,20 @@ def main(argv=None):
                          f"near {PREVIEW_MAX_PX}px (a 16px glyph previews at ×16, "
                          f"a 128px master at ×4). Pass a value to override the cap")
     ap.add_argument("--scale-to", type=int, metavar="N",
-                    help="write a real master upscaled to N×N by nearest-neighbor "
-                         "(N must be an integer multiple of the native grid size). "
-                         "Use this to mint the high-res tiers of a size ladder from a "
-                         "native master — unlike --preview-scale this output IS the master, "
-                         "not a '@Nx' preview")
+                    help="write a real master re-tiered to N×N: an integer multiple "
+                         "of the native grid upscales nearest-neighbor, a smaller N "
+                         "downscales (the mod-icon ladder, where a 512 master derives "
+                         "its 256 and 128 copies) by whatever the spec's 'downscale:' "
+                         "line selects. Unlike --preview-scale this output IS the "
+                         "master, not a '@Nx' preview")
     ap.add_argument("--split-frames", action="store_true",
                     help="for an animated spec, write each frame as a standalone "
                          "<name>_<i>.png (no strip, no .mcmeta) instead of a vertical "
                          "strip — the packaging for a texture your own code binds and "
                          "advances (custom render type, HUD icon, GUI blit), which a "
-                         "strip+.mcmeta can be reinterpreted and broken by")
+                         "strip+.mcmeta can be reinterpreted and broken by. A spec that "
+                         "always ships this way says so with 'frames: split' instead, "
+                         "so --verify expects the same files")
     ap.add_argument("--from-png", action="store_true",
                     help="reverse direction: transcribe the given raster PNG "
                          "master into a .glyph spec (default: alongside the "
@@ -1492,11 +1796,12 @@ def main(argv=None):
                          "reporting any pixel that drifted. Exits non-zero on "
                          "drift — the CI form of the repeatability rule")
     ap.add_argument("--verify-all", nargs="?", const="art/glyphs", metavar="DIR",
-                    help="verify every spec in DIR (default art/glyphs) against "
-                         "the masters it declares with 'ships:', and report the "
-                         "ones that declare none. Exits non-zero on drift — run "
-                         "it in CI to hold the whole repo's textures to their "
-                         "specs")
+                    help="verify every spec under DIR (default art/glyphs), at "
+                         "any depth, against the masters it declares with "
+                         "'ships:', and report the ones that declare none. "
+                         "Exits non-zero on drift or on a spec that no longer "
+                         "parses — run it in CI to hold the whole repo's "
+                         "textures to their specs")
     ap.add_argument("--ramp", metavar="TOKEN",
                     help="print a tonal ramp off a named token as paste-ready "
                          "legend lines, and exit. A legend can name any step of "
@@ -1526,6 +1831,19 @@ def main(argv=None):
             print(f"  {' ' * width}  checks: {checks}")
         print("\n  Shared by every kind: palette, mixed-mod accents, detached "
               "pieces, duplicate animation frames.")
+        ewidth = max(len(e) for e in EDGES)
+        print("\n  An 'edge:' line records what the motif does at the border, "
+              "for art that\n  means to do something other than its kind's "
+              "default. It is measured\n  against the grid like everything "
+              "else — it declares intent, it doesn't\n  silence the check:")
+        for e in EDGES:
+            print(f"    {e.ljust(ewidth)}  {EDGE_HELP[e]}")
+        have = magick_binary()
+        print(f"\n  A 'downscale:' line selects how a `ships:` tier smaller than "
+              f"the grid is\n  resampled: 'box' (the default) is built in and "
+              f"exact at a whole factor;\n  {', '.join(MAGICK_FILTERS)} are "
+              f"ImageMagick's, and resample any ratio.\n  ImageMagick here: "
+              f"{have or 'not installed — box is the only filter available'}")
         return 0
 
     if args.list_colors:
@@ -1541,9 +1859,11 @@ def main(argv=None):
     # given, and an empty DIR would otherwise fall through to the render
     # path and complain about a missing spec.
     if args.verify_all is not None:
-        checked, drifted, unlinked = verify_tree(args.verify_all, args.verbose)
-        print(f"  {checked} verified, {drifted} drifted, {unlinked} unlinked")
-        return 1 if drifted else 0
+        checked, drifted, broken, blocked, unlinked = verify_tree(
+            args.verify_all, args.verbose)
+        print(f"  {checked} verified, {drifted} drifted, {broken} malformed, "
+              f"{blocked} blocked, {unlinked} unlinked")
+        return 1 if (drifted or broken or blocked) else 0
 
     if args.ramp:
         try:
@@ -1608,8 +1928,12 @@ def main(argv=None):
             print(f"glyph: {args.spec} declares no 'ships:' target and no -o was "
                   f"given — nothing to verify against", file=sys.stderr)
             return 1
-        checked, problems = verify_spec(frames_px, size, meta, targets,
-                                        args.split_frames)
+        try:
+            checked, problems = verify_spec(frames_px, size, meta, targets,
+                                            args.split_frames)
+        except (SpecError, ToolError) as e:
+            print(f"glyph: {args.spec}: {e}", file=sys.stderr)
+            return 1
         for p in problems:
             print(f"glyph: drift: {p}", file=sys.stderr)
         if problems:
@@ -1625,7 +1949,7 @@ def main(argv=None):
     try:
         artifacts, mcmeta = master_artifacts(
             frames_px, size, meta, out, args.split_frames, args.scale_to)
-    except SpecError as e:
+    except (SpecError, ToolError) as e:
         print(f"glyph: {e}", file=sys.stderr)
         return 1
 
@@ -1635,12 +1959,18 @@ def main(argv=None):
     if mcmeta:
         write_mcmeta(*mcmeta)
 
-    # An upscaled master is a mechanical ×N of a grid already reviewed at native
-    # size, so it skips the ASCII dump, the preview, and the stat read-back.
+    # A re-tiered master is a mechanical resize of a grid already reviewed at
+    # native size, so it skips the ASCII dump, the preview, and the read-back.
     if args.scale_to is not None:
-        factor = args.scale_to // size
+        filt = meta.get("downscale", "box")
+        if args.scale_to >= size:
+            how = f"nearest-neighbor ×{args.scale_to // size}"
+        elif filt == "box" and size % args.scale_to == 0:
+            how = f"area-average ÷{size // args.scale_to}"
+        else:
+            how = f"ImageMagick {filt}"
         for path, _px, w, h in artifacts:
-            print(f"  wrote {path}  ({w}×{h} master, nearest-neighbor ×{factor} from {size}px)")
+            print(f"  wrote {path}  ({w}×{h} master, {how} from {size}px)")
         if mcmeta:
             print(f"  wrote {mcmeta[0]}")
         return 0
@@ -1657,13 +1987,14 @@ def main(argv=None):
         emit_review(out, frames_px, size, used_tokens, meta, args)
         return 0
 
-    # animated: a vertical strip + .mcmeta sidecar (vanilla atlas animates it), or,
-    # with --split-frames, one standalone PNG per frame (your code binds and advances it).
+    # animated: a vertical strip + .mcmeta sidecar (vanilla atlas animates it),
+    # or, with `frames: split` / --split-frames, one standalone PNG per frame
+    # (your code binds and advances it).
     for i, px in enumerate(frames_px, 1):
         print(f"frame {i}/{nframes}")
         print(render_ascii(px, size, size))
         print()
-    if args.split_frames:
+    if mcmeta is None:
         print(f"  wrote {nframes} standalone frames {out.stem}_0..{nframes - 1}{out.suffix}  "
               f"({size}×{size} each, no strip/.mcmeta; drive frametime {ft} from your own timer)")
     else:

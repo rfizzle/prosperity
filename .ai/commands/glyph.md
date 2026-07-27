@@ -43,10 +43,10 @@ off-palette (a transcribed raster, a hand-painted neutral), declare
 
 ## Step 2 — Design the grid
 
-Open the spec with a **`kind:`** line — `sprite`, `block`, `cap`, `ui`, or
-`icon` (`--list-kinds` explains each). It decides which checks the render
-applies, and the geometry alone can't tell a tiling block from a block cap or a
-UI plate, since all three bleed to every edge.
+Open the spec with a **`kind:`** line — `sprite`, `particle`, `block`, `cap`,
+`ui`, `atlas`, or `icon` (`--list-kinds` explains each). It decides which checks
+the render applies, and the geometry alone can't tell a tiling block from a
+block cap, a UI plate, or a UV sheet, since they all bleed to every edge.
 
 Honor the design-system glyph conventions:
 
@@ -71,8 +71,12 @@ Honor the design-system glyph conventions:
   interior edge flattens the volume back into a sticker.
 - **One glowing accent**, the mod's signature. The brighter accent (`*-bright`,
   `gold`, `ember`) sparingly for highlights; the base accent for the body.
-- `.` is transparent. Keep at least a 1px transparent margin unless the motif
-  intentionally bleeds to the edge.
+- `.` is transparent. Keep a 1px transparent margin; where the motif is drawn to
+  meet the border instead — a shackle growing out of the frame, a spark filling
+  its 8×8 — record that once with an **`edge:`** line (`margin` | `shaped` |
+  `bleed`), or reach for `kind: particle` if the whole canvas *is* the motif.
+  The declaration is checked against the grid, so it states intent rather than
+  waving the check off.
 
 ### Canvas size by asset role
 
@@ -119,9 +123,10 @@ nearest-neighbor preview) beside the spec, and prints read-back stats: opaque
 color count, edge margin vs. full bleed, the largest single-tone region, how
 much of the silhouette edge reads as outline, and how many detached pieces the
 motif has. Findings come at two severities: **warnings** are quality-bar
-violations (a flat fill, a missing `ink` outline, a half-bled edge, a join that
-would seam, a repeated animation frame, mixed mod accents) and **notes** are
-advisory (raw hex where a token would do, a missing `kind:`). Fix the warnings
+violations (a flat fill, a missing `ink` outline, a border the `kind:`/`edge:`
+lines don't account for, a join that would seam, a repeated animation frame,
+mixed mod accents) and **notes** are advisory (raw hex where a token would do, a
+missing `kind:`). Fix the warnings
 before shipping; notes can wait for the next time you touch the art. Treat the
 detached-pieces count as a question: a glint or a chain link is deliberate, a
 stray pixel is a typo.
@@ -132,7 +137,8 @@ means copies will show a line where they meet. Add `--tile-preview` for the two
 pictures: `@2x2.png` (the pattern repeating and cornering) and `@seam.png` (the
 texture rolled by half so both joins cross the centre — read this one back; a
 seam appears as a line straight through the middle). A full-bleed face that
-never repeats is a `kind: cap` or a `kind: ui`, not a block.
+never repeats is a `kind: cap` or a `kind: ui`, not a block — never repeating is
+what makes a cap, so a decorative side face that doesn't tile is one too.
 **Read the @16x preview back** and
 judge it honestly against the motif. Then iterate the grid until it's right —
 fixing pixel art is fast: edit the `.glyph` and re-run. Show the user the
@@ -192,6 +198,12 @@ and a `<name>.png.mcmeta` sidecar — exactly the vanilla animated-texture
 packaging. Design the motion as a short loop (e.g. a pulse: small → medium →
 large → medium).
 
+That packaging is right when the vanilla atlas advances the frames. A texture
+your own code binds and indexes ships standalone per-frame PNGs instead — say so
+in the spec with **`frames: split`** (`strip` is the default) so the render and
+`--verify` agree on what the deliverable is. See "Animated textures" in the
+`mc-textures` skill for which case is which.
+
 Rendering an animated spec writes two previews: a horizontal **filmstrip**
 (`@16x.png`, every frame side-by-side — read this back to judge each frame) and
 an **animated PNG** (`@16x-anim.png`, full alpha, real motion — send it to the
@@ -217,8 +229,13 @@ is approved, re-render with `-o` pointing at the final `assets/<mod>/textures/�
 path.
 
 Then record that path in the spec as a `ships:` line — one per shipped file, so a
-size ladder declares every tier it mints (`ships: art/icon-128.png 128`) — and
-confirm the link:
+size ladder declares every tier it mints (`ships: art/icon-128.png 128`). A tier
+larger than the grid upscales nearest-neighbor; a smaller one downscales, so an
+icon ladder derived from a big master is declared the same way. How it
+downscales is the spec's call — `downscale: box` (the default) is built in and
+exact at a whole factor, while `lanczos`, `mitchell`, `catrom`, `triangle` or
+`point` route through ImageMagick, which suits a painted or traced master and
+resamples any ratio. Then confirm the link:
 
 ```bash
 python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph --verify
@@ -227,7 +244,8 @@ python3 .ai/skills/mc-textures/scripts/glyph.py art/glyphs/<name>.glyph --verify
 `--verify` re-renders the spec and compares it against the shipped master pixel
 for pixel (and the `.mcmeta` for an animated strip), which is what makes the
 `.glyph` the source of truth in practice rather than by convention —
-`glyph.py --verify-all` runs the same check over every spec in `art/glyphs/`. A spec without a
+`glyph.py --verify-all` runs the same check over every spec under `art/glyphs/`,
+at any depth. A spec without a
 `ships:` line is reported as unlinked and nothing holds it to its asset, so add
 it whenever a glyph ships.
 
