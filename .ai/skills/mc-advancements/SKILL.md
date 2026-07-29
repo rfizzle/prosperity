@@ -202,7 +202,7 @@ The gametest helpers that make grant-assertions reliable:
 
 ```java
 private ServerPlayer spawnListeningPlayer(GameTestHelper helper) {
-    ServerPlayer player = helper.makeMockServerPlayerInLevel();
+    ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);   // see mc-testing-mock; retire it when done
     // Reloading against the live manager guarantees the freshly-registered trigger
     // has an advancement listener for this player before the first fire.
     player.getAdvancements().reload(helper.getLevel().getServer().getAdvancements());
