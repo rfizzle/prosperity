@@ -1,5 +1,5 @@
 # Thin stub — logic lives in rfizzle/concord (mod-ci.yml).
-# Covers what ci.yml + test.yml used to: build, unit tests + Codecov, gametests.
+# Covers what ci.yml + test.yml used to: build, unit tests, gametests, coverage report artifacts.
 name: CI
 
 on:

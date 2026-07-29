@@ -8,4 +8,15 @@ pluginManagement {
     }
 }
 
+// Concord suite toolchain — concord-owned, synced via the concord-sync PR.
+// Gradle auto-loads gradle.properties but not versions-common.properties, so
+// load it here before any project is configured; build.gradle then reads the
+// pins as ordinary project properties.
+def suitePins = new Properties()
+def suiteFile = file('versions-common.properties')
+if (suiteFile.exists()) { suiteFile.withInputStream { suitePins.load(it) } }
+gradle.rootProject {
+    suitePins.each { key, value -> ext[key as String] = value }
+}
+
 rootProject.name = 'prosperity'
