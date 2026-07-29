@@ -1,6 +1,6 @@
 ---
 name: mc-testing-mock
-description: Mock player helpers in Fabric Gametest (MockPlayers.serverPlayerInLevel replica for the deprecated makeMockServerPlayerInLevel, plus makeMockPlayer). TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, or player.discard() in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test, or when writing production code that must distinguish real players from fake/automation players (FakePlayer guards).
+description: Mock player helpers in Fabric Gametest — the canonical MockPlayers class (connected replica, the Connected record exposing the packet channel, spectator variant, and retire/retireLeaked teardown), plus makeMockPlayer. TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, outbound-packet assertions, or mock-player teardown in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test, or when writing production code that must distinguish real players from fake/automation players (FakePlayer guards).
 ---
 
 The user is writing or reviewing Fabric gametest code that needs a mock player. Apply this guidance to avoid repeated lookups of how the connected-`ServerPlayer` replica and `makeMockPlayer` work.
@@ -19,39 +19,138 @@ ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 
 **The faithful replica — five steps (MC 1.21.1):**
 
-1. Create a `GameProfile` with `UUID.randomUUID()` and name `"test-mock-player"`
+1. Create a `GameProfile` with `UUID.randomUUID()` and a mod-namespaced mock name
 2. Create a `CommonListenerCookie` via `CommonListenerCookie.createInitial(profile, false)`
-3. Construct a **`ServerPlayer` subclass** with the helper's `ServerLevel`, its server, and the cookie's `gameProfile()` + `clientInformation()`, **overriding `isSpectator()` to return `false` and `isCreative()` to return `true`** (the vanilla method forces these; a bare `ServerPlayer` would report spectator/non-creative and silently change gameplay-gated behavior)
-4. Create a real `Connection(PacketFlow.SERVERBOUND)` and back it with `new EmbeddedChannel(connection)` — the embedded channel absorbs packets so `connection.send(...)` paths work instead of NPEing
+3. Construct a **`ServerPlayer` subclass** with the helper's `ServerLevel`, its server, and the cookie's `gameProfile()` + `clientInformation()`, **overriding `isSpectator()` to return the requested spectator flag (`false` for the plain replica) and `isCreative()` to return `true`** (the vanilla method forces these; a bare `ServerPlayer` would report spectator/non-creative and silently change gameplay-gated behavior)
+4. Create a real `Connection(PacketFlow.SERVERBOUND)` and back it with `new EmbeddedChannel(connection)` — the embedded channel absorbs packets so `connection.send(...)` paths work instead of NPEing. **Keep the channel**: it is the only handle on what the server sent this player
 5. Call `server.getPlayerList().placeNewPlayer(connection, player, cookie)` — this **fully registers the player** in the server's player list, sets up `ServerGamePacketListenerImpl`, and adds the player to the level
 
+#### The canonical `MockPlayers`
+
+One class per mod, in the gametest source set (`com.rfizzle.<mod>.gametest.util.MockPlayers`),
+with this shape. The private `connectedInLevel` does the construction once; the public factories
+are the three ways tests need it, and `retire`/`retireLeaked` are the teardown, explained under
+"Cleanup" below.
+
 ```java
-public static ServerPlayer serverPlayerInLevel(GameTestHelper helper) {
-    GameProfile profile = new GameProfile(UUID.randomUUID(), "test-mock-player");
-    CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+public final class MockPlayers {
 
-    ServerLevel level = helper.getLevel();
-    MinecraftServer server = level.getServer();
-    ServerPlayer player = new ServerPlayer(server, level, cookie.gameProfile(), cookie.clientInformation()) {
-        @Override
-        public boolean isSpectator() {
-            return false;
+    /**
+     * Profile name for this mod's mocks. Namespaced, because a sweep matches on it and
+     * several mods can share a gametest level — an unnamespaced "test-mock-player" lets
+     * one mod's sweep retire another mod's live player.
+     */
+    private static final String MOCK_NAME = MyMod.MOD_ID + "-test-mock-player";
+
+    /** A connected player plus the embedded channel its outbound packets land in. */
+    public record Connected(ServerPlayer player, EmbeddedChannel channel) {
+    }
+
+    private MockPlayers() {
+    }
+
+    /** The connected replica; spawns near world spawn — teleport as needed. */
+    public static ServerPlayer serverPlayerInLevel(GameTestHelper helper) {
+        return connectedServerPlayerInLevel(helper).player();
+    }
+
+    /** Same replica, with the packet-absorbing channel exposed for outbound assertions. */
+    public static Connected connectedServerPlayerInLevel(GameTestHelper helper) {
+        return connectedInLevel(helper, false);
+    }
+
+    /** A connected replica that reports as a spectator. */
+    public static Connected spectatorServerPlayerInLevel(GameTestHelper helper) {
+        return connectedInLevel(helper, true);
+    }
+
+    /** Fully retires a connected mock: awake, out of the player list, entity discarded. */
+    public static void retire(ServerPlayer player) {
+        if (player.isRemoved()) {
+            return;                       // PlayerList#remove is not idempotent
         }
-
-        @Override
-        public boolean isCreative() {
-            return true;
+        if (player.isSleeping()) {
+            player.stopSleepInBed(true, true);
         }
-    };
+        MinecraftServer server = player.getServer();
+        if (server != null) {
+            server.getPlayerList().remove(player);
+        }
+        player.discard();
+    }
 
-    Connection connection = new Connection(PacketFlow.SERVERBOUND);
-    new EmbeddedChannel(connection);   // absorbs sent packets; no real client
-    server.getPlayerList().placeNewPlayer(connection, player, cookie);
-    return player;
+    /** Retires any mock this mod leaked into the helper's level. See the batch caveat below. */
+    public static void retireLeaked(GameTestHelper helper) {
+        for (ServerPlayer player : List.copyOf(helper.getLevel().players())) {
+            if (MOCK_NAME.equals(player.getGameProfile().getName())) {
+                retire(player);
+            }
+        }
+    }
+
+    private static Connected connectedInLevel(GameTestHelper helper, boolean spectator) {
+        GameProfile profile = new GameProfile(UUID.randomUUID(), MOCK_NAME);
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        ServerPlayer player = new ServerPlayer(server, level, cookie.gameProfile(), cookie.clientInformation()) {
+            @Override
+            public boolean isSpectator() {
+                return spectator;
+            }
+
+            @Override
+            public boolean isCreative() {
+                return true;
+            }
+        };
+
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        EmbeddedChannel channel = new EmbeddedChannel(connection);
+        server.getPlayerList().placeNewPlayer(connection, player, cookie);
+        return new Connected(player, channel);
+    }
 }
 ```
 
-Keep this in one gametest utility per mod (e.g. a `MockPlayers` class in the mod's gametest source set) and guard its faithfulness with a gametest — assert the returned player has a live connection, is in the player list, is in the level, `isCreative()`, and `!isSpectator()` — so a later "simplification" to a bare `new ServerPlayer(...)` fails loudly instead of silently breaking the connection-dependent tests.
+Guard its faithfulness with a gametest — assert the returned player has a live connection, is
+in the player list, is in the level, `isCreative()`, and `!isSpectator()` — so a later
+"simplification" to a bare `new ServerPlayer(...)` fails loudly instead of silently breaking
+the connection-dependent tests.
+
+**The spectator variant is a spectator through `isSpectator()` only.** It is still placed with
+the server's default `GameType` and still overrides `isCreative()` to `true`, so
+`getGameModeForPlayer()` reports whatever the server default is. Production code that gates on
+`isSpectator()` — the common case — is exercised correctly. Code that gates on
+`GameType.SPECTATOR` or on `!isCreative()` is *not*, and a test using this mock will pass while
+running the wrong branch. Check which predicate the code under test uses before reaching for it.
+
+**Returning the channel is the point of the record.** Without it, a test that needs to assert on
+an outbound packet has to dig the channel back out of the player by reflection — through
+`ServerCommonPacketListenerImpl.connection` and then `Connection.channel`, two private fields
+whose names a mapping change can break, in a helper that has to `helper.fail(...)` on
+`NoSuchFieldException`. `Connected.channel()` hands back the same object the factory just
+created. Reflection-based channel extraction is superseded; a mod carrying one should delete it
+in favour of `connectedServerPlayerInLevel`.
+
+`serverPlayerInLevel(helper)` stays as the convenience overload because most tests never touch
+the channel. Reach for `connectedServerPlayerInLevel` only when asserting on what the server
+sent, and `spectatorServerPlayerInLevel` when the test needs a spectator left out of a feature's
+accounting or its broadcasts.
+
+Reading an outbound packet off the channel:
+
+```java
+MockPlayers.Connected connected = MockPlayers.connectedServerPlayerInLevel(helper);
+try {
+    // ... drive the behavior that sends to this player
+    ClientboundSetActionBarTextPacket sent = connected.channel().readOutbound();
+    helper.assertTrue(sent != null, "the server sent an action-bar packet");
+} finally {
+    MockPlayers.retire(connected.player());
+}
+```
 
 **Key properties:**
 - `player.connection` is **non-null** — has a real `ServerGamePacketListenerImpl`
@@ -137,13 +236,13 @@ var player = new ServerPlayer(server, helper.getLevel(),
 
 This player has `connection == null`, is NOT in the player list, but supports attachments and command source stacks. Use this when you don't need network functionality and want to avoid the overhead of `placeNewPlayer()`.
 
-## Cleanup: always discard
+## Cleanup: always retire
 
 Scope is the connected replica. `makeMockPlayer` and directly constructed `ServerPlayer` instances are never added to the level or the player list, so they need no cleanup.
 
-The framework never removes a mock player for you — `GameTestInfo#succeed()` and the batch sweep in `StructureUtils` both filter `Player` instances out of their bounds sweep. A connected replica that is not discarded stays in the level, ticked for the rest of the run and holding a chunk ticket. An assertion that throws before a trailing `player.discard()` skips it entirely, so the guarantee is weakest exactly when the suite is unhealthy and the output is hardest to read.
+The framework never removes a mock player for you — `GameTestInfo#succeed()` and the batch sweep in `StructureUtils` both filter `Player` instances out of their bounds sweep. A connected replica that is not retired stays in the level, ticked for the rest of the run and holding a chunk ticket, *and* stays in the player list. An assertion that throws before a trailing cleanup call skips it entirely, so the guarantee is weakest exactly when the suite is unhealthy and the output is hardest to read.
 
-Discard in a `finally`, so cleanup survives a failing assertion:
+Retire in a `finally`, so cleanup survives a failing assertion:
 
 ```java
 ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
@@ -152,7 +251,7 @@ try {
     helper.assertTrue(..., "...");
     helper.succeed();
 } finally {
-    player.discard();
+    MockPlayers.retire(player);
 }
 ```
 
@@ -160,13 +259,64 @@ try {
 
 Wrap the body the player is used in, not the whole method reflexively. Setup that runs before the player exists has nothing to clean up.
 
-`discard()` removes the entity from the level and releases its chunk ticket. The player list entry stays; clearing it means `PlayerList#remove`, which this rule does not require.
+### Retire, don't just discard
 
-Cultivation's `MockPlayerDiscardTest` shows one way to hold this rule for a suite, as a tier-1 source scan.
+`discard()` alone is an incomplete reclaim. It removes the entity from the level and releases
+its chunk ticket, but the player stays in `PlayerList` — in `players`, in `playersByUUID`, in
+the stats and advancement maps, and in every broadcast the server makes to "online players".
+A suite that only discards accumulates ghost entries across the shared test server, and any
+later test whose assertions depend on who is online reads a player count inflated by every
+mock that ran before it.
+
+The full reclaim is `PlayerList#remove` followed by `discard()` — `retire(player)` in the
+canonical class above. Three details in it are load-bearing:
+
+**It must be idempotent.** `PlayerList#remove` has no `isRemoved()` guard and calls
+`save(player)` unconditionally, so a second call rewrites the player `.dat`, the stats JSON, and
+the advancements JSON. The two idioms in this skill collide in any method that uses both — a
+`finally` that retires plus a success-path retire inside a polled callback — so the guard is not
+hypothetical. `Entity.setRemoved` *is* idempotent, which is why the trailing `discard()` needs no
+guard of its own.
+
+**Wake the player before removing it.** `PlayerList#remove` does nothing about sleep, and a
+removed sleeping player leaves `SleepStatus` counting someone who is gone —
+`ServerLevel.tick` then evaluates `areEnoughSleeping(...)` against stale numbers for the rest of
+the run. Pass `true` for *both* arguments: the second is what triggers
+`ServerLevel.updateSleepingPlayerList()`, so `stopSleepInBed(true, false)` clears the player's
+own flag and skips the refresh that makes it correct. Vanilla's own `stopSleeping()` passes
+`(true, true)`. Wake while the player is still in `level.players()`, or
+`updateSleepingPlayerList()` returns early on an empty list and the recompute never happens.
+
+**The disk-write objection does not hold.** `discard()` leaves the player in
+`PlayerList.players`, so `MinecraftServer.stopServer` → `PlayerList.saveAll()` saves every leaked
+mock at shutdown anyway — and since each mock carries a `UUID.randomUUID()`, nothing dedups on
+either side. It is one save per mock either way; `remove()` moves the write into the run rather
+than adding one. (rfizzle/cultivation#100 proposes this change suite-wide; the decision is not
+yet recorded there, and its measurements cover only the discard-only side.)
+
+For suites whose assertions depend on the player count, sweep with `retireLeaked(helper)` rather
+than trusting that every earlier test cleaned up — a test that timed out mid-poll did not.
+
+**`retireLeaked` needs a batch to itself.** It reads `helper.getLevel().players()`, which is
+level-wide, and `GameTestRunner.runBatch` spawns the structures for an entire batch and then
+adds every test in it to the ticker at once — same-batch tests run *concurrently in one level*.
+Called from a test that shares its batch, the sweep retires a sibling test's live player out from
+under it. Give any test that sweeps a `batch` value of its own. Copy the player list before
+iterating, since `retire` mutates it, and note the sweep is single-dimension: a mock left in
+another level survives it.
+
+A tier-1 source scan can hold this rule for a whole suite — cultivation's
+`MockPlayerDiscardTest` shows the shape. Read it for the scanning technique only: it still
+matches the literal token `".discard()"` and requires it inside a `finally`, so a suite that
+adopts `MockPlayers.retire(player)` *fails* it. Adopting this rule means moving the matched
+token to `MockPlayers.retire(<name>)` — matched on the argument rather than the receiver — and
+replacing the javadoc paragraph that records the superseded "the player-list entry is
+deliberately left in place" rationale. Both are in rfizzle/cultivation#100's acceptance
+criteria.
 
 ### One `finally` per method
 
-Where the method already owns a `try`/`finally` for another reason — restoring a config field, disarming a process-wide listener, stopping a manager — the discard folds into that `finally` rather than nesting a second one. The acquisition sits above the `try` so the `finally` can name it:
+Where the method already owns a `try`/`finally` for another reason — restoring a config field, disarming a process-wide listener, stopping a manager — the retire folds into that `finally` rather than nesting a second one. The acquisition sits above the `try` so the `finally` can name it:
 
 ```java
 boolean saved = CultivationConfig.get().enableBroadcastSowing;
@@ -178,27 +328,27 @@ try {
     helper.succeed();
 } finally {
     CultivationConfig.get().enableBroadcastSowing = saved;
-    player.discard();
+    MockPlayers.retire(player);
 }
 ```
 
-Order the `finally` body process-wide restore first, `discard()` last, when the restore is a plain field assignment that cannot throw: a suite-wide toggle left flipped poisons every later test, while a leaked player costs only ticks. When the restore itself can throw — `FollowManager.stopFollowing(villager)`, a `Files.write` of the original config file — nest it so the discard still runs:
+Order the `finally` body process-wide restore first, `retire(...)` last, when the restore is a plain field assignment that cannot throw: a suite-wide toggle left flipped poisons every later test, while a leaked player costs only ticks and a stale player-list entry. When the restore itself can throw — `FollowManager.stopFollowing(villager)`, a `Files.write` of the original config file — nest it so the retire still runs:
 
 ```java
 } finally {
     try {
         FollowManager.stopFollowing(villager);
     } finally {
-        player.discard();
+        MockPlayers.retire(player);
     }
 }
 ```
 
-State the test switches on rather than saves — a break-protection denier, a temporary listener — is armed inside the `try`, so the `finally` that disarms it is the one that already discards the player.
+State the test switches on rather than saves — a break-protection denier, a temporary listener — is armed inside the `try`, so the `finally` that disarms it is the one that already retires the player.
 
 ### When the player outlives the synchronous body
 
-A test that schedules a deferred callback and still uses the player inside it must not wrap the scheduling code in a discarding `finally`. Those methods return as soon as they register the callback, so the `finally` would run before the callback ever runs and remove the player out from under the test. Where the discard goes instead depends on which family the method belongs to.
+A test that schedules a deferred callback and still uses the player inside it must not wrap the scheduling code in a retiring `finally`. Those methods return as soon as they register the callback, so the `finally` would run before the callback ever runs and remove the player out from under the test. Where the retire goes instead depends on which family the method belongs to.
 
 **One-shot — `runAfterDelay`, `runAtTickTime`, `startSequence`.** The callback fires exactly once, so it carries the `try`/`finally` itself:
 
@@ -213,19 +363,19 @@ try {
             helper.succeed();
         } finally {
             InstinctConfig.get().enableFlocking = saved;
-            driver.discard();
+            MockPlayers.retire(driver);
         }
     });
 } catch (Throwable t) {
     InstinctConfig.get().enableFlocking = saved;
-    driver.discard();
+    MockPlayers.retire(driver);
     throw t;
 }
 ```
 
 The acquisition sits above the outer `try` so the `catch` can name it. That `catch`-and-rethrow covers a failure in the synchronous portion — setup between the acquisition and the scheduling call — which would otherwise leave the toggle flipped and the player leaked. Catch `Throwable`, not `RuntimeException`: an `Error` from a helper whose signature drifted must not escape with process-wide state still mutated.
 
-**Polled — `succeedWhen`, `succeedIf`, `succeedOnTickWhen`, `onEachTick`.** The runnable is re-polled every tick and its assertion exception is swallowed until either the poll succeeds or the test times out, so a `finally` inside it would discard on the first failing poll. Discard on the success path only, as the last statements of the callback:
+**Polled — `succeedWhen`, `succeedIf`, `succeedOnTickWhen`, `onEachTick`.** The runnable is re-polled every tick and its assertion exception is swallowed until either the poll succeeds or the test times out, so a `finally` inside it would retire the player on the first failing poll. Retire on the success path only, as the last statements of the callback:
 
 ```java
 ServerPlayer driver = wheatHolder(helper, new BlockPos(1, 2, 3));
@@ -234,13 +384,13 @@ helper.succeedWhen(() -> {
     helper.assertTrue(flockingGoal(cow).getTemptedPlayer() == driver,
             "flocking tempts a cow 12 blocks out");
     cow.discard();
-    driver.discard();
+    MockPlayers.retire(driver);
 });
 ```
 
-A polled test that times out leaks its player — there is no further callback to run the discard. That residual is bounded to one player per failing test and is the price of the deferral; it is not a reason to move the discard into a `finally` that would fire on every unsuccessful poll.
+A polled test that times out leaks its player — there is no further callback to run the retire. That residual is bounded to one player per failing test and is the price of the deferral; it is not a reason to move the retire into a `finally` that would fire on every unsuccessful poll. It is, however, exactly what `retireLeaked(helper)` is for: a later test whose assertions depend on the player count sweeps first rather than inheriting the timed-out test's ghost.
 
-Config isolation is `mc-mod-testing`'s rule, and its synchronous save/restore form assumes the assertion runs before the test method returns. A deferred test is the carve-out: the flag has to stay set across the delay, so the restore moves into the callback alongside the discard.
+Config isolation is `mc-mod-testing`'s rule, and its synchronous save/restore form assumes the assertion runs before the test method returns. A deferred test is the carve-out: the flag has to stay set across the delay, so the restore moves into the callback alongside the retire.
 
 ## Fake-player guard in production code
 
@@ -274,7 +424,7 @@ Centralise this in one utility (see `FakePlayers.isFakePlayer` in prosperity's `
 FakePlayer fake = FakePlayer.get(helper.getLevel());   // real Fabric fake player, not a mock
 fake.teleportTo(...);                                   // then drive the real event/callback path
 // assert PASS-through + no state, then repeat with MockPlayers.serverPlayerInLevel(helper)
-// and assert the real player still triggers first-visit behavior; the replica is discarded in
+// and assert the real player still triggers first-visit behavior; the replica is retired in
 // a finally per the cleanup rule above. Do NOT discard the fake player: FakePlayer.get(...)
 // returns a per-world cached instance that is never added to the level or the player list, and
 // removal is sticky — discarding it hands a dead instance to the next test that asks for one.
@@ -316,6 +466,8 @@ Always provide a diagnostic message referencing the method name so signature cha
 |------|-----|
 | Fabric attachments (PlayerData) | `MockPlayers.serverPlayerInLevel(helper)` |
 | Network/packet interaction | `MockPlayers.serverPlayerInLevel(helper)` |
+| Asserting on an outbound packet | `MockPlayers.connectedServerPlayerInLevel(helper)`, then `channel().readOutbound()` |
+| A spectator left out of a feature's accounting | `MockPlayers.spectatorServerPlayerInLevel(helper)` |
 | Command source stack from a player | `MockPlayers.serverPlayerInLevel(helper)` or direct `new ServerPlayer(...)` |
 | Proximity/range checks | `MockPlayers.serverPlayerInLevel(helper)` + teleport |
 | Villager trading (startTrading mixin) | `MockPlayers.serverPlayerInLevel(helper)` |
