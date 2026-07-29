@@ -1,21 +1,33 @@
 # Thin stub — logic lives in rfizzle/concord (claude-review.yml).
 # Prompt/criteria: repo-local .ai/ files win, concord defaults otherwise.
+#
+# Triggers on CI completion (workflow_run), not on the PR event, so the review
+# always runs with CI's verdict already known and grounds its Correctness
+# category in it. The reusable workflow resolves the open PR from the head SHA
+# itself, skipping push builds and draft PRs.
 name: Claude Code Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+  workflow_run:
+    # Must match the `name:` of this repo's CI workflow exactly.
+    workflows: ["CI"]
+    types: [completed]
 
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
+  group: claude-review-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 permissions:
   contents: read
   pull-requests: write
   issues: read
+  actions: read # read the triggering CI run's per-job results
 
 jobs:
   review:
     uses: rfizzle/concord/.github/workflows/claude-review.yml@master
+    with:
+      head-sha: ${{ github.event.workflow_run.head_sha }}
+      ci-conclusion: ${{ github.event.workflow_run.conclusion }}
+      ci-run-id: ${{ github.event.workflow_run.id }}
     secrets: inherit
