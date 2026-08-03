@@ -203,7 +203,7 @@ ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 
 ### Lang keys and verification
 
-Every custom stat needs a `stat.<mod_id>.<path>` entry in `en_us.json` — that key names it in the vanilla statistics screen. Verify stat behavior with a gametest: `makeMockServerPlayerInLevel()`, fire the mod callback, then assert on `player.getStats().getValue(Stats.CUSTOM.get(id))` (including that a high-water mark does **not** decrease).
+Every custom stat needs a `stat.<mod_id>.<path>` entry in `en_us.json` — that key names it in the vanilla statistics screen. Verify stat behavior with a gametest: `MockPlayers.serverPlayerInLevel(helper)` (see `mc-testing-mock`), fire the mod callback, then assert on `player.getStats().getValue(Stats.CUSTOM.get(id))` (including that a high-water mark does **not** decrease), retiring the player in a `finally`.
 
 ## Fabric API lookups (hopper/pipe interaction)
 
