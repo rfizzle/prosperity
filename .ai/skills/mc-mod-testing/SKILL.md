@@ -85,8 +85,9 @@ Recurring seams worth extracting:
   (`LibraryRowFormatter`, `StatLineFormatter`) test as string-in/string-out.
 - **Command bodies** — split the effect from the Brigadier wiring (e.g.
   `runReload(Runnable, MessageSink)`) so the behavior tests without a command stack.
-- **Config validation** — `clamp()`/`validate()` are pure POJO methods (see the
-  `mc-config` skill); test the bounds at Tier 1.
+- **Config validation** — `clamp()` is a pure POJO method (see the `mc-config`
+  skill); test the bounds at Tier 1, including that a non-finite field is
+  clamped rather than passed through.
 
 A method that takes a `ServerLevel` only to read one number, or a screen that bakes
 its formatting into `render()`, has hidden a Tier-1-testable core inside a Tier-3
@@ -183,11 +184,12 @@ private static JsonObject lang() {
 
 What to pin — pick the contracts the mod actually relies on:
 
-- **Config lang contract** — every `config.<mod>.<section>.<key>` label has a
-  matching non-blank `.tooltip` key, so the Cloth screen never renders a raw
-  key. Collect all misses into a list before asserting, so the failure names
-  exactly which keys are missing (exclude `.title`, `.category.*`, and
-  `.tooltip` keys themselves from the label sweep):
+- **Config lang contract** — every `config.<mod>.*` field label has a matching
+  non-blank `.tooltip` key, so the Cloth screen never renders a raw key. Collect
+  all misses into a list before asserting, so the failure names exactly which
+  keys are missing (exclude `.title`, `.category.*`, enum option labels, and
+  `.tooltip` keys themselves from the label sweep — see the `mc-config` skill for
+  the full key vocabulary):
 
   ```java
   @Test

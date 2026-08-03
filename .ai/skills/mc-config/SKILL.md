@@ -5,7 +5,7 @@ description: Build and maintain a Concord mod's JSON config the suite way — a 
 
 The user is adding or changing a mod's configuration. Every Concord mod uses the
 same config stack, and the parts that make it robust are easy to get subtly
-wrong: the **load lifecycle** (migrate → deserialize → fill → validate → persist),
+wrong: the **load lifecycle** (migrate → deserialize → fill → clamp → persist),
 **schema migration** that carries renamed fields forward instead of dropping
 them, **warn-and-clamp validation** that never trusts a hand-edited file, an
 **atomic save** that can't truncate the file on a crash, and — for anything
@@ -13,7 +13,7 @@ gameplay-affecting — a **server→client sync** so a client honors the server'
 rules, not its own local file.
 
 Treat this as a single recipe. A new field touches the POJO, `fillDefaults()`,
-`validate()`, the ModMenu screen, and (if it gates gameplay) the sync payload.
+`clamp()`, the ModMenu screen, and (if it gates gameplay) the sync payload.
 
 ## The config object
 
@@ -65,7 +65,7 @@ static TribulationConfig load(Path path) {
         TribulationConfig config = GSON.fromJson(raw, TribulationConfig.class); // 2. deserialize
         if (config == null) { /* defaults + save */ }
         config.fillDefaults();                              // 3. null sections → new instances
-        config.validate();                                 // 4. clamp every field, logging each fix
+        config.clamp();                                    // 4. clamp every field, logging each fix
         if (migrated) config.save(path);                   // 5. persist the upgraded schema
         return config;
     } catch (JsonSyntaxException e) {
@@ -74,7 +74,7 @@ static TribulationConfig load(Path path) {
         LOGGER.error("Failed to parse config at {}; using defaults (existing file left untouched)", path, e);
         TribulationConfig fallback = new TribulationConfig();
         fallback.fillDefaults();
-        fallback.validate();
+        fallback.clamp();
         return fallback;
     }
 }
@@ -82,7 +82,7 @@ static TribulationConfig load(Path path) {
 
 `fillDefaults()` replaces any `null` section/collection with a fresh instance, so
 a partial hand-edited file (or one a migration only stubbed out) still has every
-sub-object present before `validate()` runs:
+sub-object present before `clamp()` runs:
 
 ```java
 private void fillDefaults() {
@@ -92,6 +92,27 @@ private void fillDefaults() {
     // ... every section and every nullable field
 }
 ```
+
+## Initialization order
+
+Config loads **first** in `onInitialize()`, ahead of every registration, event
+hook, and manager. Registration bodies read config to decide what to register
+and with what tuning, so anything that runs before the load either reads `null`
+or bakes in a default the file overrides.
+
+```java
+@Override
+public void onInitialize() {
+    MercantileConfig.get();          // eager first load: writes defaults on first launch
+    MercantileNetworking.registerPayloads();
+    MercantileEvents.register();
+    // ...
+}
+```
+
+Touching `get()` on the first line does double duty: it primes the singleton and
+it writes `config/<mod>.json` with defaults on a fresh install, so a player has a
+file to edit before they ever open ModMenu.
 
 ## Versioned schema migration
 
@@ -147,28 +168,65 @@ already current — don't re-run migration on it.
 
 ## Warn-and-clamp validation
 
-`validate()` bounds every numeric field and **logs each correction** so a player
-sees exactly what their hand-edit did. Use a small set of shared helpers rather
-than open-coding `Math.max`/`Math.min` per field:
+The entry point is **`clamp()`** — one public method on the config object that
+bounds every numeric field and assigns each field its clamped result
+(`m.healthRate = clampNonNegative("...healthRate", m.healthRate)`). It touches
+nothing but its own fields and a `LOGGER`, so it tests at Tier 1 — but the
+logging is synchronous I/O and the cost scales with any user-extensible map the
+config holds, so it is neither free nor thread-agnostic. See the sync section
+below for where that matters.
+
+`clamp()` runs after **every** path that populates the object — after a file
+load, after the ModMenu screen writes new values, and after a sync payload is
+decoded. A config that reached memory by any route is a config that has been
+clamped.
+
+Bound each field through a shared helper rather than open-coding
+`Math.max`/`Math.min` per field. Three properties are required of that helper
+set; the naming family is yours to pick, and a richer set is welcome.
+
+**1. Log every correction**, so a player can see what their hand-edit did.
+
+**2. Reject non-finite input in floating-point fields.** Gson yields a
+non-finite `double` from a bare `NaN` or `Infinity` token, from their quoted
+forms, and from any legal-JSON overflow like `1e400`. `Math.clamp`, `Mth.clamp`,
+and a bare `value < min` test all pass `NaN` through, because `NaN` is false
+against every *ordering* comparison. A negated lower bound folds `NaN` into the
+underflow branch — but `+Infinity` satisfies every lower bound, so a helper with
+no finite ceiling still needs an explicit `isFinite` gate:
 
 ```java
-private static double clampNonNegative(String name, double value) {
-    if (value < 0) { LOGGER.warn("{} must be >= 0, got {}; clamped to 0", name, value); return 0; }
+private static double clampNonNegative(String name, double value) {          // open-topped: needs both guards
+    if (!(value >= 0) || !Double.isFinite(value)) {
+        LOGGER.warn("{} must be a finite value >= 0, got {}; clamped to 0", name, value);
+        return 0;
+    }
     return value;
 }
-private static double clampUnit(String name, double value) {     // [0,1]
-    if (value < 0) { LOGGER.warn("{} must be in [0,1], got {}; clamped to 0", name, value); return 0; }
-    if (value > 1) { LOGGER.warn("{} must be in [0,1], got {}; clamped to 1", name, value); return 1; }
+
+private static double clampRange(String name, double value, double min, double max) {  // finite ceiling: the bounds suffice
+    if (!(value >= min)) { LOGGER.warn("{} must be in [{}, {}], got {}; clamped to {}", name, min, max, value, min); return min; }
+    if (value > max)     { LOGGER.warn("{} must be in [{}, {}], got {}; clamped to {}", name, min, max, value, max); return max; }
     return value;
 }
-// also: clampPositive (→1), clampAtLeast(name, value, min), clampPercent (→[0,100])
 ```
 
-`validate()` assigns each field its clamped result (`m.healthRate =
-clampNonNegative("...healthRate", m.healthRate)`). Mercantile/Prosperity name the
-same method `clamp()` and run it on **every** entry into the object — after load,
-and again after the ModMenu screen writes new values — so the in-memory config is
-clamped no matter how it was populated.
+Folding `NaN` to the minimum is one valid answer; restoring the field's default
+is another, and often the better one — a rate field whose minimum is `0` is
+disabled by the first and healed by the second. Pick per field.
+
+This is a floating-point rule. Gson rejects `NaN` into an `int` or `long` field
+before any clamp runs, so `Math.clamp` is fine on integral fields.
+
+**3. Cover both integral and floating-point fields.** A single helper returning
+`double` forces lossy casts at `int` call sites; provide an `int` flavor
+alongside the `float`/`double` one.
+
+Beyond those three, pick the shape that reads best against your fields —
+semantic helpers (`clampNonNegative`, `clampUnit`, `clampPercent`,
+`clampAtLeast`) or generic ranges (`clampInt(name, value, min, max)`). Semantic
+names carry the intent to the call site and are the better default when a bound
+repeats across many fields.
 
 ## Atomic save
 
@@ -196,9 +254,16 @@ void save(Path path) {
 
 ## Reloadable singleton
 
-Hold the active config in a `volatile` field behind a double-checked-locked
-`get()`, with a `reload()` that rebuilds it (wired to a `/<mod> reload` command).
-Readers get a consistent snapshot; a reload swaps the reference atomically.
+The active config lives in one `static volatile` field. Five guarantees make it
+safe to read from the server tick, a netty thread, and the render thread at once:
+
+| Guarantee | Why |
+|---|---|
+| The field is `volatile` | A reload on one thread is visible to readers on every other. |
+| `get()` is **lazy**, double-checked-locked | Any caller reaching config before `onInitialize` gets a loaded object, not `null`. |
+| `reload()` swaps the **whole reference** under the same lock | One `get()` call returns a whole snapshot, never a half-applied edit. |
+| Readers **snapshot `get()` once per method** | The atomicity above is per call, not per method: two `get()` calls straddling a reload mix generations. |
+| The live instance is **never mutated in place** | A reader mid-tick cannot observe a field the editor has written and another it has not. |
 
 ```java
 private static volatile MercantileConfig INSTANCE;
@@ -211,8 +276,62 @@ public static MercantileConfig get() {
     }
     return local;
 }
+
 public static void reload() { synchronized (MercantileConfig.class) { INSTANCE = load(); } }
+
+/** The commit point for an edited copy — clamps, persists, then swaps in one store. */
+public static void publish(MercantileConfig next) {
+    next.clamp();
+    next.save(configPath());
+    synchronized (MercantileConfig.class) { INSTANCE = next; }
+}
 ```
+
+Which class holds the field is free — the config class itself, or the mod's main
+class delegating through a `getConfig()`. Both satisfy the guarantees as long as
+the accessor is the lazy double-checked form. A bare `return config;` over an
+eagerly assigned field does not: it returns `null` to anything running before the
+entrypoint — a mixin in a static initializer, a `ModInitializer` ordered ahead of
+yours — and the failure is an NPE at a call site with no way to defend itself.
+The lazy form costs one well-predicted branch and removes the class of bug.
+
+The snapshot guarantee is the one hot paths care about. Each `get()` is a
+volatile read, which the JIT cannot hoist out of a loop or merge with another, so
+a method calling it four times performs four un-mergeable loads that would
+collapse to one local:
+
+```java
+MercantileConfig cfg = MercantileConfig.get();   // snapshot once, thread the local through
+if (!cfg.enablePathfindingFixes) return;
+if (!cfg.enablePathfindingLadders) return;
+```
+
+This is the config-shaped case of the volatile-snapshot rule in the
+`mc-shared-state` skill.
+
+The last guarantee is what the ModMenu screen must respect. Editing `get()`'s
+return value in place publishes each keystroke to live readers one field at a
+time — and a non-volatile `double` write can even tear, handing a reader a value
+nobody assigned. Edit a **deep copy** and publish it in one swap:
+
+```java
+MercantileConfig working = MercantileConfig.get().copy();   // deep copy — never the live instance
+// ... Cloth save consumers write into `working` ...
+MercantileConfig.publish(working);                          // on the builder's save
+```
+
+Give the config an explicit `copy()` rather than round-tripping through JSON: a
+mod with a separate sync serializer has two `toJson`-shaped methods, and copying
+through the sync one silently drops the client-only sections, which
+`fillDefaults()` then resets to stock on save.
+
+`publish()` is last-write-wins against a concurrent `/<mod> reload` — the working
+copy is a snapshot from the moment the screen opened, so saving it discards any
+reload that landed since. Where that matters, have `publish()` write the file and
+then call `reload()`, leaving exactly one path that assigns `INSTANCE`.
+
+Wire `reload()` to a `/<mod> reload` command, and re-broadcast to clients after
+it (see the sync section below).
 
 ## Server→client sync with client-fallback precedence
 
@@ -237,24 +356,54 @@ clients. Clear the synced copy on disconnect (`setServerConfig(null)`) so the
 next singleplayer world falls back to the local file. The precedence direction is
 the whole point: a client must never enable a feature the server disabled.
 
+The payload is a `ConfigSyncPayload` carrying the serialized config as one
+length-bounded string, registered under `<mod>:config_sync` — see the
+`mc-networking` skill for the record, the codec, and the size cap. Serialize it
+with a **compact** `Gson`: pretty-printing costs roughly 40% of the wire for
+nothing.
+
+`clamp()` the decoded object before publishing it to the client holder — the
+bytes came off the network, and a server running a different build can send a
+value this client's bounds reject. Run that clamp inside `client.execute(...)`,
+never in `decode()` or the netty callback. `clamp()` emits one synchronous log
+line per correction, and on this path a remote peer controls both how many
+corrections there are and how often they arrive: a config packed with
+out-of-range map entries, re-sent in a loop, is a write primitive against the
+client's log file and its netty event loop. Bound it — log the first handful of
+corrections plus an "…and N more" summary, and drop the rest to `debug`. A
+hand-edited local file has earned a line per field; a remote server has not.
+
 ## ModMenu / Cloth editor
 
-Mirror each field into a Cloth `ConfigBuilder` category, seeding the current value
-and a `setDefaultValue` from a fresh `new Config()`, and **re-clamp on save** so
-the screen can't write an out-of-range value:
+Mirror each field into a Cloth `ConfigBuilder` category, seeding the current
+value from a **deep working copy** and a `setDefaultValue` from a fresh
+`new Config()`, and **publish the copy on save** so the screen never writes into
+the live instance:
 
 ```java
-MercantileConfig config = MercantileConfig.get();
+MercantileConfig working = MercantileConfig.get().copy();   // deep copy — never the live instance
 MercantileConfig defaults = new MercantileConfig();
-reputation.addEntry(entry.startBooleanToggle(Component.translatable("mercantile.config.enableReputation"), config.enableReputation)
+builder.setSavingRunnable(() -> MercantileConfig.publish(working));   // clamps, saves, one swap
+reputation.addEntry(entry.startBooleanToggle(Component.translatable("config.mercantile.enableReputation"), working.enableReputation)
         .setDefaultValue(defaults.enableReputation)
-        .setSaveConsumer(v -> config.enableReputation = v)
+        .setSaveConsumer(v -> working.enableReputation = v)
         .build());
-// on the builder's save: config.clamp(); config.save();
 ```
 
-Use `Component.translatable` keys (`<mod>.config.<field>`) for every label and
-tooltip; declare ModMenu + Cloth as `modCompileOnly` + `modLocalRuntime` and the
+Use `Component.translatable` keys for every label and tooltip, under the
+`config.<mod>.*` prefix the suite's key vocabulary assigns to config surfaces
+(`design/DESIGN-SYSTEM.md`):
+
+| Key | Surface |
+|---|---|
+| `config.<mod>.title` | The screen title |
+| `config.<mod>.category.<name>` | A category tab |
+| `config.<mod>.<field>` | A field label |
+| `config.<mod>.<section>.<field>` | A field label in a sectioned config; the section segment matches the JSON section |
+| `config.<mod>.<field>.tooltip` | That field's tooltip — every label pairs with one |
+| `config.<mod>.<field>.<option>` | One value of an enum field — required wherever a field renders as a dropdown (`HUD-STANDARD.md` §4) |
+
+Declare ModMenu + Cloth as `modCompileOnly` + `modLocalRuntime` and the
 integration class as the `modmenu` entrypoint, so a missing ModMenu can't gate
 the mod.
 
@@ -262,15 +411,16 @@ the mod.
 
 | Check | What to do |
 |---|---|
-| Load order | migrate(raw) → deserialize → fillDefaults → validate → save-if-migrated. |
+| Load order | migrate(raw) → deserialize → fillDefaults → clamp → save-if-migrated. |
 | Corrupt file | Log and run on defaults; **never** overwrite the user's unparseable file. |
 | Migration | Raw-JSON, indexed by from-version, append-only; carry renamed fields forward. |
-| Add a field | POJO + `fillDefaults` + `validate`/`clamp` + ModMenu entry + sync payload if it gates gameplay. |
-| Validation | Clamp every numeric with a logging helper; null-heal enums and collections. |
+| Add a field | POJO + `fillDefaults` + `clamp` + ModMenu entry + sync payload if it gates gameplay. |
+| Init order | Config loads first in `onInitialize()`, ahead of every registration. |
+| Validation | `clamp()` every numeric with a logging helper; guard floating-point fields against non-finite input; null-heal enums and collections. |
 | Save | Atomic `.tmp` + `ATOMIC_MOVE`, plain-move fallback, orphan cleanup. |
-| Singleton | `volatile` + double-checked `get()`; `reload()` swaps the reference. |
-| Sync precedence | `getServerConfig()` first, local `get()` fallback; clear on disconnect; re-send on reload. |
-| ModMenu | Mirror fields, `setDefaultValue` from a fresh instance, re-clamp on save, translatable keys. |
+| Singleton | `volatile` field + lazy double-checked `get()`; `reload()` swaps the whole reference; snapshot `get()` once per method; never mutate the live instance. |
+| Sync precedence | `getServerConfig()` first, local `get()` fallback; clear on disconnect; re-send on reload. Clamp the decoded config on the main thread, with bounded logging. |
+| ModMenu | Mirror fields into a deep working copy, `setDefaultValue` from a fresh instance, re-clamp and publish on save, `config.<mod>.*` keys. |
 | Tests | Migration (legacy/idempotent/passthrough), clamp bounds, one disabled-path test per toggle. |
 
 ## Guardrails
@@ -286,6 +436,27 @@ the mod.
 - **Always** bump `CURRENT_VERSION`, the default `configVersion`, and add a
   migration test together — a schema change without a migration test is the #1
   source of silent settings loss on upgrade.
-- **Always** clamp after every population path (load and ModMenu save), and log
-  each clamp so a player can see what their edit did.
-- **Always** wire `reload()` to clamp/validate and re-broadcast to clients.
+- **Never** let a non-finite value reach a floating-point field. `Math.clamp`,
+  `Mth.clamp`, and a bare `value < min` test all pass `NaN` through, and Gson
+  yields non-finite doubles from `NaN`/`Infinity` tokens and from overflows like
+  `1e400`. Use a negated lower bound (`!(value >= min)`) or an `isNaN` test that
+  restores the default, and give every open-topped helper an `isFinite` gate —
+  `+Infinity` satisfies any lower bound, and it throws on the next `toJson`.
+  `Math.clamp` is fine for `int`/`long`: Gson rejects `NaN` there before any
+  clamp runs.
+- **Never** mutate the live config instance in place — not from the ModMenu
+  screen, not from a command. Edit a deep copy and publish it in one swap, or a
+  reader mid-tick sees half your edit.
+- **Never** call `get()` twice in one method, or inside a loop. Snapshot it once
+  and thread the local through: each call is a volatile read the JIT cannot hoist
+  or merge, and two of them can land on opposite sides of a `/<mod> reload`.
+- **Never** hand a caller config from an eagerly assigned field with a bare
+  `return config;`. Make `get()` lazy and double-checked, so a caller that runs
+  before your entrypoint gets a config instead of an NPE.
+- **Never** clamp a decoded sync payload on the netty thread, and never log a
+  line per correction there — a remote peer chooses how many corrections it sends
+  and how often. Clamp in `client.execute(...)` with bounded logging.
+- **Always** clamp after every population path — load, ModMenu save, and sync
+  payload decode — and log each clamp so a player can see what their edit did.
+- **Always** load config first in `onInitialize()`; registration bodies read it.
+- **Always** wire `reload()` to clamp and re-broadcast to clients.

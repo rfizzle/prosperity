@@ -123,8 +123,11 @@ failing gametest is a release blocker, full stop.
 **Release packaging & store metadata.** Validate the artifact a user installs.
 `fabric.mod.json`: name, description, authors, contact, `license`, `icon` (and the
 file exists at that path), environment, entrypoints resolve, mixins config
-referenced, `depends`/`recommends`/`breaks` versions sane and pinned to the right
-MC/loader/API range. `LICENSE` at root. The built jar
+referenced, and the dependency block matches API-STANDARD §4.1 (`minecraft` `~1.21.1`,
+`fabricloader` `>=0.16.10`, `fabric-api` `*`, `java` `>=21`; siblings and optional
+viewers under `suggests` at `*`, never `depends` and never `recommends`). An unbounded
+`fabric-api` is the standard, not drift — the real floor is `fabric_version` in the
+hub's `propagate/versions-common.properties`. `LICENSE` at root. The built jar
 (`build/libs/<mod>-0.0.0+g<sha>.jar`) carries the expected resources and no debug/secret
 leakage — the `0.0.0+g<sha>` jar name is the expected local dev version, and the released
 jar takes the pushed tag's version via CI, so don't flag the local name as unclean.
