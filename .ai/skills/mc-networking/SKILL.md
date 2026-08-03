@@ -46,6 +46,50 @@ public record EnchantmentInfoPayload(
 }
 ```
 
+## Naming and placement
+
+| Element | Convention |
+|---|---|
+| Class | `<Thing>Payload`, optionally `<Thing>S2CPayload` / `<Thing>C2SPayload` |
+| Payload id | `snake_case` of the class's subject, built through `<Mod>.id(...)` |
+| Package | `network/` in the mod's root package |
+| Source set | `main/` — both logical sides need the record and codec |
+
+Whether to carry a direction suffix is one decision per mod, not per payload.
+Both forms read fine; a mod that mixes them reads badly, and a mod with paired
+request/reply payloads on the same subject needs the suffix to tell them apart.
+Pick one on the first payload and hold it. The id follows the class either way,
+so `TradeIndexS2CPayload` is `<mod>:trade_index_s2c`.
+
+**The config sync payload is the one exception, and it is fixed suite-wide:**
+class `ConfigSyncPayload`, id `<mod>:config_sync`, package `network/`, carrying
+the serialized config as one length-bounded string (see the `mc-config` skill for
+what belongs on the wire). No mod has two config sync payloads, so the shared
+name carries no ambiguity cost, and pinning it is what lets a reader moving
+between mods find the config seam without opening the registrar — worth the one
+inconsistency inside a mod that suffixes everything else.
+
+The carve-out binds the **id**; the class name follows it on any new payload. A
+mod already shipping a different id keeps it until it has reason to bump a
+version — the rule below outranks this one, and renaming the class alone is free.
+
+### Renaming a live payload id is not free
+
+A payload id is protocol-visible. When a client's registered id doesn't match
+what the server sends, Fabric falls through to vanilla's unknown-payload codec,
+which **reads the bytes and discards them** — no exception, no log line, no
+disconnect. Nothing in a Fabric mod's metadata catches this: `depends` constrains
+loader and API versions, not the peer's build of your own mod.
+
+The failure is therefore silent and, for config sync, actively harmful: the
+client never receives the server's rules and quietly falls back to its **local**
+file — the exact desync the payload exists to prevent.
+
+So: pick the id when the payload is born. Renaming one that has shipped is a
+wire-compatibility break that rides a version bump, and it wants a
+`ServerPlayNetworking.canSend(player, TYPE)` check at the send site so the
+server can at least log that a connected client won't be receiving it.
+
 ## StreamCodec composition
 
 Common codec building blocks in `ByteBufCodecs`:
@@ -102,9 +146,21 @@ public record BlockHighlightPayload(BlockPos pos, int color) implements CustomPa
 
 Register both the payload type (with its codec) and the handler. Registration must happen during mod initialization.
 
+One class per mod owns this: **`<Mod>Networking`** — `ProsperityNetworking`,
+`DistillationNetworking` — beside the payloads it registers, called from
+`onInitialize()` after the config load. It is the single place to read to learn
+what a mod puts on the wire, and the place a reviewer looks to check that every
+`TYPE` has both a registration and a handler.
+
+A mod large enough that one registrar becomes unwieldy may split by domain
+(`ConfigNetworking`, `SoilOverlayNetworking`), each still ending in `Networking`
+and each still called from the entrypoint. What doesn't scale is scattering
+`PayloadTypeRegistry` calls into feature classes: nothing then lists the mod's
+wire surface, and a payload registered on one side only fails silently.
+
 ### Server-to-client (S2C)
 ```java
-public class MyNetworking {
+public class ProsperityNetworking {
     public static void registerPayloads() {
         // Register the payload type + codec
         PayloadTypeRegistry.playS2C().register(
@@ -288,6 +344,24 @@ ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 });
 ```
 
+`ClientPlayConnectionEvents.DISCONNECT` is the teardown seam for **client**
+caches: synced config, per-entity overlays, HUD state, anything a payload wrote.
+It fires whenever the client leaves a session, remote or integrated.
+
+Its server-side namesake, `ServerPlayConnectionEvents.DISCONNECT`, is a different
+event for a different job — dropping one player's entry from a server-side map as
+they leave. A mod holding both a server-side per-player map and a client cache
+registers both, and the two read almost identically at a glance, so name the side
+in the surrounding code when both appear in one class.
+
+`ServerLifecycleEvents.SERVER_STOPPING` is neither, and reaching for it here is
+the mistake that survives testing. It fires when a server shuts down — including
+when you close a singleplayer world, which is why the wrong seam looks correct
+locally and leaks only against a dedicated server, where it never fires for a
+client leaving at all. It is not the bulk-teardown hook either: it runs while the
+world is still saving. Server-side static state resets in `SERVER_STOPPED` (see
+the `mc-tick-work` skill), alongside the per-player disconnect handler.
+
 ## S2C payload size guards
 
 Cap collection sizes when decoding S2C payloads. A malicious server can OOM the client with unbounded lists. Use `readUtf(maxLen)` for known-short string fields.
@@ -300,10 +374,51 @@ private static MyPayload decode(RegistryFriendlyByteBuf buf) {
 }
 ```
 
+Pick the cap from what the payload actually carries, **measured, not estimated**.
+Serialize a default config and look: a fully-featured mod's runs past 12 KiB
+compact, so "a few KiB" is not a safe planning number. Then leave real headroom —
+a config with any user-extensible map (per-mob scaling, per-dimension offsets,
+blacklists) grows without bound in a modpack, and the cap must survive that.
+**4× the default serialized size, rounded up**, with 64 KiB a sane starting point
+for config sync. Pin it with a Tier-1 test so the cap and the config can't drift:
+
+```java
+assertTrue(new MyConfig().toSyncJson().length() * 4 < MAX_JSON_CHARS);
+```
+
+Note the unit. `readUtf(n)` and `writeUtf(s, n)` bound **characters** — the wire
+allowance is `3n` bytes — so name the constant `MAX_JSON_CHARS`, not
+`MAX_JSON_BYTES`. And never set a cap above the direction's vanilla ceiling:
+**1 MiB (`1048576`) for S2C** custom payloads, **32 KiB (`32767`) for C2S**.
+Beyond that vanilla's own check kills the connection first, with an error that
+names netty rather than your payload.
+
+### Decode must not throw; the handler decides
+
+A `DecoderException` raised inside `decode()` kills the connection. Keep the
+hard limits — an oversized body is hostile, and `readUtf(maxLen)` throwing on it
+is correct — but confine `decode()` to *reading*. Leave **interpretation** to the
+handler: read the config body as a bounded string, and parse it where a failure
+can be handled instead of disconnecting a player.
+
+What the handler does with an unreadable body is a separate decision, and for
+config it is **not** "use defaults". Both loose readings fail open. Publishing a
+default config tells the client the server's rules are the mod's defaults, so a
+feature the server disabled comes back on. Leaving the synced copy unset drops
+the client through to its local file — the same silent desync a dropped payload
+causes. Fail closed instead: log at `error`, leave `getServerConfig()` unset,
+raise a `syncFailed` flag, and have every gameplay-gating client read treat that
+flag as "feature off" until a valid sync arrives. A config the server sent and
+the client could not read is a problem to surface loudly, not to paper over.
+
 ## Guardrails
 
 - **Never** mutate world state directly in a network handler callback. Network handlers run on netty threads. Use `server.execute()` or `client.execute()` to schedule work on the main thread.
 - **Always** register both the payload type (via `PayloadTypeRegistry`) AND the handler (via `*PlayNetworking.registerGlobalReceiver`). Missing either causes silent drops or crashes.
+- **Always** route registration through a `<Mod>Networking` class (or per-domain `<Domain>Networking` classes) called from the entrypoint, so the mod's wire surface is listed in one readable place.
+- **Always** name payloads `<Thing>Payload` with a matching `<mod>:snake_case` id built via `<Mod>.id(...)`, in the mod's payload package (`network/`). Carry a direction suffix on all of a mod's payloads or none of them.
+- **Always** give a new config sync payload the id `<mod>:config_sync` and the class name `ConfigSyncPayload`, whatever the mod's suffix convention — it is the one name worth relying on when reading across mods. A shipped divergent id keeps it until a version bump.
+- **Never** rename a payload id that has shipped without a version bump. A mismatched id is silently discarded by vanilla's unknown-payload codec — no log, no error — and a config sync that never arrives leaves the client running its own local rules.
 - **Always** register S2C payload types in the common initializer (both sides need to know the type), but register the client handler in `ClientModInitializer` only.
 - **Never** reference client-only classes (screens, renderers) in a payload class that lives in the common source set. The payload record and codec go in `main/`; the client handler goes in `client/`.
 - **Always** use `RegistryFriendlyByteBuf` (not raw `ByteBuf`) when the payload contains registry-backed objects like `ItemStack`, `Holder`, or `ResourceKey`.
@@ -312,7 +427,11 @@ private static MyPayload decode(RegistryFriendlyByteBuf buf) {
 - **Never** add a sync payload for data with no live client surface. Menu-only values ride `ContainerData`; unseen values don't sync at all.
 - **Always** add per-player cooldowns on C2S packets that trigger expensive server operations (POI queries, trade generation, world reads).
 - **Always** register `ClientPlayConnectionEvents.DISCONNECT` to clear client-side data caches. Maps that survive reconnect grow unboundedly and leak stale data.
+- **Never** substitute `ServerLifecycleEvents.SERVER_STOPPING` for the client disconnect seam. It does fire when you leave a singleplayer world, so the wrong seam tests clean locally and leaks only against a dedicated server. Server-side static state resets in `SERVER_STOPPED`.
 - **Always** cap collection sizes and string lengths when decoding S2C payloads. Use `readUtf(maxLen)` for known-short fields and reject oversized collections early.
+- **Always** size a cap from a measured serialization with 4× headroom, and remember `readUtf(n)` counts **characters** (`3n` bytes on the wire). Never exceed the vanilla ceiling — 1 MiB S2C, 32767 C2S — or vanilla's check kills the connection first with an error that names netty, not your payload.
+- **Never** interpret a body inside `decode()`. Read it as a bounded string and parse in the handler, where a failure can be handled — a `DecoderException` disconnects the player.
+- **Never** fail *open* on an unreadable config sync. Defaults and the local file both let a client enable what the server disabled; leave the synced copy unset, flag the failure, and treat gated features as off until a valid sync arrives.
 
 ## Version notes
 
