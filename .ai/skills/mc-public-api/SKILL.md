@@ -1,6 +1,6 @@
 ---
 name: mc-public-api
-description: Build and consume a Concord mod's public API the suite way (the Concord API Standard) — one stable com.rfizzle.<mod>.api package with a read-only static facade, reflection-backed client accessors with sentinels, provider/callback mutation under host-side error isolation, array-backed Fabric events, and classload-isolated soft-dependency consumption (isModLoaded guards, fail-open reflective probes, catch-Throwable degradation, c: convention tags). TRIGGER when creating or editing any class under an api/ package, an @Stable-marked type, a *Callback.java event, a provider interface, a compat/<modid>/ integration consuming a sibling mod, a c: convention tag, or when the user mentions exposing/consuming a mod API or integrating two mods.
+description: Build and consume a Concord mod's public API the suite way (the Concord API Standard) — one stable com.rfizzle.<mod>.api package with a read-only static facade, reflection-backed client accessors with sentinels, provider/callback mutation under per-guest catch-Throwable isolation, array-backed Fabric events that isolate listeners in the invoker, the suggests-only fabric.mod.json dependency shape, and classload-isolated soft-dependency consumption (isModLoaded guards, fail-open reflective probes, catch-Throwable degradation, c: convention tags). TRIGGER when creating or editing any class under an api/ package, an @Stable-marked type, a *Callback.java event, a provider interface, a compat/<modid>/ integration consuming a sibling mod, a fabric.mod.json depends/suggests block, a c: convention tag, or when the user mentions exposing/consuming a mod API or integrating two mods.
 ---
 
 The user is exposing functionality to other mods, or consuming a sibling's. The
@@ -114,6 +114,29 @@ reaches into the host. Two iron rules:
   non-finite value is caught and the host falls back to its configured default. A
   misbehaving integration must never crash or corrupt the host.
 
+Every point where the host invokes guest code — a provider slot, a provider
+chain, an event listener — is a trust boundary, and all three isolate the same
+way:
+
+- **Catch `Throwable`, never `Exception` — but rethrow `VirtualMachineError`.**
+  A consumer compiled against an older signature raises an `Error`
+  (`AbstractMethodError`, `NoClassDefFoundError`), which an `Exception` catch
+  lets escape and kill the server tick. Same posture as calls *into* a sibling,
+  below. `OutOfMemoryError` and `StackOverflowError` are the carve-out: the JVM
+  is unrecoverable, not the guest misbehaving, and absorbing an OOME then
+  allocating a log message allocates on the heap that just failed. None of the
+  errors this rule exists for is a `VirtualMachineError`.
+- **Isolate per guest, and continue** — one bad guest never denies the others
+  their call. For events that means inside the invoker's loop, not around the
+  fire site. Later guests then observe whatever the thrower already applied, so
+  validate host-consumed context fields on every mutation rather than once at
+  the end of the chain.
+- **Fall back to the host's default, and log once** — at `WARN`, passing the
+  `Throwable` so the stack trace survives, naming the offending guest class, and
+  gated behind an `AtomicBoolean.compareAndSet(false, true)`. A guest that
+  throws once throws every time; an ungated log puts stack-trace formatting on
+  the server thread at the fire site's full rate.
+
 ```java
 private static volatile ArmorDropChanceProvider armorDropChanceProvider =
         (mob, tier, slot, stack, def) -> def;                 // no-op default
@@ -122,13 +145,19 @@ public static void setArmorDropChanceProvider(ArmorDropChanceProvider p) {
     if (p != null) armorDropChanceProvider = p;               // last writer wins
 }
 
+private static final AtomicBoolean ARMOR_PROVIDER_FAILURE_LOGGED = new AtomicBoolean(false);
+
 /** Internal use: host calls this; a misbehaving provider never breaks mob spawning. */
 public static float resolveArmorDropChance(Entity mob, int tier, EquipmentSlot slot, ItemStack stack, float def) {
     try {
         float resolved = armorDropChanceProvider.resolve(mob, tier, slot, stack, def);
         return Float.isFinite(resolved) ? resolved : def;     // reject NaN/Inf
-    } catch (Exception e) {
-        LOGGER.warn("Armor drop-chance provider threw; using default", e);
+    } catch (VirtualMachineError e) {
+        throw e;                                              // OOME/SOE: the JVM is gone, not the guest
+    } catch (Throwable t) {                                   // Throwable: a stale consumer throws Error
+        if (ARMOR_PROVIDER_FAILURE_LOGGED.compareAndSet(false, true)) {
+            LOGGER.warn("Armor drop-chance provider threw; using default", t);
+        }
         return def;
     }
 }
@@ -138,28 +167,106 @@ public static float resolveArmorDropChance(Entity mob, int tier, EquipmentSlot s
 }
 ```
 
+This is `TribulationAPI`'s shipped slot with two changes: shipped tribulation
+still catches `Exception` and logs unconditionally, neither of which the rules
+above permit. Instinct's veterancy-rate slot already ships the once-only gate.
+
 ## Events
 
 Fabric `Event` objects, array-backed, named `<Mod><Thing>Callback`, **fired
-server-side** at state changes, with old + new values for scalar changes. The
-array-backed invoker is the natural place the host iterates listeners — keep it
-simple; per-listener error isolation belongs on provider slots that feed back
-into host logic.
+server-side** at state changes, with old + new values for scalar changes.
+
+Use the **two-argument** `createArrayBacked(Class, Function)`. The three-argument
+overload uses the sole listener *as* the invoker when exactly one is registered
+and never calls the factory, so the isolation below vanishes in the common case
+— and Fabric's own Javadoc recommends it for performance-critical events, which
+is precisely where someone reaches for it.
+
+**The invoker isolates each listener** — the `try`/`catch (Throwable)` goes
+inside the `createArrayBacked` loop. A fire-site wrap catches the throw but
+abandons every listener after the one that threw, and it makes isolation a
+discipline each fire site has to remember rather than a property the event
+declares once. Fire sites then stay clean — when you move isolation into the
+invoker, *delete* the fire-site wrap rather than leaving it for safety, since
+all it can still do is re-introduce the abandon-the-rest semantics:
 
 ```java
+DistillationDiscoveryCallback.EVENT.invoker().onDiscover(player, recipeId);   // no wrap
+```
+
+Distillation and cultivation ship this shape today. Naming the offending
+listener class (as meridian's invoker does), the fatal-error rethrow, and the
+once-only gate are the additions — do them in new code:
+
+```java
+/**
+ * Fired server-side the first time a player discovers a recipe through play — that is,
+ * when they take a freshly brewed output the stand has not taught them before. Re-taking
+ * an already-known output does not fire it, and the admin/bulk grants
+ * ({@code /distillation discover}, the {@code startDiscovered} join grant) record silently.
+ *
+ * <p>A listener that throws is caught, logged, and skipped — it can never break discovery
+ * recording or the listeners registered after it.
+ */
 @Stable
-public interface TribulationLevelCallback {
-    Event<TribulationLevelCallback> EVENT = EventFactory.createArrayBacked(TribulationLevelCallback.class,
-        listeners -> (player, oldLevel, newLevel) -> {
-            for (TribulationLevelCallback l : listeners) l.onLevelChanged(player, oldLevel, newLevel);
-        });
-    void onLevelChanged(ServerPlayer player, int oldLevel, int newLevel);
+public interface DistillationDiscoveryCallback {
+
+    AtomicBoolean LISTENER_FAILURE_LOGGED = new AtomicBoolean(false);
+
+    Event<DistillationDiscoveryCallback> EVENT = EventFactory.createArrayBacked(
+            DistillationDiscoveryCallback.class,
+            listeners -> (player, recipeId) -> {
+                for (DistillationDiscoveryCallback listener : listeners) {
+                    try {
+                        listener.onDiscover(player, recipeId);
+                    } catch (VirtualMachineError e) {
+                        throw e;              // OOME/SOE: the JVM is gone, not the guest
+                    } catch (Throwable t) {
+                        // Throwable, not Exception: a listener compiled against an older signature
+                        // throws Error (AbstractMethodError, NoClassDefFoundError), which an
+                        // Exception catch would let escape and kill the server tick.
+                        if (LISTENER_FAILURE_LOGGED.compareAndSet(false, true)) {
+                            Distillation.LOGGER.warn("A DistillationDiscoveryCallback listener {} threw; skipping",
+                                    listener.getClass().getName(), t);
+                        }
+                    }
+                }
+            });
+
+    void onDiscover(ServerPlayer player, ResourceLocation recipeId);
 }
 ```
 
 Document **every** trigger in the callback's Javadoc (e.g. "fired on playtime
 progression, death relief, Shatter Shard use, and `/tribulation set`") so a
-consumer knows exactly when it runs.
+consumer knows exactly when it runs — and state the isolation posture, so a
+consumer knows what a throw costs them: *"A listener that throws is caught,
+logged, and skipped — it can never break `<the host operation>` or the listeners
+registered after it."*
+
+Any Javadoc promising less is a defect in one or the other: fix the code, then
+fix the promise. Two forms qualify — one that **disclaims** isolation ("a
+listener that throws is not isolated by Respite") and one that promises the old
+**fire-site** posture ("it may prevent listeners registered after it from seeing
+that trade"). Both describe behavior the rules above no longer permit.
+
+### Grandfathered names
+
+Three events shipped `@Stable` before the naming rule was enforced, so renaming
+them is a breaking change that waits for the next major. They are **waived, not
+conformant** — record the waiver, don't re-flag it, and it dies with the rename.
+Each row is carried by an open `breaking`-labelled issue in the owning repo; a
+waiver with no owner never expires:
+
+| Mod | Shipped name | Replacement at next major |
+|---|---|---|
+| mercantile | `TradeExecutedCallback` | `MercantileTradeExecutedCallback` |
+| mercantile | `ReputationChangedCallback` | `MercantileReputationChangedCallback` |
+| prosperity | `LootModifierCallback` | `ProsperityLootModifierCallback` |
+
+The register is **closed** — a new unprefixed event is a defect, not an entry —
+and scoped to **events**: the records, enums, extension interfaces, and context
+objects an `api` package also holds were never governed by the naming rule.
 
 ## Extension interfaces (all-default opt-in)
 
@@ -209,6 +316,35 @@ if (FabricLoader.getInstance().isModLoaded("tribulation")) {
     TribulationCompat.register();   // adapter only class-loaded behind this guard
 }
 ```
+
+The manifest has to agree with the gradle side, or the loader hard-fails on a
+mod the code was written to live without. A sibling goes under `suggests` with
+`*` — never `depends` (the load-bearing coupling the suite forbids), never
+`recommends` (the loader surfaces that as something the player ought to install,
+a claim the integration can't support: every feature works fully with the
+sibling absent), and never a version floor (the guards and the `Throwable`
+degradation below mean an older sibling falls back to un-integrated behavior
+rather than breaking, so the manifest shouldn't assert an edge the code doesn't
+have). Third-party viewers and config UIs follow the same rule — see
+`mc-compat`.
+
+```json
+"depends": {
+  "minecraft": "~1.21.1",
+  "fabricloader": ">=0.16.10",
+  "fabric-api": "*",
+  "java": ">=21"
+},
+"suggests": {
+  "tribulation": "*",
+  "modmenu": "*", "jade": "*", "wthit": "*", "emi": "*", "jei": "*"
+}
+```
+
+`fabric-api` is unbounded on purpose: the floor that matters is `fabric_version`
+in the suite's `propagate/versions-common.properties`, which is what the mod
+compiles against. Restating it per manifest gives it one chance to drift per
+repo, and the manifest copy is the one nobody updates.
 
 - Every call site is guarded by `isModLoaded("<modid>")`, **or** lives in a class
   only class-loaded behind such a guard.
@@ -395,19 +531,25 @@ A mod conforms to the Concord API Standard when:
 - [ ] All externally consumable surface lives in `com.rfizzle.<mod>.api`, marked
       with the mod's local `@Stable`.
 - [ ] No `api` method mutates mod state outside the provider/callback pattern.
-- [ ] Every provider/callback invocation is wrapped in host-side error isolation
-      (catch throws; reject non-finite returns; fall back to default).
+- [ ] Every provider/callback invocation is isolated — `catch (Throwable)` with
+      `VirtualMachineError` rethrown, per guest, rejecting non-finite returns,
+      falling back to the host's default, logging once at `WARN`; event
+      isolation lives in the two-argument `createArrayBacked` invoker, not at
+      the fire site.
 - [ ] The mod's own sibling integrations use `modCompileOnly` + `isModLoaded`
       guards in `compat/<modid>/` packages, with foreign references classload-
       isolated (adapter class or nested `Api` holder) and whole integration
       bodies catching `Throwable`.
+- [ ] `fabric.mod.json` carries the suite dependency shape (`minecraft`
+      `~1.21.1`, `fabric-api` `*`), with any sibling under `suggests` at `*`.
 - [ ] Compat mapping/scaling cores are pure (zero sibling imports) and
       unit-tested without the sibling jar on the classpath.
 - [ ] Client-reading accessors callable from common code are reflection-backed
       with documented sentinels.
 - [ ] Events are Fabric `Event`s named `<Mod><Thing>Callback` with every trigger
-      documented.
-- [ ] README has a developer/API section with the gradle + guard example.
+      documented, or hold a row in the grandfather register above.
+- [ ] README has a developer/API section with the gradle + guard example (model:
+      Tribulation's README).
 - [ ] `AGENTS.md` declares "conforms to Concord API Standard".
 
 ## Guardrails
@@ -418,9 +560,20 @@ A mod conforms to the Concord API Standard when:
 - **Never** point a consumer at an internal class (attachment, manager, mixin
   interface). Add an `api` accessor instead.
 - **Never** let a provider/callback throw or return NaN/Inf into host logic —
-  catch and fall back to the default. A guest must not be able to crash the host.
+  catch `Throwable` and fall back to the default. A guest must not be able to
+  crash the host.
+- **Never** leave a wrap at the fire site — delete it when isolation moves into
+  the invoker. A fire-site wrap catches the throw but abandons every listener
+  after the thrower, and each new fire site is another chance to forget.
+- **Never** use the three-argument `createArrayBacked(type, emptyInvoker,
+  factory)` — at one listener it bypasses the invoker factory entirely and the
+  isolation is gone.
+- **Never** catch a `VirtualMachineError` — rethrow it. An `OutOfMemoryError`
+  absorbed and logged allocates on the heap that just failed, and a caught
+  `StackOverflowError` under "continue" recurs once per remaining guest.
 - **Never** reference a sibling's `api.*` outside an `isModLoaded` guard or a
-  class only loaded behind one; **never** declare a sibling under `depends`.
+  class only loaded behind one; **never** declare a sibling under `depends` or
+  `recommends` — `suggests` with `*`, no version floor.
 - **Never** catch only `Exception` around a sibling call — an older sibling jar
   surfaces a missing method as `LinkageError`; catch `Throwable` and fall back.
 - **Never** cache a fail-open probe's answer — the sibling's config may be
