@@ -557,9 +557,10 @@ loom {
 ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 BlockPos abs = helper.absolutePos(new BlockPos(0, 2, 1));
 player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
+// ... test body, then MockPlayers.retire(player) in a finally
 ```
 
-`GameTestHelper.makeMockServerPlayerInLevel()` is `@Deprecated(forRemoval = true)` in MC 1.21.1 — use the mod's `MockPlayers` helper instead, and retire the player when the test is done. The `mc-testing-mock` skill has the canonical class, the packet-channel variant, and the teardown rules.
+`GameTestHelper.makeMockServerPlayerInLevel()` is `@Deprecated(forRemoval = true)` in MC 1.21.1 — use the mod's `MockPlayers` helper instead, and retire the player in a `finally` so a failing assertion still reclaims it. That shape is for a synchronous test — a deferred or polled assertion (`succeedWhen`, below) moves the retire into the callback instead. The `mc-testing-mock` skill has the canonical class, the packet-channel variant, and the teardown rules.
 
 **Synchronous vs deferred assertions:**
 - `helper.succeed()` — immediate success (state is already correct)

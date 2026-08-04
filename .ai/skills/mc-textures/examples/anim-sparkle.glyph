@@ -9,7 +9,7 @@ frametime: 6
 
 legend:
   . transparent
-  g gold                # ray body
+  g metal.gold          # ray body
   b bone                # hot center
 
 frame:

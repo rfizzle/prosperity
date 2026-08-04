@@ -243,6 +243,55 @@ loom {
 }
 ```
 
+## The four datagen anchors
+
+Datagen is wired in four places, and they only work as a set:
+
+| # | Anchor | Where |
+|---|---|---|
+| 1 | `DataGeneratorEntrypoint` — the class **and** its `fabric-datagen` key | `src/main/java/…/data/<Mod>DataGenerator.java` + `src/main/resources/fabric.mod.json` |
+| 2 | The Loom `datagen` run config | `build.gradle` |
+| 3 | The `run-datagen` make target | `Makefile` |
+| 4 | `verifyDatagenIdempotent` | `build.gradle` |
+
+Any one missing degrades quietly rather than failing:
+
+- **No entrypoint (1)** — the run and the task both still exist and both still
+  succeed. `runDatagen` starts a server, generates nothing, and exits 0.
+- **No run config (2)** — `./gradlew runDatagen` fails with "task not found",
+  which is at least loud.
+- **No make target (3)** — the documented entry point doesn't exist, so the task
+  is discoverable only by reading `build.gradle`.
+- **No verify task (4)** — CI silently stops checking. Concord's reusable
+  `mod-ci.yml` gates the step on whether the task is defined at all:
+
+  ```yaml
+  - name: Verify datagen is idempotent
+    run: |
+      if ./gradlew --no-daemon -q help --task verifyDatagenIdempotent >/dev/null 2>&1; then
+        ./gradlew verifyDatagenIdempotent --no-daemon --stacktrace
+      else
+        echo "verifyDatagenIdempotent is not defined in this repo — skipping."
+      fi
+  ```
+
+  `help --task` exits non-zero when the task is absent, and the `if` swallows
+  that. A member without the task gets a green job and one skip line in a log
+  nobody reads.
+
+**1 and 4 together are what make the guard mean anything.** The check shells out
+to `git --no-optional-locks status --porcelain -- <genDir>` (the task below). With
+no entrypoint that directory is never created or tracked, so the `--` pathspec
+matches nothing, git exits 0 with empty output, and the task reports clean — a
+passing check that verified nothing. A member holding 2+3+4 without 1 is in the worst state of the
+four: it looks the most wired and proves the least.
+
+So a member is conformant when it is **4-of-4**, or when it deliberately has
+**none of the four** and records why in its `AGENTS.md`. Scaffolding 2+3+4 ahead
+of the entrypoint is a legitimate waypoint — it is how a member gets ready to
+generate before it has anything to generate — but it must not be mistaken for a
+working guard, and it is not a resting state.
+
 ## Idempotency verification
 
 Add a CI-friendly task that runs datagen and asserts git reports no changes in the generated directory:
