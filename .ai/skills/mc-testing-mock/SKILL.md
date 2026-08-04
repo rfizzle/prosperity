@@ -240,7 +240,7 @@ This player has `connection == null`, is NOT in the player list, but supports at
 
 Scope is the connected replica. `makeMockPlayer` and directly constructed `ServerPlayer` instances are never added to the level or the player list, so they need no cleanup.
 
-The framework never removes a mock player for you — `GameTestInfo#succeed()` and the batch sweep in `StructureUtils` both filter `Player` instances out of their bounds sweep. A connected replica that is not retired stays in the level, ticked for the rest of the run and holding a chunk ticket, *and* stays in the player list. An assertion that throws before a trailing cleanup call skips it entirely, so the guarantee is weakest exactly when the suite is unhealthy and the output is hardest to read.
+The framework never removes a mock player for you — `GameTestInfo#succeed()` and the batch sweep in `StructureUtils` both filter `Player` instances out of their bounds sweep. A connected replica that is not retired stays in the level, ticked for the rest of the run and holding a chunk ticket, *and* stays in the player list. Two costs ride along with that tick: its advancement listeners stay registered, so every criterion the mod fires keeps evaluating against a player no test is watching, and its `EmbeddedChannel` accumulates every broadcast the server sends it — a channel a test never reads is a channel nothing drains. An assertion that throws before a trailing cleanup call skips it entirely, so the guarantee is weakest exactly when the suite is unhealthy and the output is hardest to read.
 
 Retire in a `finally`, so cleanup survives a failing assertion:
 
