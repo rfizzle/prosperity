@@ -1,16 +1,16 @@
 # Reference sprite — a generic coin. Demonstrates the item-sprite conventions: a
 # single centered motif, a 1px `ink` outline so it reads on any background, a
 # transparent margin, and 3-tone shading (body / lower-right shadow / glint)
-# whose shadow tone is a ramp step off `gold` rather than a raw hex value.
-# Mod-neutral (shared `gold` token); retint the body with a mod accent for real art.
+# whose shadow tone is a ramp step off `metal.gold` rather than a raw hex value.
+# Mod-neutral (the shared `metal.gold` tone); retint the body with a mod accent for real art.
 size: 16
 kind: sprite
 
 legend:
   . transparent
   K ink         # #0a0a0a outline
-  g gold        # #ffd700 body
-  d gold-1      # deeper gold — lower-right shadow (a ramp step off `gold`)
+  g metal.gold    # #ffd700 body
+  d metal.gold-1  # deeper gold — lower-right shadow (a ramp step off `metal.gold`)
   w bone        # #e8e0d4 glint
 
 grid:
