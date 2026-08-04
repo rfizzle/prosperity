@@ -218,15 +218,41 @@ public static void registerApiLookups() {
 
 Call from `onInitialize()` after `register()`.
 
-## ResourceLocation helper
+## The bootstrap trio
 
-Define a static helper on your mod's main class:
+Every mod's main class — `<Capitalized mod id>.java` in `com.rfizzle.<modid>` —
+carries the same three declarations, and everything else in the mod resolves its
+identity through them:
 
 ```java
-public static ResourceLocation id(String path) {
-    return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+public class Mymod implements ModInitializer {
+    public static final String MOD_ID = "mymod";
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+    // Canonical factory for this mod's resource locations — never inline the mod id.
+    public static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+    }
 }
 ```
+
+Each line earns its place:
+
+- **`MOD_ID`** is the single literal. The mod id appears in registry keys,
+  translation keys, packet ids, attachment ids, and config paths; anywhere it is
+  retyped is somewhere a rename can miss.
+- **`LOGGER`** takes `MOD_ID`, not `<Mod>.class`. `getLogger(MOD_ID)` names the
+  logger for the mod, so every line the mod emits carries one recognizable prefix
+  a server operator can filter on. `getLogger(SomeClass.class)` names it for the
+  class and scatters the mod's output across as many logger names as there are
+  classes doing the logging.
+- **`id(String)`** is the only construction site for this mod's `ResourceLocation`s.
+  Inlining `ResourceLocation.fromNamespaceAndPath("mymod", …)` at a call site works
+  right up until the string is misspelled, at which point registration succeeds
+  against a namespace nothing else uses and the failure surfaces as a missing
+  texture or an unresolved key rather than an error.
+
+Use `<Mod>.id(name)` everywhere below.
 
 ## Registration ordering
 
