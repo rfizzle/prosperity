@@ -24,14 +24,16 @@ or animation.
 ## Step 1 — Pin the palette
 
 The renderer knows the design-system colors as named tokens — run
-`python3 .ai/skills/mc-textures/scripts/glyph.py --list-colors` to see them. Use the **named tokens**
-in your legend (e.g. `mercantile.emerald`, `ink`, `gold`), not raw hex, so the
-glyph stays tied to the system. A mod's accents never appear in another mod's
-glyph.
+`python3 .ai/skills/mc-textures/scripts/glyph.py --list-colors` to see them, grouped
+by owner. Use the **named tokens** in your legend (e.g. `mercantile.emerald`, `ink`,
+`metal.gold`), not raw hex, so the glyph stays tied to the system. A mod's accents
+never appear in another mod's glyph, and dropping the prefix changes nothing —
+`crimson` is Tribulation's wherever it is written. When the art needs a material
+rather than a brand, reach for a `metal.` tone.
 
 The tonal steps your shading needs come from those same tokens: write
-`emerald+1` for one step toward the highlight, `emerald-2` for two toward
-shadow. Run `python3 .ai/skills/mc-textures/scripts/glyph.py --ramp <token>` to
+`mercantile.emerald+1` for one step toward the highlight, `mercantile.emerald-2`
+for two toward shadow. Run `python3 .ai/skills/mc-textures/scripts/glyph.py --ramp <token>` to
 get a whole ramp as paste-ready legend lines (`--ramp-steps N` for a 3- or
 7-step ladder). Reach for raw hex only when a tone genuinely sits off the
 palette — a ramp step keeps the glyph inside the design system, and the steps
@@ -69,8 +71,9 @@ Honor the design-system glyph conventions:
   against any HUD background. *Inside* the motif, separate forms with a dark tone
   of the material itself, not more pure black — a uniform black box around every
   interior edge flattens the volume back into a sticker.
-- **One glowing accent**, the mod's signature. The brighter accent (`*-bright`,
-  `gold`, `ember`) sparingly for highlights; the base accent for the body.
+- **One glowing accent**, the mod's signature. The brighter half of the mod's own
+  pair (`mercantile.emerald-bright`, `tribulation.ember`, `respite.candleglow-pale`)
+  sparingly for highlights; the base accent for the body.
 - `.` is transparent. Keep a 1px transparent margin; where the motif is drawn to
   meet the border instead — a shackle growing out of the frame, a spark filling
   its 8×8 — record that once with an **`edge:`** line (`margin` | `shaped` |
