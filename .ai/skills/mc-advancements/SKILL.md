@@ -202,7 +202,7 @@ The gametest helpers that make grant-assertions reliable:
 
 ```java
 private ServerPlayer spawnListeningPlayer(GameTestHelper helper) {
-    ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);   // see mc-testing-mock; retire it when done
+    ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);   // see mc-testing-mock; the caller retires it
     // Reloading against the live manager guarantees the freshly-registered trigger
     // has an advancement listener for this player before the first fire.
     player.getAdvancements().reload(helper.getLevel().getServer().getAdvancements());
@@ -217,11 +217,37 @@ private static void assertGranted(GameTestHelper helper, ServerPlayer player, St
 }
 ```
 
+`spawnListeningPlayer` hands back a connected replica, and once it returns the
+call site is what retires it — acquisition above the `try`, the action and the
+grant assertion inside it, `MockPlayers.retire` in the `finally` so a failing
+assertion still reclaims the player. A leaked listening replica costs more than
+the usual ticked entity and chunk ticket: its trigger listeners stay registered
+and fire for the rest of the run, and its packet channel fills with every
+broadcast the server sends it, undrained.
+
+```java
+@GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
+public void fuelingThePylonGrantsItsMilestone(GameTestHelper helper) {
+    ServerPlayer player = spawnListeningPlayer(helper);
+    try {
+        fuelPylon(helper, player);          // teleports into the structure, then drives the real success path
+        assertGranted(helper, player, "pylon_fueled");
+        helper.succeed();
+    } finally {
+        MockPlayers.retire(player);
+    }
+}
+```
+
+A test that asserts the grant from a deferred or polled callback moves the
+retire into that callback instead — `mc-testing-mock` carries both shapes and
+the reason a method-level `finally` is the wrong place for them.
+
 The null check on the holder catches stale or missing datagen output as a real
 test failure instead of an NPE. The bystander test is two mock players, one
-action: `assertGranted(actor)` plus the inverted assertion on the bystander.
-For threshold chains, also assert the *next* link is still not done (10 grants
-`volume_10`, not `volume_50`).
+action: `assertGranted(actor)` plus the inverted assertion on the bystander,
+and it retires both replicas. For threshold chains, also assert the *next* link
+is still not done (10 grants `volume_10`, not `volume_50`).
 
 ## Version notes
 
