@@ -19,12 +19,16 @@ A texture is conformant when it:
   32px sprite legitimately runs 20–50 colors. A flat single-tone fill reads as a
   cartoony sticker; that is the failure mode to design against.
 - **uses the design-system palette** — reference colors as named tokens, never raw hex
-  (`python3 .ai/skills/mc-textures/scripts/glyph.py --list-colors` dumps them: shared neutrals like `ink`,
-  `bone`, `gold`, plus per-mod accents like `mercantile.emerald`). A mod's accents never
-  appear in another mod's art. The tonal steps a shaded surface needs are **ramp
-  steps off those tokens** — `emerald+1` toward the highlight, `emerald-2` toward
-  shadow — so shading stays inside the palette instead of scattering raw hex through
-  the legend. `--ramp <token>` prints a ready-made ramp as paste-ready legend lines, and
+  (`python3 .ai/skills/mc-textures/scripts/glyph.py --list-colors` groups them by owner:
+  shared neutrals like `ink` and `bone`, shared material tones like `metal.gold`, and
+  per-mod accents like `mercantile.emerald`). A mod's accents never appear in another
+  mod's art, and the bare spelling of one is still that mod's — `crimson` is
+  Tribulation's exactly as `tribulation.crimson` is, and the renderer says so either
+  way. Only the `metal.` tones are free to appear anywhere: a brass pivot is a
+  material, not a brand. The tonal steps a shaded surface needs are **ramp steps off
+  those tokens** — `mercantile.emerald+1` toward the highlight, `mercantile.emerald-2`
+  toward shadow — so shading stays inside the palette instead of scattering raw hex
+  through the legend. `--ramp <token>` prints a ready-made ramp as paste-ready legend lines, and
   `--snap-palette` reports the nearest token for each raw-hex entry in an existing legend;
   steps cool and saturate going down, warm and pale going up, which is what makes a
   ramp read as light on a form rather than as a dimmer switch. A raw-hex legend entry
@@ -145,8 +149,9 @@ then iterate the grid — fixing pixel art is fast (edit the `.glyph`, re-run). 
 also measures the grid against this quality bar and says where it falls short. **Warnings**
 are quality-bar violations — a surface left as a flat fill, a silhouette with no `ink`
 outline, a border neither the spec's `kind:` nor its `edge:` accounts for, a join that
-would seam when tiled, an animation frame identical to the one before it, a legend
-borrowing another mod's accent.
+would seam when tiled, an animation frame identical to the one before it, a legend that
+mixes two mods' accents. The mix is what the renderer can see: a glyph built entirely
+from a foreign mod's accents holds to one identity and passes, so that one is on you.
 **Notes** are advisory — raw hex where a token would do, a missing `kind:`. Fix the
 warnings; work through the notes as you touch the art. It reports the motif's detached pieces too — a
 glint or a hanging link is deliberate, a stray pixel is not, and only you can tell which
@@ -262,7 +267,8 @@ toolchain stays on `box`.
 ## Quick checklist
 
 - [ ] Pixel art: hard edges, limited palette, design-system named tokens (ramp steps
-      for the tonal range, not raw hex), no foreign mod's accents
+      for the tonal range, not raw hex), no foreign mod's accents under either
+      spelling — a shared material belongs to `metal.`, not to a borrowed accent
 - [ ] `ink` outline, single centered motif, legible at native size
 - [ ] `kind:` declared, and an `edge:` line wherever the motif meets the border on purpose
 - [ ] Rendered via `.ai/skills/mc-textures/scripts/glyph.py`; preview read back and judged
