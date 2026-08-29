@@ -54,6 +54,10 @@ public class FakePlayerGuardGameTest implements FabricGameTest {
         return player;
     }
 
+    // Deliberately never discarded. FakePlayer.get returns a per-(world, profile) cached instance,
+    // and Entity#setRemoved is sticky — discarding it here would hand every later test in the batch a
+    // dead player, intermittently, on GC timing. There is nothing to clean up: the fake is never added
+    // to the level or the player list, its tick() is a no-op, and it holds no chunk ticket.
     private FakePlayer spawnFakePlayerAt(GameTestHelper helper, BlockPos rel) {
         FakePlayer player = FakePlayer.get(helper.getLevel());
         BlockPos abs = helper.absolutePos(rel);
@@ -84,7 +88,6 @@ public class FakePlayerGuardGameTest implements FabricGameTest {
         helper.assertTrue(be.getLootTableSeed() == SEED,
                 "a fake-player open must leave the vanilla loot-table seed intact");
 
-        fake.discard();
         helper.succeed();
     }
 
@@ -96,7 +99,6 @@ public class FakePlayerGuardGameTest implements FabricGameTest {
 
         FakePlayer fake = spawnFakePlayerAt(helper, rel);
         rightClick(helper, fake, rel);
-        fake.discard();
 
         ServerPlayer real = spawnRealPlayerAt(helper, rel);
         helper.assertTrue(rightClick(helper, real, rel) == InteractionResult.SUCCESS,
@@ -124,7 +126,6 @@ public class FakePlayerGuardGameTest implements FabricGameTest {
                 "a Fabric FakePlayer must be treated as fake");
 
         real.discard();
-        fake.discard();
         helper.succeed();
     }
 }
