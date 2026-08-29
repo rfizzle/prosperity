@@ -194,18 +194,54 @@ public class MyBlockLootTableProvider extends FabricBlockLootTableProvider {
 
     @Override
     public void generate() {
-        // Simple drop-self
-        dropSelf(MyRegistry.MY_BLOCK);
+        // Simple drop-self — note the sequence, see below
+        dropSelfWithSequence(MyRegistry.MY_BLOCK);
 
         // Silk touch required
-        add(MyRegistry.GLASS_BLOCK, createSilkTouchOnlyTable(MyRegistry.GLASS_BLOCK));
+        add(MyRegistry.GLASS_BLOCK, withSequence(MyRegistry.GLASS_BLOCK,
+                createSilkTouchOnlyTable(MyRegistry.GLASS_BLOCK)));
 
         // Custom drop with conditions
-        add(MyRegistry.ORE_BLOCK,
-                createOreDrop(MyRegistry.ORE_BLOCK, MyRegistry.RAW_ORE));
+        add(MyRegistry.ORE_BLOCK, withSequence(MyRegistry.ORE_BLOCK,
+                createOreDrop(MyRegistry.ORE_BLOCK, MyRegistry.RAW_ORE)));
+    }
+
+    /** {@link #dropSelf(Block)} with the table's random sequence restored. */
+    private void dropSelfWithSequence(Block block) {
+        add(block, createSingleItemTable(block).setRandomSequence(block.getLootTable().location()));
+    }
+
+    private LootTable.Builder withSequence(Block block, LootTable.Builder builder) {
+        return builder.setRandomSequence(block.getLootTable().location());
     }
 }
 ```
+
+### Always stamp `random_sequence` yourself
+
+**Fabric's loot provider drops a key vanilla's own provider always writes.** Vanilla's
+`LootTableProvider` calls `setRandomSequence(id)` before `setParamSet`;
+`FabricLootTableProviderImpl.run` only calls `setParamSet(...).build()`, so a bare
+`dropSelf` emits a table with no `"random_sequence"`.
+
+The key is not cosmetic. `LootTable.getRandomItems` hands the
+`Optional<ResourceLocation>` to `LootContext.Builder.create(...)`: present, the roll
+draws from `ServerLevel.getRandomSequence(id)` — a per-table stream seeded off the world
+seed and **persisted in the world's `random_sequences` data**; absent, it falls back to
+an unsequenced `RandomSource`. A table without it sits outside the persisted sequence
+state vanilla puts every table into.
+
+For a plain `dropSelf` the visible effect is small — `survives_explosion` is the only
+roll and it is statistically identical either way — which is exactly why this goes
+unnoticed. Converting hand-authored tables to datagen silently drops the key from every
+one of them. Stamp it explicitly, as above.
+
+> **Not a concern: `sends_telemetry_event`.** `Advancement.Builder.advancement()` sets it
+> **true**, and the bare `new Advancement.Builder()` leaves it false — but the flag is
+> unreachable for modded content. Its only reader in the whole game,
+> `WorldSessionTelemetryManager`, gates on `sendsTelemetryEvent() && id.getNamespace()
+> .equals("minecraft")`, so a mod advancement never fires it. Either value is fine; do
+> not churn generated trees over it.
 
 ## Output directory
 
