@@ -10,14 +10,16 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/rfizzle/prosperity"></a>
   <a href="https://github.com/rfizzle/prosperity/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/rfizzle/prosperity?include_prereleases"></a>
   <a href="https://github.com/rfizzle/prosperity/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/rfizzle/prosperity/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://modrinth.com/mod/prosperity-loot-overhaul"><img alt="Modrinth downloads" src="https://img.shields.io/modrinth/dt/bD4rtHdZ?logo=modrinth&label=Modrinth&color=00AF5C"></a>
+  <a href="https://www.curseforge.com/minecraft/mc-mods/prosperity-loot-overhaul"><img alt="CurseForge downloads" src="https://img.shields.io/curseforge/dt/1591262?logo=curseforge&label=CurseForge&color=F16436"></a>
 </p>
 
 A loot overhaul for Minecraft 1.21.1 (Fabric). Prosperity gives every player their own instanced loot from naturally-generated containers — no more empty dungeon chests because someone got there first — and rewards exploration with distance-scaled loot quality. It works as a zero-trust proxy over vanilla containers: it never registers custom blocks, retextures world-gen, or replaces block entities. Per-player state rides on vanilla container block entities via persistent Fabric data attachments.
 
 ## Download
 
-| [GitHub Releases](https://github.com/rfizzle/prosperity/releases) | [Website](https://prosperity.rfizzle.com) | [Report an issue](https://github.com/rfizzle/prosperity/issues) |
-| --- | --- | --- |
+| [Modrinth](https://modrinth.com/mod/prosperity-loot-overhaul) | [CurseForge](https://www.curseforge.com/minecraft/mc-mods/prosperity-loot-overhaul) | [GitHub Releases](https://github.com/rfizzle/prosperity/releases) | [Website](https://prosperity.rfizzle.com) | [Report an issue](https://github.com/rfizzle/prosperity/issues) |
+| --- | --- | --- | --- | --- |
 
 ---
 
