@@ -45,7 +45,7 @@ here by appending — never by renumbering.**
   frames, no animation beyond a color tint and a brief transition lerp.
 - The glyph is a **purpose-built 16×16 texture**, not a downscaled vanilla item
   render (those go muddy at 16px). Author it via the texture pipeline and commit
-  its `.glyph` source beside the master (see the `mc-textures` skill).
+  its `.glyph` source under `art/glyphs/` (see the `mc-textures` skill).
 
 ## Registration
 
