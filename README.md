@@ -80,6 +80,31 @@ Prosperity exposes a stable loot-modifier API under `com.rfizzle.prosperity.api`
 
 See [`design/SPEC.md`](design/SPEC.md) §4 for the full API surface and integration examples.
 
+### Gradle setup
+
+```gradle
+repositories {
+    // Sibling jars resolve from GitHub Releases through an artifact-only `rfizzle:` ivy
+    // repo while the Modrinth projects are not publicly resolvable. See API-STANDARD §4.
+    ivy {
+        name = 'GitHubReleases'
+        url = 'https://github.com'
+        patternLayout {
+            artifact '/[organisation]/[module]/releases/download/v[revision]/[module]-[revision].jar'
+        }
+        metadataSources { artifact() }
+        content { includeGroup 'rfizzle' }
+    }
+}
+
+dependencies {
+    modCompileOnly "rfizzle:prosperity:<version>"
+}
+```
+
+Add `"prosperity": "*"` under `suggests` in your `fabric.mod.json` — never `depends`,
+and never a version floor.
+
 ---
 
 ## Part of Concord
