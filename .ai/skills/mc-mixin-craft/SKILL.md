@@ -230,7 +230,7 @@ accessWidener v2 named
 accessible field net/minecraft/world/inventory/EnchantmentMenu enchantSlots Lnet/minecraft/world/Container;
 
 # Make a private method accessible
-accessible method net/minecraft/client/gui/screens/EnchantmentScreen renderBook Lnet/minecraft/client/gui/GuiGraphics;IIF)V
+accessible method net/minecraft/client/gui/screens/EnchantmentScreen renderBook (Lnet/minecraft/client/gui/GuiGraphics;IIF)V
 
 # Make a final field mutable
 mutable field net/minecraft/world/level/block/EnchantingTableBlock BOOKSHELF_OFFSETS Ljava/util/List;
