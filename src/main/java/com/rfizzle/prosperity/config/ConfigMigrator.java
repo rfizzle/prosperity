@@ -25,7 +25,7 @@ import com.rfizzle.prosperity.Prosperity;
  *   <li>Add a test in {@code ConfigMigratorTest}.</li>
  * </ol>
  */
-final class ProsperityConfigMigrator {
+final class ConfigMigrator {
 
     static final int CURRENT_VERSION = 2;
 
@@ -75,7 +75,7 @@ final class ProsperityConfigMigrator {
             }
     };
 
-    private ProsperityConfigMigrator() {}
+    private ConfigMigrator() {}
 
     /**
      * Run any pending migrations on the raw JSON object. Returns {@code true}

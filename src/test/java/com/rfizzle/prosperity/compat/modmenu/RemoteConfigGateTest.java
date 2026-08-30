@@ -68,4 +68,23 @@ class RemoteConfigGateTest {
 
         assertFalse(live.enableContainerProtection, "the live config must be left untouched");
     }
+
+    @Test
+    void persistedConfigIsClampedOnBothPaths() {
+        // The screen hands back raw edits; the commit point must warn-and-clamp them, on the
+        // unlocked path (server fields) and on the locked path (the grafted client block alike).
+        ProsperityConfig live = new ProsperityConfig();
+        ProsperityConfig working = new ProsperityConfig();
+        working.indicatorRenderDistance = 9_999;
+        working.client.hudOffsetX = -5;
+
+        ProsperityConfig unlocked = RemoteConfigGate.persistedConfig(false, live, working);
+        assertEquals(512, unlocked.indicatorRenderDistance);
+        assertEquals(0, unlocked.client.hudOffsetX);
+
+        ProsperityConfig again = new ProsperityConfig();
+        again.client.hudOffsetY = 1_000_000;
+        ProsperityConfig locked = RemoteConfigGate.persistedConfig(true, live, again);
+        assertEquals(10_000, locked.client.hudOffsetY);
+    }
 }

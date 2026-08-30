@@ -41,7 +41,7 @@ public class ProsperityConfig {
      * third smaller than {@link #toJson()}) and drops the {@link #client} block, which the client
      * reads only from its own local config and never from the synced view. Together this keeps the
      * synced JSON comfortably inside
-     * {@link com.rfizzle.prosperity.network.ConfigSyncS2CPayload#MAX_CONFIG_JSON_CHARS}.
+     * {@link com.rfizzle.prosperity.network.ConfigSyncPayload#MAX_CONFIG_JSON_CHARS}.
      */
     private static final Gson SYNC_GSON = new GsonBuilder()
             .setLenient()
@@ -89,11 +89,11 @@ public class ProsperityConfig {
     // --- Server Config (SPEC §Configuration "Server Config") ---
 
     /**
-     * Schema version for {@link ProsperityConfigMigrator}. Owned by the migrator (not
+     * Schema version for {@link ConfigMigrator}. Owned by the migrator (not
      * {@link #clamp()}); raised whenever a migration is appended. A loaded file carrying an
      * older version is migrated up and re-saved on {@link #load}.
      */
-    public int configVersion = ProsperityConfigMigrator.CURRENT_VERSION;
+    public int configVersion = ConfigMigrator.CURRENT_VERSION;
     public boolean enableInstancedLoot = true;
     public boolean enableVisualIndicators = true;
     public int indicatorRenderDistance = 48;
@@ -262,14 +262,20 @@ public class ProsperityConfig {
 
     /**
      * Float counterpart to {@link #clampInt(String, int, int, int)}: clamps into {@code [min, max]}
-     * and warns only on an actual correction.
+     * and warns only on an actual correction. Gson yields {@code NaN}/{@code Infinity} from a bare or
+     * quoted token and from an overflow like {@code 1e400}; {@code Math.clamp} passes {@code NaN}
+     * through, so the lower bound is tested negated to fold it into the underflow branch (mc-config).
      */
     private static float clampFloat(String name, float value, float min, float max) {
-        float clamped = Math.clamp(value, min, max);
-        if (clamped != value) {
-            Prosperity.LOGGER.warn("{} must be in [{}, {}], got {}; clamped to {}", name, min, max, value, clamped);
+        if (!(value >= min)) {
+            Prosperity.LOGGER.warn("{} must be in [{}, {}], got {}; clamped to {}", name, min, max, value, min);
+            return min;
         }
-        return clamped;
+        if (value > max) {
+            Prosperity.LOGGER.warn("{} must be in [{}, {}], got {}; clamped to {}", name, min, max, value, max);
+            return max;
+        }
+        return value;
     }
 
     /**
@@ -330,8 +336,22 @@ public class ProsperityConfig {
         return SYNC_GSON.toJson(this);
     }
 
+    /**
+     * Deserialize already-current JSON (a {@link #toJson()}/{@link #toSyncJson()} product: the Mod
+     * Menu working copy and the server&rarr;client sync) into a clamped config. Malformed input
+     * &mdash; the sync arrives off the wire &mdash; never propagates: it is logged and yields defaults,
+     * the same posture as a corrupt file in {@link #load(Path)}.
+     */
     public static ProsperityConfig fromJson(String json) {
-        ProsperityConfig config = GSON.fromJson(json, ProsperityConfig.class);
+        ProsperityConfig config;
+        try {
+            config = GSON.fromJson(json, ProsperityConfig.class);
+        } catch (RuntimeException e) {
+            // JsonSyntaxException / JsonIOException, plus the IllegalStateException Gson raises
+            // for a well-formed non-object; all of them mean "unusable", none of them fatal.
+            Prosperity.LOGGER.error("Failed to parse config JSON; using defaults", e);
+            config = null;
+        }
         if (config == null) {
             config = new ProsperityConfig();
         }
@@ -396,7 +416,7 @@ public class ProsperityConfig {
                 }
 
                 JsonObject raw = element.getAsJsonObject();
-                boolean migrated = ProsperityConfigMigrator.migrate(raw);
+                boolean migrated = ConfigMigrator.migrate(raw);
 
                 ProsperityConfig config = GSON.fromJson(raw, ProsperityConfig.class);
                 if (config == null) {

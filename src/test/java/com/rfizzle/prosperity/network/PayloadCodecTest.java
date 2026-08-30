@@ -30,19 +30,19 @@ class PayloadCodecTest {
         return decoded;
     }
 
-    // --- ConfigSyncS2C ---
+    // --- ConfigSync ---
 
     @Test
     void configSyncS2C() {
-        var original = new ConfigSyncS2CPayload("{\"enableInstancedLoot\":true,\"qualityModifier\":2}");
-        assertEquals(original, roundTrip(ConfigSyncS2CPayload.CODEC, original));
+        var original = new ConfigSyncPayload("{\"enableInstancedLoot\":true,\"qualityModifier\":2}");
+        assertEquals(original, roundTrip(ConfigSyncPayload.CODEC, original));
     }
 
     @Test
     void configSyncS2CAcceptsAtBoundary() {
-        String exact = "a".repeat(ConfigSyncS2CPayload.MAX_CONFIG_JSON_CHARS);
-        var original = new ConfigSyncS2CPayload(exact);
-        assertEquals(original, roundTrip(ConfigSyncS2CPayload.CODEC, original));
+        String exact = "a".repeat(ConfigSyncPayload.MAX_CONFIG_JSON_CHARS);
+        var original = new ConfigSyncPayload(exact);
+        assertEquals(original, roundTrip(ConfigSyncPayload.CODEC, original));
     }
 
     @Test
@@ -50,18 +50,18 @@ class PayloadCodecTest {
         // The default config's compact wire form must fit under the cap and round-trip — a fresh
         // client join sends exactly this, and a pretty-printed default once overflowed the cap.
         String defaultJson = new com.rfizzle.prosperity.config.ProsperityConfig().toSyncJson();
-        assertTrue(defaultJson.length() <= ConfigSyncS2CPayload.MAX_CONFIG_JSON_CHARS,
+        assertTrue(defaultJson.length() <= ConfigSyncPayload.MAX_CONFIG_JSON_CHARS,
                 "default config sync JSON must fit the codec cap, was " + defaultJson.length());
-        var original = new ConfigSyncS2CPayload(defaultJson);
-        assertEquals(original, roundTrip(ConfigSyncS2CPayload.CODEC, original));
+        var original = new ConfigSyncPayload(defaultJson);
+        assertEquals(original, roundTrip(ConfigSyncPayload.CODEC, original));
     }
 
     @Test
     void configSyncS2CRejectsOversizedString() {
-        String oversized = "a".repeat(ConfigSyncS2CPayload.MAX_CONFIG_JSON_CHARS + 1);
-        var payload = new ConfigSyncS2CPayload(oversized);
+        String oversized = "a".repeat(ConfigSyncPayload.MAX_CONFIG_JSON_CHARS + 1);
+        var payload = new ConfigSyncPayload(oversized);
         FriendlyByteBuf buf = buf();
-        assertThrows(EncoderException.class, () -> ConfigSyncS2CPayload.CODEC.encode(buf, payload));
+        assertThrows(EncoderException.class, () -> ConfigSyncPayload.CODEC.encode(buf, payload));
     }
 
     // --- ContainerLootedS2C / ContainerRemovedS2C ---
@@ -190,7 +190,7 @@ class PayloadCodecTest {
 
     @Test
     void allPayloadsReturnCorrectType() {
-        assertEquals(ConfigSyncS2CPayload.TYPE, new ConfigSyncS2CPayload("").type());
+        assertEquals(ConfigSyncPayload.TYPE, new ConfigSyncPayload("").type());
         assertEquals(ContainerLootedS2CPayload.TYPE, new ContainerLootedS2CPayload(BlockPos.ZERO).type());
         assertEquals(ContainerRemovedS2CPayload.TYPE, new ContainerRemovedS2CPayload(BlockPos.ZERO).type());
         assertEquals(RequestUnlootedC2SPayload.TYPE, new RequestUnlootedC2SPayload(new ChunkPos(0, 0)).type());

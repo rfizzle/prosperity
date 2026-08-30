@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pure-JUnit coverage for {@link ProsperityConfigMigrator} and the migration seam in
+ * Pure-JUnit coverage for {@link ConfigMigrator} and the migration seam in
  * {@link ProsperityConfig#load}. No Fabric APIs — only the raw-JSON pipeline.
  */
 class ConfigMigratorTest {
@@ -22,23 +22,23 @@ class ConfigMigratorTest {
     @Test
     void absentVersionReadsAsZero() {
         JsonObject raw = JsonParser.parseString("{}").getAsJsonObject();
-        assertEquals(0, ProsperityConfigMigrator.readVersion(raw));
+        assertEquals(0, ConfigMigrator.readVersion(raw));
     }
 
     @Test
     void nonNumberVersionReadsAsZero() {
         JsonObject raw = JsonParser.parseString("{\"configVersion\": \"nope\"}").getAsJsonObject();
-        assertEquals(0, ProsperityConfigMigrator.readVersion(raw));
+        assertEquals(0, ConfigMigrator.readVersion(raw));
     }
 
     @Test
     void migrateStampsCurrentVersionOnPreVersionedJson() {
         JsonObject raw = JsonParser.parseString("{\"enableInstancedLoot\": false}").getAsJsonObject();
 
-        boolean changed = ProsperityConfigMigrator.migrate(raw);
+        boolean changed = ConfigMigrator.migrate(raw);
 
         assertTrue(changed, "a v0 (no configVersion) file must report a migration");
-        assertEquals(ProsperityConfigMigrator.CURRENT_VERSION, raw.get("configVersion").getAsInt());
+        assertEquals(ConfigMigrator.CURRENT_VERSION, raw.get("configVersion").getAsInt());
         // The migration runs on raw JSON: pre-existing keys are carried forward untouched.
         assertFalse(raw.get("enableInstancedLoot").getAsBoolean());
     }
@@ -46,17 +46,17 @@ class ConfigMigratorTest {
     @Test
     void migrateIsNoOpAtCurrentVersion() {
         JsonObject raw = new JsonObject();
-        raw.addProperty("configVersion", ProsperityConfigMigrator.CURRENT_VERSION);
+        raw.addProperty("configVersion", ConfigMigrator.CURRENT_VERSION);
 
-        assertFalse(ProsperityConfigMigrator.migrate(raw), "a current-version file needs no migration");
+        assertFalse(ConfigMigrator.migrate(raw), "a current-version file needs no migration");
     }
 
     @Test
     void migrateIsIdempotent() {
         JsonObject raw = JsonParser.parseString("{}").getAsJsonObject();
 
-        assertTrue(ProsperityConfigMigrator.migrate(raw), "first pass migrates v0 → current");
-        assertFalse(ProsperityConfigMigrator.migrate(raw), "second pass is a no-op (already current)");
+        assertTrue(ConfigMigrator.migrate(raw), "first pass migrates v0 → current");
+        assertFalse(ConfigMigrator.migrate(raw), "second pass is a no-op (already current)");
     }
 
     @Test
@@ -66,7 +66,7 @@ class ConfigMigratorTest {
                         + "{\"structure\": \"minecraft:monument\", \"mode\": \"fixed\", \"tier\": \"wilderness\"}"
                         + "]}").getAsJsonObject();
 
-        assertTrue(ProsperityConfigMigrator.migrate(raw));
+        assertTrue(ConfigMigrator.migrate(raw));
 
         var overrides = raw.getAsJsonArray("structureOverrides");
         assertEquals(2, overrides.size(), "the trial_chambers default is appended");
@@ -83,7 +83,7 @@ class ConfigMigratorTest {
                         + "{\"structure\": \"minecraft:trial_chambers\", \"mode\": \"fixed\", \"tier\": \"depths\"}"
                         + "]}").getAsJsonObject();
 
-        assertTrue(ProsperityConfigMigrator.migrate(raw), "the version stamp still advances");
+        assertTrue(ConfigMigrator.migrate(raw), "the version stamp still advances");
 
         var overrides = raw.getAsJsonArray("structureOverrides");
         assertEquals(1, overrides.size(), "a hand-tuned trial_chambers entry is left alone");
@@ -93,12 +93,12 @@ class ConfigMigratorTest {
     @Test
     void v1ToV2ToleratesMissingOrMalformedOverrides() {
         JsonObject missing = JsonParser.parseString("{\"configVersion\": 1}").getAsJsonObject();
-        assertTrue(ProsperityConfigMigrator.migrate(missing));
+        assertTrue(ConfigMigrator.migrate(missing));
         assertFalse(missing.has("structureOverrides"), "a missing list is left for clamp() to backfill");
 
         JsonObject malformed = JsonParser.parseString(
                 "{\"configVersion\": 1, \"structureOverrides\": \"nope\"}").getAsJsonObject();
-        assertTrue(ProsperityConfigMigrator.migrate(malformed));
+        assertTrue(ConfigMigrator.migrate(malformed));
         assertEquals("nope", malformed.get("structureOverrides").getAsString());
     }
 
@@ -110,11 +110,11 @@ class ConfigMigratorTest {
 
         ProsperityConfig loaded = ProsperityConfig.load(path);
 
-        assertEquals(ProsperityConfigMigrator.CURRENT_VERSION, loaded.configVersion);
+        assertEquals(ConfigMigrator.CURRENT_VERSION, loaded.configVersion);
         assertFalse(loaded.enableInstancedLoot, "the migrated value is carried through deserialize");
         // The file was re-saved with the stamped version.
         JsonObject onDisk = JsonParser.parseString(Files.readString(path)).getAsJsonObject();
-        assertEquals(ProsperityConfigMigrator.CURRENT_VERSION, onDisk.get("configVersion").getAsInt());
+        assertEquals(ConfigMigrator.CURRENT_VERSION, onDisk.get("configVersion").getAsInt());
     }
 
     @Test
@@ -136,7 +136,7 @@ class ConfigMigratorTest {
 
         ProsperityConfig loaded = ProsperityConfig.load(path);
 
-        assertEquals(ProsperityConfigMigrator.CURRENT_VERSION, loaded.configVersion);
+        assertEquals(ConfigMigrator.CURRENT_VERSION, loaded.configVersion);
         assertEquals(0, loaded.indicatorRenderDistance, "clamp() runs after migration + deserialize");
     }
 
@@ -159,7 +159,7 @@ class ConfigMigratorTest {
 
         ProsperityConfig loaded = ProsperityConfig.load(path);
 
-        assertEquals(ProsperityConfigMigrator.CURRENT_VERSION, loaded.configVersion);
+        assertEquals(ConfigMigrator.CURRENT_VERSION, loaded.configVersion);
         assertEquals(48, loaded.indicatorRenderDistance);
     }
 }

@@ -1,3 +1,5 @@
+import java.util.concurrent.TimeUnit
+
 plugins {
     id 'fabric-loom' version "${loom_version}"
     id 'jacoco'
@@ -58,7 +60,17 @@ def runGitDescribe(String tagPrefix) {
                 .directory(rootDir)
                 .redirectErrorStream(true)
                 .start()
-        proc.waitFor()
+        // Bounded, never a bare waitFor(): this runs in the configuration phase, so a hung
+        // git wedges every task in the build, not just the version computation. Git does
+        // hang — a stale index.lock from a killed process, an unresponsive network
+        // filesystem, a credential helper waiting on a prompt with no terminal.
+        def finished = proc.waitFor(10, TimeUnit.SECONDS)
+        if (!finished) {
+            // destroyForcibly so the orphaned git process cannot outlive the daemon.
+            proc.destroyForcibly()
+            logger.warn('git describe timed out after 10s — version falls back to the mod_version base')
+            return null
+        }
         def out = proc.inputStream.text.trim()
         if (proc.exitValue() != 0) return null
         return out
@@ -152,6 +164,15 @@ sourceSets {
     gametest {
         compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+    // Client output on the test classpath (suite convention): the plain-JUnit tier can reach
+    // client-side pure logic, and — the reason it matters here — `test` now depends on
+    // compileClientJava, so an edit to a client source such as ProsperityHudOverlay.java
+    // invalidates the task instead of leaving it UP-TO-DATE while HudFlushGuardTest silently
+    // skips the file it reads off disk.
+    test {
+        compileClasspath += sourceSets.client.output
+        runtimeClasspath += sourceSets.client.output
     }
 }
 
@@ -360,10 +381,24 @@ tasks.register('jacocoMergedReport', JacocoReport) {
     }
 }
 
+// Fabric datagen keeps a gitignored src/main/generated/.cache/ index of provider hashes and skips
+// rewriting any file whose provider hash is unchanged — so a hand edit to a generated file survives
+// runDatagen and verifyDatagenIdempotent would compare the edit to itself. Clear it first (mc-datagen
+// "Idempotency verification").
+tasks.register('cleanDatagenCache', Delete) {
+    description = 'Removes the Fabric datagen hash cache so the next runDatagen rewrites every file'
+    group = 'verification'
+    delete 'src/main/generated/.cache'
+}
+
+tasks.matching { it.name == 'runDatagen' }.configureEach {
+    mustRunAfter 'cleanDatagenCache'
+}
+
 tasks.register('verifyDatagenIdempotent') {
     description = 'Runs datagen and asserts git reports no changes in src/main/generated/'
     group = 'verification'
-    dependsOn 'runDatagen'
+    dependsOn 'cleanDatagenCache', 'runDatagen'
     notCompatibleWithConfigurationCache('shells out to git against live working-tree state')
     doLast {
         def genDir = file('src/main/generated').absolutePath

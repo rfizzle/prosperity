@@ -2,9 +2,9 @@
 
 Minecraft 1.21.1 Fabric mod. Instanced loot overhaul.
 
-**Asset philosophy:** Container blocks stay vanilla — the proxy layer never registers custom blocks, replaces block entities, or retextures/swaps world-gen blocks, which keeps full compatibility with Sodium, Enhanced Block Entities (EBE), and shader packs (see Architectural philosophy below). That is an architectural constraint on the block layer, **not** a vanilla-purity stance: mod-specific UI, HUD, and world-overlay sprites are custom pixel art authored through Concord's glyph pipeline (`/glyph`, `mc-textures` skill, concord `design/DESIGN-SYSTEM.md` §8, with `.glyph` sources kept beside the masters) — see the asset inventory in `design/DESIGN.md`. Unlooted-container indicators render as client-side sprite overlays via `WorldRenderEvents.LAST`. Sounds stay vanilla where the cue is organic (chest lids, XP pickup — physical sounds vanilla already nails); custom synthesized cues are added through the `/sfx` pipeline where a sound benefits from its own identity (concord `design/DESIGN-SYSTEM.md` §9).
-
 **Architectural philosophy:** Zero-trust proxy. The mod intercepts interactions with vanilla loot containers dynamically via events — it does not register custom blocks or entities, replace block entities, or modify world generation. Per-player loot state is attached to the vanilla loot sources — `RandomizableContainerBlockEntity` block entities and `AbstractMinecartContainer` minecarts — via persistent Fabric data attachments (the same `AttachmentType` mechanism the rest of the Concord suite uses, here on block-entity and entity targets). The vanilla block, entity, model, block entity type, and renderer are never touched.
+
+**Asset philosophy:** Container blocks stay vanilla — the proxy layer never registers custom blocks, replaces block entities, or retextures/swaps world-gen blocks, which keeps full compatibility with Sodium, Enhanced Block Entities (EBE), and shader packs (see Architectural philosophy below). That is an architectural constraint on the block layer, **not** a vanilla-purity stance: mod-specific UI, HUD, and world-overlay sprites are custom pixel art authored through Concord's glyph pipeline (`/glyph`, `mc-textures` skill, concord `design/DESIGN-SYSTEM.md` §8, with `.glyph` sources kept beside the masters) — see the asset inventory in `design/DESIGN.md`. Unlooted-container indicators render as client-side sprite overlays via `WorldRenderEvents.LAST`. Sounds stay vanilla where the cue is organic (chest lids, XP pickup — physical sounds vanilla already nails); custom synthesized cues are added through the `/sfx` pipeline where a sound benefits from its own identity (concord `design/DESIGN-SYSTEM.md` §9).
 
 ---
 
@@ -127,7 +127,7 @@ In vanilla (and even with instanced loot), players cannot tell whether they've a
 ### Visual Design
 
 - A small 2D sprite rendered in world space, centered 0.25 blocks above the container's top face, always facing the camera (billboard).
-- Sprite: a four-point sparkle that pulses over a 4-frame animated strip (16×16 per frame, stored as a 16×64 sheet, `assets/prosperity/textures/overlay/unlooted.png`, source `art/glyphs/unlooted-sparkle.glyph`). Gold body with diamond-cyan core to evoke treasure.
+- Sprite: a four-point sparkle that pulses over a 4-frame animated strip (16×16 per frame, shipped as standalone frames `assets/prosperity/textures/overlay/unlooted_0.png` … `unlooted_3.png` cycled in code, source `art/glyphs/unlooted-sparkle.glyph`). Gold body with diamond-cyan core to evoke treasure.
 - Subtle bobbing animation (sinusoidal Y offset, ±0.05 blocks, 2-second period).
 - Renders through walls up to **8 blocks** (configurable) — useful in mineshafts where containers are behind walls. Beyond 8 blocks, occluded containers are hidden.
 - Maximum render distance: **48 blocks** (configurable). Beyond this, indicators are not rendered for performance.
@@ -1395,7 +1395,7 @@ The obvious exploit is leave-team → open (fresh individual roll) → rejoin. I
 
 ## Configuration
 
-All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ProsperityConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
+All features are independently toggleable via ModMenu / Cloth Config screen and a JSON config file (`config/prosperity.json`), created with defaults on first launch. `configVersion` is **2**; `ConfigMigrator` runs ordered JSON-level migrations on the raw file (before deserialize) so renamed or restructured keys carry forward, and the file is re-saved when a migration runs. Unknown/missing fields are filled with defaults and clamped to valid ranges by `clamp()` after load; a corrupted file falls back to defaults and is left untouched.
 
 ### Server Config
 
@@ -1524,8 +1524,8 @@ All user-facing text uses translation keys in `assets/prosperity/lang/en_us.json
 
 | Pattern | Example | Used For |
 |---|---|---|
-| `config.prosperity.*` | `config.prosperity.enable_distance_scaling` | Cloth Config screen labels |
-| `config.prosperity.*.tooltip` | `config.prosperity.enable_distance_scaling.tooltip` | Cloth Config field descriptions |
+| `config.prosperity.*` | `config.prosperity.enableDistanceScaling` | Cloth Config screen labels |
+| `config.prosperity.*.tooltip` | `config.prosperity.enableDistanceScaling.tooltip` | Cloth Config field descriptions |
 | `command.prosperity.*` | `command.prosperity.info` | Command feedback messages (incl. `/prosperity info` output) |
 | `hud.prosperity.*` | `hud.prosperity.detail.title` | Tier HUD badge and peek detail-panel text |
 | `gui.prosperity.*` | `gui.prosperity.injected` | Loot-index recipe-viewer screen labels (incl. `gui.prosperity.structure.*` names) |

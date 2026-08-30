@@ -6,7 +6,7 @@ import com.rfizzle.prosperity.client.item.ProspectorsCompassClient;
 import com.rfizzle.prosperity.compat.index.LootIndexViewerRefresh;
 import com.rfizzle.prosperity.config.ProsperityConfig;
 import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
-import com.rfizzle.prosperity.network.ConfigSyncS2CPayload;
+import com.rfizzle.prosperity.network.ConfigSyncPayload;
 import com.rfizzle.prosperity.network.ContainerLootedS2CPayload;
 import com.rfizzle.prosperity.network.ContainerRemovedS2CPayload;
 import com.rfizzle.prosperity.network.LootIndexS2CPayload;
@@ -48,7 +48,7 @@ public final class ProsperityClientNetworking {
     }
 
     private static void registerReceivers() {
-        ClientPlayNetworking.registerGlobalReceiver(ConfigSyncS2CPayload.TYPE, (payload, context) ->
+        ClientPlayNetworking.registerGlobalReceiver(ConfigSyncPayload.TYPE, (payload, context) ->
                 context.client().execute(() ->
                         ClientProsperityData.setServerConfig(ProsperityConfig.fromJson(payload.configJson()))));
 

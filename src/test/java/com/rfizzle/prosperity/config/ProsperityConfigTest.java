@@ -289,4 +289,26 @@ class ProsperityConfigTest {
         assertEquals(14, loaded.lootRefreshDays);
         assertEquals(20, loaded.client.hudOffsetY);
     }
+
+    @Test
+    void nonFiniteFloatIsClampedToMinimum() {
+        // Gson yields NaN/Infinity from the quoted tokens; Math.clamp would pass NaN straight through.
+        ProsperityConfig nan = ProsperityConfig.fromJson("{\"protectionBreakMultiplier\": \"NaN\"}");
+        assertEquals(1.0f, nan.protectionBreakMultiplier);
+        ProsperityConfig inf = ProsperityConfig.fromJson("{\"protectionBreakMultiplier\": \"Infinity\"}");
+        assertEquals(100.0f, inf.protectionBreakMultiplier);
+        ProsperityConfig neg = ProsperityConfig.fromJson("{\"protectionBreakMultiplier\": \"-Infinity\"}");
+        assertEquals(1.0f, neg.protectionBreakMultiplier);
+    }
+
+    @Test
+    void malformedJsonYieldsDefaultsInsteadOfThrowing() {
+        // fromJson reads the config-sync payload off the wire: a truncated or non-object body must
+        // never escape into the network receiver.
+        ProsperityConfig truncated = ProsperityConfig.fromJson("{\"enableInstancedLoot\": tr");
+        assertEquals(new ProsperityConfig().indicatorRenderDistance, truncated.indicatorRenderDistance);
+        ProsperityConfig array = ProsperityConfig.fromJson("[1, 2, 3]");
+        assertNotNull(array.client);
+        assertEquals(ProsperityConfig.defaultDistanceTiers(), array.distanceTiers);
+    }
 }
