@@ -58,33 +58,29 @@ public class MyRecipeProvider extends FabricRecipeProvider {
         super(output, registries);
     }
 
+    // 1.21.1 / Fabric API 0.116: override buildRecipes(RecipeOutput) directly and use the
+    // static builders. The createRecipeProvider(...) + instance shaped()/has() shape is
+    // the 1.21.2+ API and does not compile here.
     @Override
-    protected RecipeProvider createRecipeProvider(HolderLookup.Provider registries, RecipeOutput output) {
-        return new RecipeProvider(registries, output) {
-            @Override
-            public void buildRecipes() {
-                shaped(RecipeCategory.DECORATIONS, MyRegistry.MY_BLOCK)
-                        .define('D', Items.DIAMOND)
-                        .define('S', Items.STICK)
-                        .pattern("DDD")
-                        .pattern(" S ")
-                        .pattern(" S ")
-                        .unlockedBy("has_diamond", has(Items.DIAMOND))
-                        .save(output);
-            }
-        };
-    }
-
-    @Override
-    public String getName() {
-        return "My Mod Recipes";
+    public void buildRecipes(RecipeOutput output) {
+        ShapedRecipeBuilder.shaped(RecipeCategory.DECORATIONS, MyRegistry.MY_BLOCK)
+                .define('D', Items.DIAMOND)
+                .define('S', Items.STICK)
+                .pattern("DDD")
+                .pattern(" S ")
+                .pattern(" S ")
+                .unlockedBy("has_diamond", has(Items.DIAMOND))
+                .save(output);
     }
 }
 ```
 
+Reference: `CultivationRecipeProvider.buildRecipes(RecipeOutput)` and
+`DistillationRecipeProvider` — both ship this form.
+
 ### Shapeless recipes
 ```java
-shapeless(RecipeCategory.MISC, Items.DIAMOND, 9)
+ShapelessRecipeBuilder.shapeless(RecipeCategory.MISC, Items.DIAMOND, 9)
         .requires(MyRegistry.DIAMOND_BLOCK)
         .unlockedBy("has_diamond_block", has(MyRegistry.DIAMOND_BLOCK))
         .save(output);
