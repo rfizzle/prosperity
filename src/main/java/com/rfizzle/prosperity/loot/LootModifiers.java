@@ -1,6 +1,5 @@
 package com.rfizzle.prosperity.loot;
 
-import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.api.LootModifierCallback;
 import com.rfizzle.prosperity.api.LootModifierContext;
 import com.rfizzle.prosperity.config.DistanceTier;
@@ -33,19 +32,15 @@ public final class LootModifiers {
 
     /**
      * Build a fresh context seeded from {@code tier}, fire {@link LootModifierCallback#EVENT}, and
-     * return the context carrying the listeners' cumulative result. A listener that throws is caught
-     * and logged so it cannot break generation, though it stops later listeners for this generation.
+     * return the context carrying the listeners' cumulative result. Listener isolation lives in the
+     * event's invoker (a throwing listener is logged and skipped, the rest still fire), so nothing
+     * here needs to guard the dispatch.
      */
     public static LootModifierContext fire(ServerPlayer player, BlockPos containerPos,
             ResourceLocation lootTable, DistanceTier tier) {
         LootModifierContext context = new LootModifierContextImpl(player, containerPos, lootTable,
                 tier.qualityModifier(), (float) tier.stackMultiplier());
-        try {
-            LootModifierCallback.EVENT.invoker().onModifyLoot(context);
-        } catch (Exception e) {
-            Prosperity.LOGGER.error("A loot modifier listener threw during loot generation at {}",
-                    containerPos, e);
-        }
+        LootModifierCallback.EVENT.invoker().onModifyLoot(context);
         return context;
     }
 }

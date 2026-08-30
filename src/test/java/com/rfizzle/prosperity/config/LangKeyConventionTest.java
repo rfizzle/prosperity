@@ -9,6 +9,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -132,7 +136,7 @@ class LangKeyConventionTest {
     @Test
     void badgeToggleUsesShowLabel() {
         // HUD Standard §4: the badge toggle reads "Show <Domain> HUD".
-        assertEquals("Show Tier HUD", lang().get("config.prosperity.enable_tier_hud").getAsString());
+        assertEquals("Show Tier HUD", lang().get("config.prosperity.enableTierHud").getAsString());
     }
 
     @Test
@@ -141,5 +145,39 @@ class LangKeyConventionTest {
         JsonObject lang = lang();
         assertTrue(lang.get("notification.prosperity.loot_generated").getAsString().contains("✦"));
         assertTrue(lang.get("message.prosperity.peek_hint").getAsString().contains("✦"));
+    }
+
+    @Test
+    void configFieldKeysMirrorTheJavaFieldNames() {
+        // DESIGN-SYSTEM §10: config.<mod>.<field> and its .tooltip are camelCase because the key
+        // mirrors the Java field it labels (HUD-STANDARD §4 fixes hudAnchor/hudOffsetX/hudOffsetY on
+        // the same basis). Anything under config.prosperity.* that is not a category, the title,
+        // or the server-locked note must therefore name a real ProsperityConfig / ClientConfig field.
+        Set<String> fields = new HashSet<>();
+        for (Class<?> owner : List.of(ProsperityConfig.class, ProsperityConfig.ClientConfig.class)) {
+            for (Field f : owner.getDeclaredFields()) {
+                if (Modifier.isPublic(f.getModifiers()) && !Modifier.isStatic(f.getModifiers())) {
+                    fields.add(f.getName());
+                }
+            }
+        }
+        List<String> offenders = new ArrayList<>();
+        for (String key : lang().keySet()) {
+            if (!key.startsWith("config.prosperity.")) {
+                continue;
+            }
+            String path = key.substring("config.prosperity.".length());
+            String head = path.split("\\.", 2)[0];
+            if (head.equals("category") || head.equals("title") || head.equals("server_locked_note")) {
+                continue;
+            }
+            if (!fields.contains(head)) {
+                offenders.add(key);
+            }
+        }
+        assertTrue(offenders.isEmpty(),
+                "config.prosperity.<field> keys must be the camelCase Java field name: " + offenders);
+        assertTrue(lang().has("config.prosperity.hudAnchor") && lang().has("config.prosperity.hudOffsetX")
+                && lang().has("config.prosperity.hudOffsetY"), "HUD-STANDARD §4 canonical keys present");
     }
 }

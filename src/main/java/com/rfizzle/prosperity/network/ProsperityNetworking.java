@@ -60,7 +60,7 @@ public final class ProsperityNetworking {
         PayloadTypeRegistry.playC2S().register(RequestUnlootedC2SPayload.TYPE, RequestUnlootedC2SPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(QueryProtectionC2SPayload.TYPE, QueryProtectionC2SPayload.CODEC);
 
-        PayloadTypeRegistry.playS2C().register(ConfigSyncS2CPayload.TYPE, ConfigSyncS2CPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(ConfigSyncPayload.TYPE, ConfigSyncPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ProtectionResultS2CPayload.TYPE, ProtectionResultS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(UnlootedContainersS2CPayload.TYPE, UnlootedContainersS2CPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ContainerLootedS2CPayload.TYPE, ContainerLootedS2CPayload.CODEC);
@@ -115,8 +115,8 @@ public final class ProsperityNetworking {
         if (player.connection == null) {
             return;
         }
-        if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
-            ServerPlayNetworking.send(player, new ConfigSyncS2CPayload(Prosperity.getConfig().toSyncJson()));
+        if (ServerPlayNetworking.canSend(player, ConfigSyncPayload.TYPE)) {
+            ServerPlayNetworking.send(player, new ConfigSyncPayload(Prosperity.getConfig().toSyncJson()));
         }
         // Then the loot index (S-047), so a remote client's recipe viewers can browse instanced loot
         // they have no datapack for. The client receiver ignores it on an integrated server, where the
@@ -134,10 +134,10 @@ public final class ProsperityNetworking {
      * {@code canSend} guard skips clients (e.g. vanilla) that have not registered the receiver.
      */
     public static int syncConfigToAll(MinecraftServer server) {
-        ConfigSyncS2CPayload payload = new ConfigSyncS2CPayload(Prosperity.getConfig().toSyncJson());
+        ConfigSyncPayload payload = new ConfigSyncPayload(Prosperity.getConfig().toSyncJson());
         int sent = 0;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (ServerPlayNetworking.canSend(player, ConfigSyncS2CPayload.TYPE)) {
+            if (ServerPlayNetworking.canSend(player, ConfigSyncPayload.TYPE)) {
                 ServerPlayNetworking.send(player, payload);
                 sent++;
             }

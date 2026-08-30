@@ -36,13 +36,20 @@ public final class RemoteConfigGate {
      * on top. This is what stops a remote player from rewriting their local file's server-authoritative
      * values through the read-only widgets: those widgets show the server's synced values, and saving
      * must not persist them over the player's own local defaults.
+     *
+     * <p>Either way the result is clamped before it is handed back: the screen's widgets carry the
+     * player's raw edits, and the commit point is where warn-and-clamp runs so a value that went
+     * out of range (a text field, a nested {@code client} offset) is never written to disk unfixed.
      */
     public static ProsperityConfig persistedConfig(boolean locked, ProsperityConfig live, ProsperityConfig working) {
+        ProsperityConfig persisted;
         if (!locked) {
-            return working;
+            persisted = working;
+        } else {
+            persisted = ProsperityConfig.fromJson(live.toJson());
+            persisted.client = working.client;
         }
-        ProsperityConfig persisted = ProsperityConfig.fromJson(live.toJson());
-        persisted.client = working.client;
+        persisted.clamp();
         return persisted;
     }
 }

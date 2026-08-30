@@ -72,9 +72,9 @@ public class ModMenuIntegration implements ModMenuApi {
                     Component.translatable("config.prosperity.category.general"));
             lockNote(general, entry, locked);
             addServer(general, locked, entry.startBooleanToggle(
-                            label("enable_instanced_loot"), serverView.enableInstancedLoot)
+                            label("enableInstancedLoot"), serverView.enableInstancedLoot)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_instanced_loot"))
+                    .setTooltip(tooltip("enableInstancedLoot"))
                     .setSaveConsumer(v -> working.enableInstancedLoot = v));
 
             // --- Indicators ---
@@ -82,19 +82,19 @@ public class ModMenuIntegration implements ModMenuApi {
                     Component.translatable("config.prosperity.category.indicators"));
             lockNote(indicators, entry, locked);
             addServer(indicators, locked, entry.startBooleanToggle(
-                            label("enable_visual_indicators"), serverView.enableVisualIndicators)
+                            label("enableVisualIndicators"), serverView.enableVisualIndicators)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_visual_indicators"))
+                    .setTooltip(tooltip("enableVisualIndicators"))
                     .setSaveConsumer(v -> working.enableVisualIndicators = v));
             addServer(indicators, locked, entry.startIntSlider(
-                            label("indicator_render_distance"), serverView.indicatorRenderDistance, 0, 512)
+                            label("indicatorRenderDistance"), serverView.indicatorRenderDistance, 0, 512)
                     .setDefaultValue(48)
-                    .setTooltip(tooltip("indicator_render_distance"))
+                    .setTooltip(tooltip("indicatorRenderDistance"))
                     .setSaveConsumer(v -> working.indicatorRenderDistance = v));
             addServer(indicators, locked, entry.startIntSlider(
-                            label("indicator_xray_distance"), serverView.indicatorXrayDistance, 0, 512)
+                            label("indicatorXrayDistance"), serverView.indicatorXrayDistance, 0, 512)
                     .setDefaultValue(8)
-                    .setTooltip(tooltip("indicator_xray_distance"))
+                    .setTooltip(tooltip("indicatorXrayDistance"))
                     .setSaveConsumer(v -> working.indicatorXrayDistance = v));
 
             // --- Scaling ---
@@ -102,24 +102,24 @@ public class ModMenuIntegration implements ModMenuApi {
                     Component.translatable("config.prosperity.category.scaling"));
             lockNote(scaling, entry, locked);
             addServer(scaling, locked, entry.startBooleanToggle(
-                            label("enable_distance_scaling"), serverView.enableDistanceScaling)
+                            label("enableDistanceScaling"), serverView.enableDistanceScaling)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_distance_scaling"))
+                    .setTooltip(tooltip("enableDistanceScaling"))
                     .setSaveConsumer(v -> working.enableDistanceScaling = v));
             addServer(scaling, locked, entry.startBooleanToggle(
-                            label("end_always_max_tier"), serverView.endAlwaysMaxTier)
+                            label("endAlwaysMaxTier"), serverView.endAlwaysMaxTier)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("end_always_max_tier"))
+                    .setTooltip(tooltip("endAlwaysMaxTier"))
                     .setSaveConsumer(v -> working.endAlwaysMaxTier = v));
             addServer(scaling, locked, entry.startStrList(
-                            label("distance_tiers"), encodeTiers(serverView.distanceTiers))
+                            label("distanceTiers"), encodeTiers(serverView.distanceTiers))
                     .setDefaultValue(encodeTiers(ProsperityConfig.defaultDistanceTiers()))
-                    .setTooltip(tooltip("distance_tiers"))
+                    .setTooltip(tooltip("distanceTiers"))
                     .setSaveConsumer(rows -> working.distanceTiers = parseTiers(rows)));
             addServer(scaling, locked, entry.startStrList(
-                            label("structure_overrides"), encodeOverrides(serverView.structureOverrides))
+                            label("structureOverrides"), encodeOverrides(serverView.structureOverrides))
                     .setDefaultValue(encodeOverrides(ProsperityConfig.defaultStructureOverrides()))
-                    .setTooltip(tooltip("structure_overrides"))
+                    .setTooltip(tooltip("structureOverrides"))
                     .setSaveConsumer(rows -> working.structureOverrides = parseOverrides(rows)));
 
             // --- Content ---
@@ -127,19 +127,19 @@ public class ModMenuIntegration implements ModMenuApi {
                     Component.translatable("config.prosperity.category.content"));
             lockNote(content, entry, locked);
             addServer(content, locked, entry.startBooleanToggle(
-                            label("enable_loot_injection"), serverView.enableLootInjection)
+                            label("enableLootInjection"), serverView.enableLootInjection)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_loot_injection"))
+                    .setTooltip(tooltip("enableLootInjection"))
                     .setSaveConsumer(v -> working.enableLootInjection = v));
             addServer(content, locked, entry.startBooleanToggle(
-                            label("enable_structure_completion_bonus"), serverView.enableStructureCompletionBonus)
+                            label("enableStructureCompletionBonus"), serverView.enableStructureCompletionBonus)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_structure_completion_bonus"))
+                    .setTooltip(tooltip("enableStructureCompletionBonus"))
                     .setSaveConsumer(v -> working.enableStructureCompletionBonus = v));
             addServer(content, locked, entry.startStrList(
-                            label("loot_table_blacklist"), new ArrayList<>(serverView.lootTableBlacklist))
+                            label("lootTableBlacklist"), new ArrayList<>(serverView.lootTableBlacklist))
                     .setDefaultValue(new ArrayList<>())
-                    .setTooltip(tooltip("loot_table_blacklist"))
+                    .setTooltip(tooltip("lootTableBlacklist"))
                     .setSaveConsumer(rows -> working.lootTableBlacklist = new ArrayList<>(rows)));
 
             // --- Feedback ---
@@ -147,36 +147,36 @@ public class ModMenuIntegration implements ModMenuApi {
                     Component.translatable("config.prosperity.category.feedback"));
             lockNote(feedback, entry, locked);
             addServer(feedback, locked, entry.startBooleanToggle(
-                            label("enable_loot_notifications"), serverView.enableLootNotifications)
+                            label("enableLootNotifications"), serverView.enableLootNotifications)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_loot_notifications"))
+                    .setTooltip(tooltip("enableLootNotifications"))
                     .setSaveConsumer(v -> working.enableLootNotifications = v));
             addServer(feedback, locked, entry.startBooleanToggle(
-                            label("enable_loot_refresh"), serverView.enableLootRefresh)
+                            label("enableLootRefresh"), serverView.enableLootRefresh)
                     .setDefaultValue(false)
-                    .setTooltip(tooltip("enable_loot_refresh"))
+                    .setTooltip(tooltip("enableLootRefresh"))
                     .setSaveConsumer(v -> working.enableLootRefresh = v));
             addServer(feedback, locked, entry.startIntField(
-                            label("loot_refresh_days"), serverView.lootRefreshDays)
+                            label("lootRefreshDays"), serverView.lootRefreshDays)
                     .setDefaultValue(7)
                     .setMin(1)
-                    .setTooltip(tooltip("loot_refresh_days"))
+                    .setTooltip(tooltip("lootRefreshDays"))
                     .setSaveConsumer(v -> working.lootRefreshDays = v));
             addServer(feedback, locked, entry.startBooleanToggle(
-                            label("randomize_loot_on_refresh"), serverView.randomizeLootOnRefresh)
+                            label("randomizeLootOnRefresh"), serverView.randomizeLootOnRefresh)
                     .setDefaultValue(false)
-                    .setTooltip(tooltip("randomize_loot_on_refresh"))
+                    .setTooltip(tooltip("randomizeLootOnRefresh"))
                     .setSaveConsumer(v -> working.randomizeLootOnRefresh = v));
             addServer(feedback, locked, entry.startBooleanToggle(
-                            label("evict_absent_player_data"), serverView.evictAbsentPlayerData)
+                            label("evictAbsentPlayerData"), serverView.evictAbsentPlayerData)
                     .setDefaultValue(false)
-                    .setTooltip(tooltip("evict_absent_player_data"))
+                    .setTooltip(tooltip("evictAbsentPlayerData"))
                     .setSaveConsumer(v -> working.evictAbsentPlayerData = v));
             addServer(feedback, locked, entry.startIntField(
-                            label("absent_player_eviction_days"), serverView.absentPlayerEvictionDays)
+                            label("absentPlayerEvictionDays"), serverView.absentPlayerEvictionDays)
                     .setDefaultValue(60)
                     .setMin(1)
-                    .setTooltip(tooltip("absent_player_eviction_days"))
+                    .setTooltip(tooltip("absentPlayerEvictionDays"))
                     .setSaveConsumer(v -> working.absentPlayerEvictionDays = v));
 
             // --- Extended ---
@@ -184,83 +184,83 @@ public class ModMenuIntegration implements ModMenuApi {
                     Component.translatable("config.prosperity.category.extended"));
             lockNote(extended, entry, locked);
             addServer(extended, locked, entry.startBooleanToggle(
-                            label("enable_container_protection"), serverView.enableContainerProtection)
+                            label("enableContainerProtection"), serverView.enableContainerProtection)
                     .setDefaultValue(false)
-                    .setTooltip(tooltip("enable_container_protection"))
+                    .setTooltip(tooltip("enableContainerProtection"))
                     .setSaveConsumer(v -> working.enableContainerProtection = v));
             addServer(extended, locked, entry.startFloatField(
-                            label("protection_break_multiplier"), serverView.protectionBreakMultiplier)
+                            label("protectionBreakMultiplier"), serverView.protectionBreakMultiplier)
                     .setDefaultValue(4.0f)
                     .setMin(1.0f).setMax(100.0f)
-                    .setTooltip(tooltip("protection_break_multiplier"))
+                    .setTooltip(tooltip("protectionBreakMultiplier"))
                     .setSaveConsumer(v -> working.protectionBreakMultiplier = v));
             addServer(extended, locked, entry.startBooleanToggle(
-                            label("protection_unbreakable"), serverView.protectionUnbreakable)
+                            label("protectionUnbreakable"), serverView.protectionUnbreakable)
                     .setDefaultValue(false)
-                    .setTooltip(tooltip("protection_unbreakable"))
+                    .setTooltip(tooltip("protectionUnbreakable"))
                     .setSaveConsumer(v -> working.protectionUnbreakable = v));
             addServer(extended, locked, entry.startBooleanToggle(
-                            label("enable_mob_loot_scaling"), serverView.enableMobLootScaling)
+                            label("enableMobLootScaling"), serverView.enableMobLootScaling)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_mob_loot_scaling"))
+                    .setTooltip(tooltip("enableMobLootScaling"))
                     .setSaveConsumer(v -> working.enableMobLootScaling = v));
             addServer(extended, locked, entry.startBooleanToggle(
-                            label("enable_fishing_loot_scaling"), serverView.enableFishingLootScaling)
+                            label("enableFishingLootScaling"), serverView.enableFishingLootScaling)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_fishing_loot_scaling"))
+                    .setTooltip(tooltip("enableFishingLootScaling"))
                     .setSaveConsumer(v -> working.enableFishingLootScaling = v));
             addServer(extended, locked, entry.startBooleanToggle(
-                            label("enable_trial_chamber_scaling"), serverView.enableTrialChamberScaling)
+                            label("enableTrialChamberScaling"), serverView.enableTrialChamberScaling)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_trial_chamber_scaling"))
+                    .setTooltip(tooltip("enableTrialChamberScaling"))
                     .setSaveConsumer(v -> working.enableTrialChamberScaling = v));
             addServer(extended, locked, entry.startBooleanToggle(
-                            label("party_loot_mode"), serverView.partyLootMode)
+                            label("partyLootMode"), serverView.partyLootMode)
                     .setDefaultValue(false)
-                    .setTooltip(tooltip("party_loot_mode"))
+                    .setTooltip(tooltip("partyLootMode"))
                     .setSaveConsumer(v -> working.partyLootMode = v));
             addServer(extended, locked, entry.startIntField(
-                            label("team_leave_grace_minutes"), serverView.teamLeaveGraceMinutes)
+                            label("teamLeaveGraceMinutes"), serverView.teamLeaveGraceMinutes)
                     .setDefaultValue(0)
                     .setMin(0)
-                    .setTooltip(tooltip("team_leave_grace_minutes"))
+                    .setTooltip(tooltip("teamLeaveGraceMinutes"))
                     .setSaveConsumer(v -> working.teamLeaveGraceMinutes = v));
 
             // --- HUD (client-only; always editable, even on a remote server) ---
             ConfigCategory hud = builder.getOrCreateCategory(
                     Component.translatable("config.prosperity.category.hud"));
             hud.addEntry(entry.startBooleanToggle(
-                            label("show_indicators"), working.client.showIndicators)
+                            label("showIndicators"), working.client.showIndicators)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("show_indicators"))
+                    .setTooltip(tooltip("showIndicators"))
                     .setSaveConsumer(v -> working.client.showIndicators = v)
                     .build());
             hud.addEntry(entry.startBooleanToggle(
-                            label("enable_tier_hud"), working.client.enableTierHud)
+                            label("enableTierHud"), working.client.enableTierHud)
                     .setDefaultValue(true)
-                    .setTooltip(tooltip("enable_tier_hud"))
+                    .setTooltip(tooltip("enableTierHud"))
                     .setSaveConsumer(v -> working.client.enableTierHud = v)
                     .build());
             hud.addEntry(entry.startEnumSelector(
-                            label("hud_anchor"), ProsperityConfig.Anchor.class, working.client.hudAnchor)
+                            label("hudAnchor"), ProsperityConfig.Anchor.class, working.client.hudAnchor)
                     .setDefaultValue(ProsperityConfig.Anchor.TOP_LEFT)
                     .setEnumNameProvider(a -> Component.translatable(
-                            "config.prosperity.hud_anchor." + a.name().toLowerCase()))
-                    .setTooltip(tooltip("hud_anchor"))
+                            "config.prosperity.hudAnchor." + a.name().toLowerCase()))
+                    .setTooltip(tooltip("hudAnchor"))
                     .setSaveConsumer(v -> working.client.hudAnchor = v)
                     .build());
             hud.addEntry(entry.startIntField(
-                            label("hud_offset_x"), working.client.hudOffsetX)
+                            label("hudOffsetX"), working.client.hudOffsetX)
                     .setDefaultValue(4)
                     .setMin(0).setMax(10_000)
-                    .setTooltip(tooltip("hud_offset_x"))
+                    .setTooltip(tooltip("hudOffsetX"))
                     .setSaveConsumer(v -> working.client.hudOffsetX = v)
                     .build());
             hud.addEntry(entry.startIntField(
-                            label("hud_offset_y"), working.client.hudOffsetY)
+                            label("hudOffsetY"), working.client.hudOffsetY)
                     .setDefaultValue(4)
                     .setMin(0).setMax(10_000)
-                    .setTooltip(tooltip("hud_offset_y"))
+                    .setTooltip(tooltip("hudOffsetY"))
                     .setSaveConsumer(v -> working.client.hudOffsetY = v)
                     .build());
 

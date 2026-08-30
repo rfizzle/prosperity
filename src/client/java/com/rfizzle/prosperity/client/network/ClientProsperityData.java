@@ -6,7 +6,7 @@ import com.rfizzle.prosperity.config.ProsperityConfig;
 /**
  * Client-side snapshot of the server config the indicator renderer (SPEC §2) and the tier HUD
  * badge (SPEC §14) need. The server pushes its authoritative config on join and on
- * {@code /prosperity reload} via {@link com.rfizzle.prosperity.network.ConfigSyncS2CPayload}; until a
+ * {@code /prosperity reload} via {@link com.rfizzle.prosperity.network.ConfigSyncPayload}; until a
  * sync lands (e.g. before login) the local config supplies sane defaults. The whole config is
  * retained — not just the indicator distances — because the HUD resolves the player's tier against
  * the server's {@code distanceTiers}/{@code endAlwaysMaxTier}, which a client can read no other way.
@@ -22,7 +22,7 @@ public final class ClientProsperityData {
     private ClientProsperityData() {
     }
 
-    /** Adopt the server's authoritative config from a {@code ConfigSyncS2C} payload. */
+    /** Adopt the server's authoritative config from a {@code ConfigSync} payload. */
     public static void setServerConfig(ProsperityConfig synced) {
         config = synced;
     }

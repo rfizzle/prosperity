@@ -110,7 +110,7 @@ the large-summary format.
 
 ---
 
-## 5. Companion Mod Context
+## 5. Concord Context
 
 Prosperity is part of a four-mod suite. Each mod overhauls a different Minecraft system:
 

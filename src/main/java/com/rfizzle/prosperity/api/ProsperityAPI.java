@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -164,6 +165,9 @@ public final class ProsperityAPI {
         }
     }
 
+    /** One-shot gate so a provider that throws on every query logs its stack trace once. */
+    private static final AtomicBoolean PARTY_PROVIDER_FAILURE_LOGGED = new AtomicBoolean(false);
+
     /**
      * The overriding party group key for {@code player} from the registered {@link PartyGroupProvider}s,
      * or {@code null} when none supplies one (so the caller falls back to the scoreboard team). The
@@ -192,9 +196,6 @@ public final class ProsperityAPI {
         }
         return null;
     }
-
-    private static final java.util.concurrent.atomic.AtomicBoolean PARTY_PROVIDER_FAILURE_LOGGED =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     // Render-thread only — resolved once on the first ENV=CLIENT call.
     private static boolean hudHandlesResolved;
