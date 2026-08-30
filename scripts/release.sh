@@ -106,7 +106,7 @@ fi
 
 # --- Git tag ---
 echo "Creating tag: $TAG"
-git -C "$PROJECT_ROOT" tag -a "$TAG" -m "Respite $NEW_VERSION"
+git -C "$PROJECT_ROOT" tag -a "$TAG" -m "Prosperity $NEW_VERSION"
 
 # --- Push ---
 if [[ "$NO_PUSH" -eq 1 ]]; then
