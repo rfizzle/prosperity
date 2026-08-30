@@ -28,12 +28,8 @@ Fixed priority, top to bottom. Elements shift up to fill gaps when a
 higher-priority mod is absent or its HUD is disabled. **New slots are assigned
 here by appending — never by renumbering.**
 
-| Slot | Mod | Content |
-|---|---|---|
-| 1 | Tribulation | 16×16 skull glyph tinted by tier, 2px level-progress bar |
-| 2 | Mercantile | Reputation tier glyph, tier-tinted progress bar |
-| 3 | Prosperity | Loot distance tier glyph, tier-color tint |
-| — | Meridian | No slot, by design |
+The table lives in `HUD-STANDARD.md` §2 and nowhere else — read it there. Today: 1 Tribulation,
+2 Mercantile, 3 Prosperity; the other five members have no slot by design.
 
 ## Visual spec
 
@@ -98,7 +94,7 @@ public static boolean isHudVisible() {
     if (mc.player.isSpectator()) return false;     // spectator
     if (mc.player.isDeadOrDying()) return false;   // death screen + the ticks before it
     TribulationConfig c = Tribulation.getConfig();
-    return c != null && c.hud != null && c.hud.enabled;
+    return c != null && c.enableTierHud;      // Tribulation keeps its HUD fields flat
 }
 ```
 
@@ -212,14 +208,19 @@ the mouse, pauses the game, or blocks movement (it behaves like vanilla's hold-T
 player list). Reference: Tribulation's `TierDetailPanelRenderer`, Mercantile's
 `ReputationDetailPanelRenderer`. Class convention: `*DetailPanelRenderer`.
 
-- **Keybind.** Register a `KeyMapping` under Controls → `<Mod>`, **unbound by
-  default**, labelled "Peek `<Domain>` Detail". Draw the panel only while it's held
-  *and* the badge's visibility predicate passes.
+- **Keybind.** Register a `KeyMapping` under Controls → `<Mod>`, labelled "Peek
+  `<Domain>` Detail", **default Left Alt** (`GLFW_KEY_LEFT_ALT` — unused by vanilla and
+  ergonomic to hold; never Tab, which holds the player list this panel imitates). New
+  keybinds use the id `key.<mod>.peek_detail`; a shipped mod keeps its existing id so
+  players' rebindings survive. The panel header is the label minus "Peek " —
+  "`<Domain>` Detail", lang key `hud.<mod>.detail.title`, never the mod's own name.
+  All three rules are HUD-STANDARD §8; draw the panel only while the key is held *and*
+  the badge's visibility predicate passes.
 
   ```java
   // client init
   KeyMapping key = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-      "key.<mod>.peek_<domain>_detail", InputConstants.UNKNOWN.getValue(), "key.categories.<mod>"));
+      "key.<mod>.peek_detail", GLFW.GLFW_KEY_LEFT_ALT, "key.categories.<mod>"));
   HudRenderCallback.EVENT.register(new <Mod>DetailPanelRenderer(key));
   // in onHudRender:
   if (!key.isDown() || !<Mod>HudOverlay.isHudVisible()) return;   // reuse the badge predicate
@@ -256,7 +257,7 @@ player list). Reference: Tribulation's `TierDetailPanelRenderer`, Mercantile's
 - [ ] `isHudVisible()` / `getHudHeight()` exposed in the `api` package,
       reflection-safe from common code.
 - [ ] Offset computed from sibling accessors — no hardcoded sibling heights.
-- [ ] A hold-to-peek detail panel (if any): unbound keybind under the mod's category,
+- [ ] A hold-to-peek detail panel (if any): Left-Alt-default keybind under the mod's category,
       non-capturing (not a `Screen`), the badge's four visibility rules reused, no
       slot/accessors, paged (not scrolled) overflow, figures from the server's own
       source, and no recipe-viewer/tooltip duplication.
