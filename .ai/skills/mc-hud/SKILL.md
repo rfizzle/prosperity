@@ -142,7 +142,7 @@ when visible, 0 otherwise.
 
 ```java
 /** Reflection target for the api accessor — keep the static, no-arg signature stable. */
-public static int getHudHeightContribution() {
+public static int getHudHeight() {
     return isHudVisible() ? STANDARD_ELEMENT_HEIGHT + STACK_GAP : 0;   // 20 + 2
 }
 ```

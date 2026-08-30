@@ -326,13 +326,31 @@ working guard, and it is not a resting state.
 
 ## Idempotency verification
 
-Add a CI-friendly task that runs datagen and asserts git reports no changes in the generated directory:
+Add a CI-friendly task that runs datagen and asserts git reports no changes in the generated directory.
+
+**Clear Fabric's hash cache first, or the task is falsely green locally.** Fabric datagen keeps
+a gitignored `src/main/generated/.cache/` index of provider hashes and skips rewriting any file
+whose provider hash is unchanged — so a hand edit to a generated file survives `runDatagen`
+and the check compares the edit to itself. CI (fresh checkout, no cache) sees the real
+result; a developer never does. `verifyDatagenIdempotent` therefore depends on a
+`cleanDatagenCache` task, and `runDatagen` must run after it. Mutation-test it once: edit a
+generated file, confirm red, revert, confirm clean.
 
 ```groovy
+tasks.register('cleanDatagenCache', Delete) {
+    description = 'Removes the Fabric datagen hash cache so the next runDatagen rewrites every file'
+    group = 'verification'
+    delete 'src/main/generated/.cache'
+}
+
+tasks.matching { it.name == 'runDatagen' }.configureEach {
+    mustRunAfter 'cleanDatagenCache'
+}
+
 tasks.register('verifyDatagenIdempotent') {
     description = 'Runs datagen and asserts git reports no changes in src/main/generated/'
     group = 'verification'
-    dependsOn 'runDatagen'
+    dependsOn 'cleanDatagenCache', 'runDatagen'
     notCompatibleWithConfigurationCache('shells out to git against live working-tree state')
     doLast {
         def genDir = file('src/main/generated').absolutePath
