@@ -186,9 +186,11 @@ ServerPlayNetworking.registerGlobalReceiver(
         MyRequestPayload.TYPE,
         (payload, context) -> {
             ServerPlayer player = context.player();
-            // Already on the server thread if using context.player().server.execute(...)
+            // Fabric's PlayPayloadHandler already runs on the server thread (0.116.1
+            // ServerPlayNetworking), so world state is safe to touch directly; the
+            // execute() hop below is only worth keeping to defer work to the next tick.
             context.player().server.execute(() -> {
-                // Safe to mutate world state here
+                // Safe to mutate world state here (and above, outside the hop)
             });
         });
 ```

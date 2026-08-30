@@ -387,18 +387,16 @@ literal and registers a class that holds no tests. `implements FabricGameTest` h
 these holes: it is the same predicate the loader itself uses.
 
 Reference implementation: cultivation's `GametestRegistrationTest.java:52-53` for the detection
-regex and `:128-148` for the two-way naming check. Distillation's `ManifestEntrypointTest.java`
-is worth reading for the assertion *shapes* — `:56-78` and `:103-123` cover all four, and it is
-the only carrier that collapses registration parity into a single `assertEquals(discovered,
-declared)`. Read it for those and nothing else: its class name is one of the ones ruled out
-above, and its detection basis is the annotation regex this section rules out, so it is not a
-model for either.
+regex and `:128-148` for the two-way naming check. Distillation's `GametestRegistrationTest.java`
+(renamed from `ManifestEntrypointTest` and moved onto the canonical regex) is worth reading
+for the assertion *shapes* — it collapses registration parity into a single
+`assertEquals(discovered, declared)`.
 
-Four of the six existing guards already assert dependency exclusivity as set equality:
-distillation `:103-113`, meridian `:175`, mercantile `:92`, instinct `:96`. Tribulation's
-`GametestEntrypointTest.java:136` is the containment form the bullet above warns about,
-cultivation asserts nothing about `depends` at all, and prosperity and respite carry no guard of
-any kind. Those four are the gap; the other four already hold this assertion.
+Most members already assert dependency exclusivity as set equality: distillation, meridian
+`:175`, mercantile `:92`, instinct `:96`, respite `:170`, and cultivation `:165-176`.
+Tribulation's `GametestEntrypointTest.java:136` is the containment form the bullet above
+warns about, and prosperity's guard is enforced hub-side by `check-gametest-manifest.py`
+rather than by a repo-local test. Those two are the gap.
 
 Concord's own `make gametest-check` is **not** a substitute. The hub checker
 (`scripts/check-gametest-manifest.py`) fails on a shipped manifest that declares
@@ -660,8 +658,8 @@ against this list — a mod that fails one of these is behind the rule, not nece
 - **Mod-prefixed camelCase gametest batches** — `@GameTest(batch = "...")` values start with
   the mod id and continue in camelCase: `distillationAntidotesToggle`, `cultivationWeather`,
   `instinctBehaviorsOff`. The prefix earns its keep today in report attribution and batch
-  filtering — an unprefixed `advancementBeauty` (respite's, currently) does not say which mod it
-  belongs to in a failure report. It also forecloses a collision: batch names share one namespace
+  filtering — an unprefixed `advancementBeauty` (respite's, before it was renamed) did not say
+  which mod it belonged to in a failure report. It also forecloses a collision: batch names share one namespace
   across every mod in a gametest run, so two members tested together would merge same-named
   batches. Give a batch a name of its own per test where a test sweeps the level (see
   `retireLeaked` in `mc-testing-mock`) — same-batch tests run concurrently.

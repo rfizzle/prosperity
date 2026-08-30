@@ -291,8 +291,8 @@ own flag and skips the refresh that makes it correct. Vanilla's own `stopSleepin
 `PlayerList.players`, so `MinecraftServer.stopServer` → `PlayerList.saveAll()` saves every leaked
 mock at shutdown anyway — and since each mock carries a `UUID.randomUUID()`, nothing dedups on
 either side. It is one save per mock either way; `remove()` moves the write into the run rather
-than adding one. (rfizzle/cultivation#100 proposes this change suite-wide; the decision is not
-yet recorded there, and its measurements cover only the discard-only side.)
+than adding one. (rfizzle/cultivation#100 landed this: `MockPlayers.retire` does the
+`PlayerList.remove` and cultivation's guard now requires it.)
 
 For suites whose assertions depend on the player count, sweep with `retireLeaked(helper)` rather
 than trusting that every earlier test cleaned up — a test that timed out mid-poll did not.
@@ -306,13 +306,9 @@ iterating, since `retire` mutates it, and note the sweep is single-dimension: a 
 another level survives it.
 
 A tier-1 source scan can hold this rule for a whole suite — cultivation's
-`MockPlayerDiscardTest` shows the shape. Read it for the scanning technique only: it still
-matches the literal token `".discard()"` and requires it inside a `finally`, so a suite that
-adopts `MockPlayers.retire(player)` *fails* it. Adopting this rule means moving the matched
-token to `MockPlayers.retire(<name>)` — matched on the argument rather than the receiver — and
-replacing the javadoc paragraph that records the superseded "the player-list entry is
-deliberately left in place" rationale. Both are in rfizzle/cultivation#100's acceptance
-criteria.
+`MockPlayerDiscardTest` (the name predates the `retire` rename) is the model: it matches
+`MockPlayers.retire(<name>)` on the argument rather than the receiver, requires it inside
+a `finally`, and its javadoc records why a bare `discard()` is the leak, not the fix.
 
 ### One `finally` per method
 

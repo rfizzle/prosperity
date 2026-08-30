@@ -22,20 +22,31 @@ sections and a `configVersion` field. Group fields into sections so the JSON
 stays navigable and the ModMenu screen has natural categories.
 
 ```java
-public class TribulationConfig {
+public class MyModConfig {
     public int configVersion = ConfigMigrator.CURRENT_VERSION;
     public General general = new General();
     public TimeScaling timeScaling = new TimeScaling();
-    public Hud hud = new Hud();                 // client-facing section
+    public Client client = new Client();        // client-facing section (Prosperity's shape)
     // ... one field per section, each its own nested static class
 }
 ```
+
+(Tribulation's HUD fields are *flat* — `enableTierHud`, `hudAnchor`, `hudOffsetX/Y` on
+the root — because its migrator flattened an earlier nested `Hud` section; don't copy
+a `TribulationConfig.Hud` from older docs, it no longer exists.)
 
 Split **server-authoritative** fields (gameplay rules, caps, toggles that change
 balance) from **client-only** fields (HUD anchor, render toggles). Mercantile
 keeps a flat object with a documented split; Prosperity nests the client fields
 under a `client` block so "the synced view = everything except `client`" is
 structural. Either is fine — pick one and document which side owns each field.
+
+**Ruling (concord#62):** the sync payload *may* carry client-only fields; projecting
+them out is preferred where the schema already nests them (Prosperity, Distillation,
+Meridian) and not worth a `configVersion` migration where it doesn't. What is
+normative is the read side: **a client never reads a presentation field (HUD anchor,
+offsets, render toggles) from the synced object** — those come from the local file
+only. Instinct's tripwire test for a no-sync config is the model if you want a guard.
 
 ## The load lifecycle
 

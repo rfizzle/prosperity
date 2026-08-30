@@ -41,6 +41,8 @@ public final class TrophyLootHandler {
             EntityType.WARDEN.getDefaultLootTable();
 
     public static void register() {
+        // net.fabricmc.fabric.api.loot.v3.LootTableEvents — the four-arg lambda is loot
+        // v3; v2's MODIFY is three-arg and has no registries parameter.
         LootTableEvents.MODIFY.register((key, tableBuilder, source, registries) -> {
             if (!WARDEN_TABLE.equals(key) || !source.isBuiltin()) {
                 return;

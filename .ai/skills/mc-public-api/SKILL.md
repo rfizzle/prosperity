@@ -194,9 +194,11 @@ all it can still do is re-introduce the abandon-the-rest semantics:
 DistillationDiscoveryCallback.EVENT.invoker().onDiscover(player, recipeId);   // no wrap
 ```
 
-Distillation and cultivation ship this shape today. Naming the offending
-listener class (as meridian's invoker does), the fatal-error rethrow, and the
-once-only gate are the additions — do them in new code:
+Distillation and cultivation ship the invoker-side `Throwable` catch today. Naming the
+offending listener class, the `VirtualMachineError` rethrow, and the once-only gate
+are **normative** (API-STANDARD §3.1 rules 1–3, checked by its §10 checklist), not
+optional extras: new code carries all three, and a shipped invoker without them is a
+conformance item for its repo. Respite and instinct ship the full shape:
 
 ```java
 /**
