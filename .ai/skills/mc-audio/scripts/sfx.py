@@ -626,6 +626,15 @@ def verify_render(shipped, samples, sr, stats):
     problems = []
     for key, tol in VERIFY_TOLERANCE.items():
         a, b = got_stats[key], stats[key]
+        if key == "duration_s":
+            # Compare content duration, not stream duration: libvorbis finalizes
+            # some cue lengths with ~1000 samples of sub--80 dBFS padding past
+            # the final granule, and every ffmpeg's Vorbis decode emits it — so
+            # a byte-faithful, freshly rendered cue would drift on raw length.
+            # Trailing silence below -60 dBFS is excluded on BOTH sides; real
+            # truncation or a different cue still moves the audible length.
+            a -= got_stats["tail_silence_s"]
+            b -= stats["tail_silence_s"]
         limit = tol * max(abs(b), 1e-9) if key == "centroid_hz" else tol
         if abs(a - b) > limit:
             unit = {"duration_s": "s", "peak_dbfs": "dBFS",
