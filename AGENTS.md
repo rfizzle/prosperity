@@ -133,8 +133,8 @@ catalog at [`.ai/skills/CATALOG.md`](.ai/skills/CATALOG.md). It is always in ste
 with the skills actually vendored here, so consult it rather than a hand-kept
 table.
 
-Claude Code auto-loads these via the `.claude/skills` symlink; Google Jules,
-OpenCode, and any other agent should read the relevant `SKILL.md` directly
+Claude Code auto-loads these via the `.claude/skills` symlink; OpenCode and
+any other agent should read the relevant `SKILL.md` directly
 **before** working in its subject area.
 
 ## Pure core, thin Minecraft shell
@@ -195,13 +195,11 @@ reference for producing a good one. The normative spec is concord's
    internal-only work omits it.
 4. **Human review** — spec edited or approved. For `open-questions`, answer the
    questions inline in the issue (no spec re-run needed for the simple cases).
-5. **`jules` label** added → Jules picks up the issue and opens a draft PR.
-   Apply it from either `ready` or `open-questions` once you're satisfied.
-   For a locally supervised implementation instead, run the vendored
-   `/implement <issue#>` command in Claude Code — the same lifecycle end to
-   end (domain gate, plan, a green build + unit-test + gametest sweep,
-   parallel reviews, PR) with human approval gates at plan, remediation, and
-   ship.
+5. **Implement** — run the vendored `/implement <issue#>` command in Claude
+   Code, from either `ready` or `open-questions` once you're satisfied. It runs
+   the lifecycle end to end (domain gate, plan, a green build + unit-test +
+   gametest sweep, parallel reviews, PR) with human approval gates at plan,
+   remediation, and ship.
 6. **PR opened** → `claude-code-review.yml` posts a structured ✓/⚠/✗ review
    (categories from concord's default `review-criteria.yml`, unless a
    repo-local `.ai/review-criteria.yml` override exists). For player-facing
@@ -248,9 +246,12 @@ posting.
 
 ## Version scheme
 
-The pushed `v*` tag is the single source of version truth. Releasing is just
-`git tag vX.Y.Z && git push origin vX.Y.Z` — the release workflow injects the tag
-as the build version. `mod_version=0.0.0` in `gradle.properties` is only the
+The pushed `v*` tag is the single source of version truth. Cut a release with
+`make release VERSION=X.Y.Z`, which runs concord's `scripts/concord-release.py`:
+it requires a clean tree level with `origin/master`, a version above every
+existing tag, and green CI on HEAD, then creates the annotated tag and pushes
+it. Never `git tag` by hand. The release workflow injects the tag as the build
+version. `mod_version=0.0.0` in `gradle.properties` is only the
 local/dev base; local builds surface as `0.0.0+g<sha>`. Never hand-edit a real
 version into `gradle.properties` or open a "set version" PR.
 
@@ -270,6 +271,6 @@ integration pins, and Gradle JVM/daemon tuning.
 Release notes are AI-written from the merged PRs by default. To publish curated
 notes for a version instead — e.g. a `1.0.0` milestone — commit a
 `changelogs/<version>.md` (no `v` prefix, e.g. `changelogs/1.0.0.md`) before
-tagging. When that file exists it is published verbatim to GitHub, Modrinth, and
+releasing. When that file exists it is published verbatim to GitHub, Modrinth, and
 CurseForge and the model is not run; absent, notes are generated as usual.
 <!-- concord:managed:end -->
