@@ -1,0 +1,6 @@
+# Concord-owned — synced from concord. Keeps the automated concord-sync PRs out
+# of the generated GitHub release notes.
+changelog:
+  exclude:
+    labels:
+      - concord-sync
