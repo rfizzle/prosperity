@@ -24,8 +24,21 @@ $ARGUMENTS
 
 Resolve the mode: **release** if the args contain `release` (or a version like
 `1.0.0`), else **quality**. In release mode, parse an optional target version
-(default: the next version after the latest `v*` git tag — confirm it) and a publish
-target (`modrinth` | `curseforge` | `both`, default `both`).
+and a publish target (`modrinth` | `curseforge` | `both`, default `both`).
+**Default target version.** List tags with `git tag --list 'v*'` and compare by SemVer
+precedence, not text order: a pre-release sorts *below* its stable (`1.0.0-beta.2 <
+1.0.0`), and pre-release identifiers compare field by field (numeric fields numerically).
+Do not trust `sort -V` or `git tag --sort=-v:refname`; both mis-order pre-releases
+(compute the order in a short script if more than a couple of tags). Then:
+
+- If only pre-releases of X exist (no stable `X`), the default target is **X stable**.
+  Confirm it with the user.
+- Otherwise the default is the next version above the **highest stable** tag. Confirm
+  it.
+
+The release is cut by the maintainer with `make release VERSION=<target>`; the
+assessment never tags.
+
 State the resolved mode (and version/target in release mode) in one line before
 starting.
 
@@ -49,7 +62,7 @@ workspace — `REPO-LAYOUT.md`, `design/DESIGN-SYSTEM.md`. Read the relevant one
 present; if `../concord/` is absent (a bare clone), fall back to `AGENTS.md`'s
 conformance claims and note the gap.
 
-**Release mode also:** run `git tag --list` + `git log --oneline -15` (what's landed
+**Release mode also:** run `git tag --list 'v*'` + `git log --oneline -15` (what's landed
 since the last tag) to ground the target version — the released version is the tag you
 push, not `gradle.properties` (which holds the `0.0.0` dev base) — and identify the
 store-listing files (`site/listing-modrinth.md`, `site/listing-curseforge.md`).
