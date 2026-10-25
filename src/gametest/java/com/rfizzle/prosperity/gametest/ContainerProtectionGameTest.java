@@ -3,6 +3,7 @@ package com.rfizzle.prosperity.gametest;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.ContainerProtection;
+import com.rfizzle.prosperity.network.ProsperityNetworking;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
@@ -191,6 +192,39 @@ public class ContainerProtectionGameTest implements FabricGameTest {
             Prosperity.getConfig().enableContainerProtection = savedEnabled;
             Prosperity.getConfig().protectionUnbreakable = savedUnbreakable;
         }
+        helper.succeed();
+    }
+
+    /**
+     * The protection-query handler resolves a client-supplied position, so it must reject anything out
+     * of reach or in an unloaded chunk before touching {@code getBlockEntity} (which would otherwise
+     * load/generate the chunk on the server thread).
+     */
+    @GameTest(batch = "container_protection_query", template = FabricGameTest.EMPTY_STRUCTURE)
+    @SuppressWarnings("removal")
+    public void protectionQueryRejectsFarAndUnloadedPositions(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+
+        BlockPos nearRel = new BlockPos(1, 1, 1);
+        helper.setBlock(nearRel, Blocks.CHEST);
+        BlockPos near = helper.absolutePos(nearRel);
+        player.setPos(Vec3.atCenterOf(near).add(0, 1, 0));
+        helper.assertTrue(ProsperityNetworking.protectionQueryAllowed(player, near),
+                "an in-range container in a loaded chunk must still be answered");
+
+        // Far but loaded: out of reach.
+        BlockPos far = near.offset(40, 0, 0);
+        helper.assertFalse(ProsperityNetworking.protectionQueryAllowed(player, far),
+                "a position beyond the player's reach must be rejected");
+
+        // In reach of the player but in an unloaded chunk: rejected without loading it.
+        BlockPos unloaded = new BlockPos(29_000_000, 64, 29_000_000);
+        helper.assertFalse(level.hasChunkAt(unloaded), "precondition: the far chunk starts unloaded");
+        player.setPos(Vec3.atCenterOf(unloaded));
+        helper.assertFalse(ProsperityNetworking.protectionQueryAllowed(player, unloaded),
+                "an unloaded chunk must be rejected");
+        helper.assertFalse(level.hasChunkAt(unloaded), "rejecting the query must not load the chunk");
         helper.succeed();
     }
 }
