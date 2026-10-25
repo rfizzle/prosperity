@@ -172,6 +172,13 @@ for (int dx = -viewDistance; dx <= viewDistance; dx++) {
   are small and atomic — see `mc-config` — but anything network-bound or
   unbounded in size never runs inline.)
 
+## Clocks that outlive the session
+
+`server.getTickCount()` restarts at 0 each session; use it only for in-memory
+scheduling. A time that is persisted (cooldown expiry, last-seen stamp) is stamped
+and compared against `level.getGameTime()`. See `mc-persistence` ("Lifecycle
+pitfalls") for the rule and its round-trip test.
+
 ## Persistent-entity orphan cleanup
 
 A manager that spawns a persistent entity (armor stand, marker, mount) and

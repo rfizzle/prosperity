@@ -167,10 +167,6 @@ public static float resolveArmorDropChance(Entity mob, int tier, EquipmentSlot s
 }
 ```
 
-This is `TribulationAPI`'s shipped slot with two changes: shipped tribulation
-still catches `Exception` and logs unconditionally, neither of which the rules
-above permit. Instinct's veterancy-rate slot already ships the once-only gate.
-
 ## Events
 
 Fabric `Event` objects, array-backed, named `<Mod><Thing>Callback`, **fired
@@ -194,11 +190,11 @@ all it can still do is re-introduce the abandon-the-rest semantics:
 DistillationDiscoveryCallback.EVENT.invoker().onDiscover(player, recipeId);   // no wrap
 ```
 
-Distillation and cultivation ship the invoker-side `Throwable` catch today. Naming the
+Naming the
 offending listener class, the `VirtualMachineError` rethrow, and the once-only gate
 are **normative** (API-STANDARD §3.1 rules 1–3, checked by its §10 checklist), not
 optional extras: new code carries all three, and a shipped invoker without them is a
-conformance item for its repo. Respite and instinct ship the full shape:
+conformance item for its repo. The full shape:
 
 ```java
 /**

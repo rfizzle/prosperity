@@ -6,8 +6,8 @@ allowed-tools: Task, Read, Glob, Grep, Edit, Write, Bash
 
 You are implementing a GitHub issue for a Concord member mod, from inside that
 mod's own repository (not the concord orchestration repo). This is the
-interactive, human-supervised implementation path — the local counterpart to
-the `jules`-label handoff in `AGENTS.md`'s development lifecycle. The pipeline
+human-supervised implementation path, as documented in `AGENTS.md`'s development
+lifecycle. The pipeline
 runs issue → alignment → plan → implementation → verification → review →
 remediation → PR.
 
@@ -67,9 +67,8 @@ the resolved issue number and mode in one line before starting.
 3. Fetch the issue:
    `gh issue view <n> --json number,title,body,labels,state,url` plus
    `gh issue view <n> --comments` — clarifications and decisions often live in
-   the comments. The issue must exist and be **open**. If it carries the
-   `jules` label or `gh pr list --search "<n> in:body" --state open` shows a
-   linked PR, stop and surface the duplicate-work risk before continuing.
+   the comments. The issue must exist and be **open**. If
+   `gh pr list --search "<n> in:body" --state open` shows a linked PR, stop and surface the duplicate-work risk before continuing.
 4. Build a one-screen mod profile to reuse all run long: `fabric.mod.json`
    (mod id, entrypoints, depends/recommends/breaks, environment),
    `gradle.properties` (MC / loader / Fabric API / Java versions), `AGENTS.md`
@@ -155,7 +154,14 @@ uses:
   constraint* it places on this change, not "consult it".
 - **Files to touch** — path → what changes, correct source set for each.
 - **Test plan** — unit / fabric-loader-junit / gametest split, naming the
-  behaviors each tier covers.
+  behaviors each tier covers. For any persistence or state work, include the
+  lifecycle checklist from `mc-persistence` ("Lifecycle pitfalls") as named gametests:
+  block-entity contents survive break → re-place (components + loot
+  `copy_components`, apply-side validation equal to `loadAdditional`'s), a use on a
+  stack of 16 changes exactly one item, double/multi-block halves merge instead of
+  overwrite, persisted time uses `level.getGameTime()`, runtime-injected state is
+  stripped before save, no payload/key id is renamed in place. Mark each as
+  applicable or not applicable with a reason.
 - **Docs impact** — the `site/pages/<slug>.json`, README, and lang updates
   this change owes (schema in concord's `template/README.md`); state "none —
   internal-only" when players can't observe the change.
@@ -174,7 +180,10 @@ Create the branch off master, then execute the approved plan yourself:
   suggestions. Deviations from the plan that grow beyond small judgment calls
   go back to the user, not into the diff quietly.
 - Write the tests and the Docs-impact updates as part of the same work, not as
-  an afterthought.
+  an afterthought. **New behaviour tests are shown failing before the change:**
+  write the test first (or stash the production change), run it, and keep the
+  failing output (test name plus assertion message) for the Step 5 record. A
+  test that has never failed has not been shown to test anything.
 - Read `.ai/skills/mc-gradle-builds/SKILL.md` before the first Gradle run,
   then iterate with the fast loop while you work — compile plus the unit
   tests nearest what you're changing. The full sweep is Step 5's job.
@@ -184,13 +193,24 @@ Create the branch off master, then execute the approved plan yourself:
 ## Step 5 — Verify: build, tests, gametests
 
 The automatic quality gate between writing the code and reviewing it — no
-human input, but nothing proceeds until it is green. Run the suite the way CI
-will (Makefile targets when present):
+human input, but nothing proceeds until it is green. The final sweep runs
+**exactly what member CI runs** (`.github/workflows/mod-ci.yml` in this repo is the
+list), with `--rerun-tasks` so no task is skipped as up-to-date:
 
-1. `./gradlew build` — compile, unit tests, jar.
-2. `./gradlew runGametest` — the in-world suite.
-3. `./gradlew jacocoMergedReport` — merged unit + gametest coverage, where the
-   project wires it. Never read the number off the unit-only `jacocoTestReport`.
+1. Listing-claims check:
+   `python3 ../concord/scripts/check-listing-claims.py --members-file ../concord/members.json`
+   (CI checks out concord to `.concord/`; locally it is the sibling checkout).
+2. Art and audio verification, when the repo has them:
+   `python3 .ai/skills/mc-textures/scripts/glyph.py --verify-all` and
+   `python3 .ai/skills/mc-audio/scripts/sfx.py --verify-all`.
+3. `./gradlew build --rerun-tasks` — compile, unit tests, jar.
+4. `./gradlew runGametest --rerun-tasks` — the in-world suite.
+5. `./gradlew verifyDatagenIdempotent --rerun-tasks`, when the project defines it
+   (`./gradlew help --task verifyDatagenIdempotent` succeeds).
+6. `./gradlew jacocoMergedReport --rerun-tasks`, where the project wires it. Never
+   read the number off the unit-only `jacocoTestReport`.
+
+(While iterating, the fast loop is fine; the sweep above is the one that counts.)
 
 On a failure: fix the code and re-run. If a failure traces back to a defect
 in the approved plan rather than the code, take it to the user — don't
@@ -198,22 +218,40 @@ re-plan silently. Never disable, weaken, or delete a test to get to green
 beyond what the plan itself called for; if a pre-existing test is genuinely
 wrong, that's a finding to surface, not a silent edit.
 
+**Record counts, not narrative.** Parse the pass/fail numbers from the result files,
+not from your memory of the console: sum `tests`, `failures`, `errors` and `skipped`
+over `build/test-results/**/*.xml` (unit), and the same over the gametest report
+(`build/junit-gametest.xml`, or the report under `build/gametest/`). For example:
+
+```bash
+python3 - <<'PY'
+import glob, xml.etree.ElementTree as ET
+for label, pat in (("unit", "build/test-results/**/*.xml"), ("gametest", "build/junit-gametest.xml")):
+    t = f = e = sk = 0
+    for p in glob.glob(pat, recursive=True):
+        for s in ET.parse(p).getroot().iter("testsuite"):
+            t += int(s.get("tests", 0)); f += int(s.get("failures", 0))
+            e += int(s.get("errors", 0)); sk += int(s.get("skipped", 0))
+    print(f"{label}: {t} tests, {f} failures, {e} errors, {sk} skipped")
+PY
+```
+
 Once green, check the tests, not just their color:
 
 - Every behavior named in the plan's Test plan has its test, at the tier the
   plan assigned it.
-- The new tests exercise the new code — spot-check that the key ones would
-  fail without the change.
+- The new behaviour tests were seen **failing** before the change (the output
+  recorded in Step 4), and pass now.
 
-Record the evidence — unit + gametest counts, coverage % when produced, and
-anything fixed along the way — for the reviewers (Step 6) and the ship
-summary (Step 8).
+The evidence block for the reviewers (Step 6) and the ship summary (Step 8) is:
+the exact commands run, the unit and gametest counts parsed above, the recorded
+pre-change failures, coverage % when produced, and anything fixed along the way.
 
 ## Step 6 — Parallel triple review
 
 Launch all three reviewers **concurrently** (one message, three Task calls).
 Each gets: the issue + spec, the approved plan, the mod profile, the Step 5
-verification evidence, and the branch diff (`git diff master...HEAD` — name
+verification evidence (commands and parsed counts), and the branch diff (`git diff master...HEAD` — name
 the changed files so agents can read full context around them). Each returns findings as **must_fix** (a
 verified bug, regression, spec violation, or safety break — the same bar as
 the CI review's `review-criteria.yml`) or **optional** (polish), every finding
@@ -249,6 +287,10 @@ in-world/particle rendering without culling, LOD, or a spawn budget per
 mutable state per `mc-shared-state`; graceful degradation on malformed config,
 data, or network payloads.
 
+Reviewers treat the counts as the only verified claims: an assertion that tests
+pass, a test "would fail without the change", or coverage moved, with no command
+output behind it, is unverified and is not accepted — re-run it or flag it.
+
 ## Step 7 — Synthesize → GATE 2 → remediate
 
 Merge the three reports, dedupe overlapping findings, and present one table:
@@ -282,3 +324,20 @@ No tooling or session metadata.
 
 Print the PR URL, note that the CI code review will post its own scorecard on
 the PR, and offer to file follow-up issues for any deferred findings.
+
+## Step 9 — Land
+
+Opening the PR is not the end. Watch it to a verdict:
+
+1. `gh pr checks <n> --watch` until every check settles.
+2. If CI is red, name the failing task and test from `gh run view <run-id>
+   --log-failed` (not "CI failed"). A failure in a test the diff does not touch is
+   handled per the flaky-test policy in `mc-mod-testing` (one `gh run rerun <id>
+   --failed`; if it then passes, open a `flaky`-labelled issue). Otherwise fix,
+   re-run the Step 5 sweep, push.
+3. Read the CI review comment on the PR. For every must-fix it raises,
+   **reproduce it locally first** (a failing test or command output) before changing
+   code. If it cannot be reproduced, say so in a PR comment with what you ran,
+   instead of applying a speculative fix.
+4. Stop when checks are green and every must-fix is fixed or answered; report the
+   final PR state to the user.

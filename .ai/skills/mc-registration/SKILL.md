@@ -277,3 +277,5 @@ Use `<Mod>.id(name)` everywhere below.
 - Never scatter registration calls across multiple classes. One central registry class.
 - Always use an insertion-ordered collection (`LinkedHashMap`) for the block map so datagen iteration order is deterministic.
 - The `build(null)` on `BlockEntityType.Builder` is intentional — the `Type<?>` parameter is for vanilla's DFU data fixers, which mods don't use.
+- Never mark a mod that registers blocks, items, entities or S2C payloads as client- or server-optional. It is required on both sides (a client missing the registry entries or payload types is rejected on join), in `fabric.mod.json`'s `environment` (`*`) and in every listing (`mc-listing`).
+- Every `compat/<id>` package and every `isModLoaded("<id>")` has a matching `suggests` (or `depends`/`recommends`) entry in `fabric.mod.json`.

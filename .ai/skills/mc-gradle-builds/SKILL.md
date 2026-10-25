@@ -484,8 +484,18 @@ processResources {
     filesMatching("fabric.mod.json") {
         expand "version": projectVersion
     }
+    exclude "**/.cache"
 }
+
+processClientResources { exclude "**/.cache" }   // when the client source set exists
+
+jar { exclude "**/.cache" }
+tasks.named('sourcesJar') { exclude "**/.cache" }
 ```
+
+The `.cache` excludes keep Fabric datagen's hash index (`src/main/generated/.cache/`, see
+`mc-datagen`) out of the shipped jar and the sources jar. The datagen output dir is a
+resource root, so without them the index is packaged.
 
 This configures the `main` source set only. Other source sets get an unconfigured
 `ProcessResources` task, so a `${version}` placeholder in a manifest they own is copied through

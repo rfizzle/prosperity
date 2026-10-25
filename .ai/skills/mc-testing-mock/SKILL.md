@@ -291,8 +291,7 @@ own flag and skips the refresh that makes it correct. Vanilla's own `stopSleepin
 `PlayerList.players`, so `MinecraftServer.stopServer` → `PlayerList.saveAll()` saves every leaked
 mock at shutdown anyway — and since each mock carries a `UUID.randomUUID()`, nothing dedups on
 either side. It is one save per mock either way; `remove()` moves the write into the run rather
-than adding one. (rfizzle/cultivation#100 landed this: `MockPlayers.retire` does the
-`PlayerList.remove` and cultivation's guard now requires it.)
+than adding one.
 
 For suites whose assertions depend on the player count, sweep with `retireLeaked(helper)` rather
 than trusting that every earlier test cleaned up — a test that timed out mid-poll did not.

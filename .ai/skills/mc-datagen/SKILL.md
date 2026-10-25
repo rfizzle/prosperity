@@ -336,6 +336,12 @@ result; a developer never does. `verifyDatagenIdempotent` therefore depends on a
 `cleanDatagenCache` task, and `runDatagen` must run after it. Mutation-test it once: edit a
 generated file, confirm red, revert, confirm clean.
 
+**Keep the cache out of the jars.** `src/main/generated` is a resource root, so the
+`.cache/` directory is packaged unless every task that copies it excludes it —
+`processResources`, `processClientResources`, `jar` and `sourcesJar` each need
+`exclude "**/.cache"` (the skeleton is in `mc-gradle-builds`). Check with
+`unzip -l build/libs/*.jar | grep .cache`, which must print nothing.
+
 ```groovy
 tasks.register('cleanDatagenCache', Delete) {
     description = 'Removes the Fabric datagen hash cache so the next runDatagen rewrites every file'

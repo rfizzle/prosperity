@@ -284,6 +284,76 @@ silently drops a field). Detailed registration of the BE/block lives in the
   conversely, dirty even when no "interesting" boundary was crossed if a field
   still mutated (e.g. a counter zeroes at max level).
 
+## Lifecycle pitfalls — what a codec round-trip cannot catch
+
+A codec round-trip proves the bytes survive; it says nothing about whether the
+*lifecycle* routes state through them. These classes ship green through unit
+tests and fail in play. Each rule below has a **behavioural round-trip gametest**
+(real block/entity/item, real save and reload or break and re-place) — that test,
+not a codec test, is the guard.
+
+**1. Block-entity contents must round-trip through item data components.** Breaking
+a container and re-placing the drop must restore its contents. Implement all three
+overrides, and add `minecraft:copy_components` (source `block_entity`, `include` the
+component) to the block's loot table:
+
+```java
+@Override protected void collectImplicitComponents(DataComponentMap.Builder b) {
+    super.collectImplicitComponents(b);
+    b.set(MyRegistry.CONTENTS, snapshot());
+}
+@Override protected void applyImplicitComponents(BlockEntity.DataComponentInput in) {
+    super.applyImplicitComponents(in);
+    MyContents c = in.get(MyRegistry.CONTENTS);
+    if (c != null) restore(c);          // same clamping/validation as loadAdditional
+}
+@Override public void removeComponentsFromTag(CompoundTag tag) { tag.remove(TAG_CONTENTS); }
+```
+
+Apply-side validation must match `loadAdditional`'s (size caps, id checks, clamps):
+the component is untrusted data from a command or a datapack, and a looser path
+becomes the way around every bound the NBT path enforces. Gametest: fill the block,
+`destroyBlock` with drops, re-place from the dropped stack, assert contents equal;
+also assert the drop's loot table (a missing `copy_components` drops an empty item).
+
+**2. A use that consumes one item must split one off.** When the stack count can
+exceed 1, `stack.shrink(1)` plus the effect on a copy; never write state onto the
+whole stack (ten stacked items would all become the one configured item).
+
+```java
+ItemStack one = stack.copyWithCount(1);
+apply(one);
+stack.shrink(1);
+if (!player.getInventory().add(one)) player.drop(one, false);
+```
+
+Gametest: use a stack of 16, assert 15 untouched plus one changed.
+
+**3. Multi-block state is per-half and must merge.** A double chest (or any
+multi-part block) has one block entity per half. Saving or applying one half's data
+over the other overwrites the partner's; combine (union, sum, max as the domain
+dictates) and write each half only its own share. Gametest: build both halves with
+different contents, break and re-place one half, reload, assert both halves' contents
+survive.
+
+**4. Persisted time uses `level.getGameTime()`.** Cooldowns, expiries and "last seen"
+stamps that live in saved data compare against the persisted game clock.
+`server.getTickCount()` restarts at 0 every session, so a stored value from the last
+run is in the future (a cooldown that never ends) or the past. Session counters are
+fine for in-memory scheduling only (`mc-tick-work`). Gametest: stamp a time, save and
+reload the data, advance the clock, assert the elapsed logic fires once.
+
+**5. Runtime-injected state is stripped before save.** Anything added to a live
+object that is not part of its saved definition (extra villager trade offers, merged
+loot, applied runtime modifiers) must be removed or excluded from what `save` writes,
+or it is written into the world and duplicated again on the next load. Gametest:
+inject, save, reload, assert the injected state is present exactly once.
+
+**6. Payload and key ids are wire/disk contracts.** Renaming a networking payload id
+breaks every mixed-version client/server pair; renaming a tag key silently drops
+saved data. Add the new id alongside the old and migrate; never rename in place.
+Gametest/unit: assert the id constants against literal strings.
+
 ## Best-practice checklist
 
 | Check | What to do |
@@ -298,7 +368,7 @@ silently drops a field). Detailed registration of the BE/block lives in the
 | Many-arg codec | Keep positional constructor as the apply target; add a `@VisibleForTesting` builder for tests. |
 | Pure mutators | Factor state transitions into static helpers for unit tests; dirty only on real change. |
 | Latent gate | Intercept on the trigger condition, not on `getAttached() != null`. |
-| Tests | Codec round-trip + a migration test when the format changes (`mc-mod-testing`). |
+| Tests | A behavioural round-trip gametest (save → reload, break → re-place, stack of 16) for every lifecycle pitfall above, plus a codec test and a migration test when the format changes (`mc-mod-testing`). |
 
 ## Guardrails
 
@@ -319,5 +389,6 @@ silently drops a field). Detailed registration of the BE/block lives in the
   load NPEs (swallowed) and every restart silently gets fresh empty state.
 - **Always** clamp/validate in the deserialization constructor; a save file is
   untrusted input.
-- **Always** add a round-trip test on the codec, and a migration test when you
-  change the serialized format (legacy→new, idempotency, passthrough).
+- **Always** prove persisted state with a behavioural round-trip gametest (reload,
+  break and re-place, stack of 16), not only a codec test, and add a migration test
+  when you change the serialized format (legacy→new, idempotency, passthrough).

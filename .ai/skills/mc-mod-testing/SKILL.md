@@ -386,17 +386,9 @@ line-anchored (`(?m)^\s*@GameTest`), it matches `@GameTest` inside a comment or 
 literal and registers a class that holds no tests. `implements FabricGameTest` has none of
 these holes: it is the same predicate the loader itself uses.
 
-Reference implementation: cultivation's `GametestRegistrationTest.java:52-53` for the detection
-regex and `:128-148` for the two-way naming check. Distillation's `GametestRegistrationTest.java`
-(renamed from `ManifestEntrypointTest` and moved onto the canonical regex) is worth reading
-for the assertion *shapes* — it collapses registration parity into a single
+Read an existing member's `GametestRegistrationTest` for the detection regex and the
+two-way naming check; its registration-parity assertion collapses to a single
 `assertEquals(discovered, declared)`.
-
-Most members already assert dependency exclusivity as set equality: distillation, meridian
-`:175`, mercantile `:92`, instinct `:96`, respite `:170`, and cultivation `:165-176`.
-Tribulation's `GametestEntrypointTest.java:136` is the containment form the bullet above
-warns about, and prosperity's guard is enforced hub-side by `check-gametest-manifest.py`
-rather than by a repo-local test. Those two are the gap.
 
 Concord's own `make gametest-check` is **not** a substitute. The hub checker
 (`scripts/check-gametest-manifest.py`) fails on a shipped manifest that declares
@@ -505,14 +497,13 @@ Three assertions, in widening order:
 
 **Pick the anchor per source set.** The anchor is a resource you know sits at the top level of
 that root, whose parent directory therefore *is* the root. Meridian uses `/meridian.accesswidener`
-for `main` and `/meridian.client.mixins.json` for `client`
-(`ShippedResourceHygieneTest.java:46-50`). A mod with neither can anchor `main` on
+for `main` and `/meridian.client.mixins.json` for `client`. A mod with neither can anchor `main` on
 `/fabric.mod.json`, but note that only resolves the main root — the client root needs an anchor
 of its own, and a source set with no resources at all contributes no anchor and belongs out of
 the list entirely.
 
-Model: meridian's `ShippedResourceHygieneTest.java:72`, `:85`, and `:98`, with the anchored-root
-resolution at `:144-177` and the moved-anchor failure at `:165-171`. Meridian's own fixtures live
+Model: meridian's `ShippedResourceHygieneTest`, with its anchored-root resolution and
+moved-anchor failure. Meridian's own fixtures live
 in `src/gametest/resources/data/meridian/gametest/structure/`, which is the proof that relocating
 them costs nothing — resolution from the companion-mod root works exactly as described above.
 
@@ -584,6 +575,27 @@ try {
 ```bash
 ./gradlew runGametest 2>&1
 ```
+
+### Lifecycle gametests for persistence
+
+A codec test does not prove state survives a real lifecycle. For any block entity,
+saved data, item-held state or timed state, add the behavioural round-trip gametest
+named in `mc-persistence` ("Lifecycle pitfalls"): save then reload, break then
+re-place from the drop, use a stack of 16, build both halves of a double block, stamp
+a time then reload. A new behaviour test is shown failing before the change (run it
+against the unfixed code and keep the failing output).
+
+### Flaky gametests
+
+Same-batch tests run concurrently in one level, so a test that shares a batch with a
+level-wide sweep or mutates shared level state can fail for reasons its own code does
+not explain. Isolate such a test with a `batch` of its own (or its own template).
+
+Policy when a CI gametest fails in a test the diff does not touch: run
+`gh run rerun <id> --failed` once. If it passes, open a `flaky`-labelled issue naming
+the test, link the failing run, and isolate the test promptly. Do not add automatic
+retries, and do not rerun more than once to get a green; a second failure is a real
+failure.
 
 ## Guardrails
 

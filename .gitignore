@@ -23,6 +23,9 @@
 # Changelog page is generated at build from changelogs/* + GitHub Releases
 /site/pages/changelog.json
 
+# Datagen incremental cache
+/src/main/generated/.cache/
+
 # Local AI / planning state
 /.plan/
 .claude/settings.local.json

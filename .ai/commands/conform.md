@@ -57,7 +57,24 @@ State the resolved dimension(s) + mode in one line before starting.
 ## Step 1 — Parallel dimension agents
 
 Launch one read-only agent per selected dimension, all in a single batch. Each
-agent sweeps **every** member and reports in the same shape: (1) a per-member
+agent sweeps **every** member. It first runs the **fixed drift checklist** items
+for its dimension below (a pass/fail per member per item, with the evidence
+command output), *then* the open-ended pass. Checklist items are the drifts that
+have recurred; they are checked mechanically, not hunted for.
+
+| Dim | Item | Check |
+|---|---|---|
+| build | Jar `.cache` excludes | `processResources`, `processClientResources`, `jar` and `sourcesJar` each exclude `**/.cache` (`mc-gradle-builds`); `unzip -l build/libs/*.jar` lists no `.cache/` entry |
+| build | `Task.project` at execution time | no `project.` / `getProject()` use inside a `doLast`/`doFirst` action body (it breaks under the configuration cache); values are captured at configuration time or via providers |
+| code | Cloth guard + `suggests` | the `modmenu` entrypoint class references no `me.shedaniel.clothconfig2` type and returns `parent -> null` unless `isModLoaded("cloth-config")`; `cloth-config` and `modmenu` are under `suggests` (`mc-config`) |
+| code | compat and `suggests` | every `compat/<id>` package and every `isModLoaded("<id>")` has a matching `suggests`/`recommends`/`depends` entry in `fabric.mod.json`, and every `suggests` entry has code behind it |
+| code | Payload-id renames | payload type ids and persisted key constants match the last released tag (diff the payload classes against it); a renamed id breaks mixed versions (`mc-persistence`, `mc-networking`) |
+| code | Callback invoker catch shape | every `createArrayBacked` invoker uses the two-argument form, catches `Throwable` per listener, rethrows `VirtualMachineError`, names the offending listener class, logs once (`mc-public-api`) |
+| testing | MockPlayers helper | gametests get players from the mod's `MockPlayers` helper; no call to the deprecated `makeMockServerPlayerInLevel`; every mock is retired in a `finally` (`mc-testing-mock`) |
+| testing | Lifecycle round-trips | persisted block entities and saved data have a behavioural round-trip gametest, not only a codec test (`mc-persistence`) |
+
+Checklist results come first in each report, as a member by item matrix. Each
+agent then reports in the same shape: (1) a per-member
 divergence table of key values, (2) consistent-but-undocumented conventions
 worth codifying, (3) per-member outliers — everything with `file:line`
 references. Tell every agent which topics are already tracked (from Step 0) so

@@ -414,9 +414,36 @@ Use `Component.translatable` keys for every label and tooltip, under the
 | `config.<mod>.<field>.tooltip` | That field's tooltip — every label pairs with one |
 | `config.<mod>.<field>.<option>` | One value of an enum field — required wherever a field renders as a dropdown (`HUD-STANDARD.md` §4) |
 
-Declare ModMenu + Cloth as `modCompileOnly` + `modLocalRuntime` and the
-integration class as the `modmenu` entrypoint, so a missing ModMenu can't gate
-the mod.
+### Guard the Cloth reference
+
+Cloth and ModMenu are optional, and ModMenu is not Cloth: ModMenu-without-Cloth is
+a normal install. Declare both as `modCompileOnly` + `modLocalRuntime`, list
+`cloth-config` and `modmenu` under `suggests` in `fabric.mod.json` (never `depends`),
+and split the integration in two:
+
+- **The `modmenu` entrypoint** (`compat/modmenu/<Mod>ModMenu`) implements `ModMenuApi`
+  and references **no** `me.shedaniel.clothconfig2` type, in a signature, field,
+  import used by a signature, or lambda. It returns `parent -> null` unless
+  `FabricLoader.getInstance().isModLoaded("cloth-config")`.
+- **The screen builder** (`<Mod>ConfigScreen`) holds every Cloth reference and is only
+  reached past that guard, so the JVM never resolves it without Cloth.
+
+```java
+public final class MercantileModMenu implements ModMenuApi {
+    @Override
+    public ConfigScreenFactory<?> getModConfigScreenFactory() {
+        if (!FabricLoader.getInstance().isModLoaded("cloth-config")) {
+            return parent -> null;   // ModMenu without Cloth: no config screen, no crash
+        }
+        return MercantileConfigScreen::create;   // all ConfigBuilder code lives there
+    }
+}
+```
+
+A Cloth type anywhere on the entrypoint class turns ModMenu-without-Cloth into a
+`NoClassDefFoundError` at ModMenu's entrypoint scan. The guard doctrine
+(classload isolation, `suggests`-only dependency shape) is in `mc-public-api`
+(soft-dependency consumption) and `mc-compat`; don't restate it here.
 
 ## Best-practice checklist
 
@@ -431,7 +458,7 @@ the mod.
 | Save | Atomic `.tmp` + `ATOMIC_MOVE`, plain-move fallback, orphan cleanup. |
 | Singleton | `volatile` field + lazy double-checked `get()`; `reload()` swaps the whole reference; snapshot `get()` once per method; never mutate the live instance. |
 | Sync precedence | `getServerConfig()` first, local `get()` fallback; clear on disconnect; re-send on reload. Clamp the decoded config on the main thread, with bounded logging. |
-| ModMenu | Mirror fields into a deep working copy, `setDefaultValue` from a fresh instance, re-clamp and publish on save, `config.<mod>.*` keys. |
+| ModMenu | Mirror fields into a deep working copy, `setDefaultValue` from a fresh instance, re-clamp and publish on save, `config.<mod>.*` keys; entrypoint class holds no Cloth type and is `isModLoaded("cloth-config")`-guarded, both mods under `suggests`. |
 | Tests | Migration (legacy/idempotent/passthrough), clamp bounds, one disabled-path test per toggle. |
 
 ## Guardrails

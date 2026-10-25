@@ -7,7 +7,7 @@ and vendored into every member repo via `make sync` — this catalog rides
 along, so it is always in step with the skills actually present.
 
 **How each agent consumes them:** Claude Code auto-loads skills via the
-`.claude/skills` symlink. Google Jules, OpenCode, and any other tool should read
+`.claude/skills` symlink. OpenCode and any other tool should read
 the relevant `SKILL.md` directly **before** working in its subject area — use the
 "Pull it in when…" column to decide which.
 
