@@ -9,7 +9,7 @@ import com.rfizzle.prosperity.config.ProsperityConfig;
  * server operator when the client is connected to a remote server; only the nested
  * {@link ProsperityConfig#client} block is the player's on any world. This class holds the two
  * decisions the screen shell wires up, kept free of any {@code net.minecraft.*} / Cloth Config types
- * so they are plain-JUnit testable. {@link ModMenuIntegration} (the thin client shell) reads the
+ * so they are plain-JUnit testable. {@link ProsperityConfigScreen} (the thin client shell) reads the
  * connection state, seeds the widgets, and applies Cloth's read-only requirement.
  */
 public final class RemoteConfigGate {
