@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Mod Menu entry point (S-028): a Cloth Config screen exposing every {@link ProsperityConfig} key,
+ * The Cloth Config screen (S-028) exposing every {@link ProsperityConfig} key,
  * grouped into categories with per-entry tooltips. Both Mod Menu and Cloth Config are
  * {@code modCompileOnly} — this class lives in the client source set and is referenced only from the
  * {@link ModMenuIntegration} entrypoint, behind an {@code isModLoaded("cloth-config")} guard, so the
