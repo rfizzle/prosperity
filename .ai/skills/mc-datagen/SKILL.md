@@ -241,39 +241,29 @@ one of them. Stamp it explicitly, as above.
 
 ## Output directory
 
-Generated files go to `src/main/generated/`. This directory must be declared as a resource source in `build.gradle`:
-
-```groovy
-sourceSets {
-    main {
-        resources {
-            srcDirs += ["src/main/generated"]
-        }
-    }
-}
-```
+Generated files go to `src/main/generated/`. `gradle/concord-common.gradle` (hub-owned, see
+`mc-gradle-builds`) declares it as a resource root of the main source set, so it ships in the jar
+and lands on the test classpath exactly like `src/main/resources`.
 
 ## Running datagen
 
 ```bash
-./gradlew runDatagen 2>&1
+./gradlew runDatagen 2>&1    # or: make run-datagen
 ```
 
-Configure the run in `build.gradle`:
-```groovy
-loom {
-    runs {
-        datagen {
-            inherit server
-            name "Data Generation"
-            vmArg "-Dfabric-api.datagen"
-            vmArg "-Dfabric-api.datagen.output-dir=${file("src/main/generated")}"
-            vmArg "-Dfabric-api.datagen.modid=mymod"
-            runDir "build/datagen"
-        }
-    }
-}
-```
+The Loom `datagen` run config (`-Dfabric-api.datagen`, the `src/main/generated` output dir, and
+`-Dfabric-api.datagen.modid=<archives_base_name>`) also comes from `gradle/concord-common.gradle`;
+a member does not configure it.
+
+**Put the datagen classes where the coverage exclusion expects them.** Providers run only under
+`runDatagen`, never under `test` or `runGametest`, so the merged JaCoCo report excludes them from
+the denominator by convention: anything under a `datagen` package, plus any `*DataGenerator*` or
+`*Provider*` class inside `com.rfizzle.<mod>.data`. Keep the entrypoint and every provider in
+`data/` with those names (`<Mod>DataGenerator`, `<Mod>RecipeProvider`, ...). The rule is scoped to
+`data/` because runtime persistence classes (`PlayerData`, `*Attachments`) share the package and
+must stay measured, and the compat packages hold runtime Jade/WTHIT `*Provider` classes. A runtime
+class in `data/` with `Provider` in its name silently drops out of the coverage number, so don't
+name one that.
 
 ## The four datagen anchors
 
@@ -282,9 +272,9 @@ Datagen is wired in four places, and they only work as a set:
 | # | Anchor | Where |
 |---|---|---|
 | 1 | `DataGeneratorEntrypoint` — the class **and** its `fabric-datagen` key | `src/main/java/…/data/<Mod>DataGenerator.java` + `src/main/resources/fabric.mod.json` |
-| 2 | The Loom `datagen` run config | `build.gradle` |
-| 3 | The `run-datagen` make target | `Makefile` |
-| 4 | `verifyDatagenIdempotent` | `build.gradle` |
+| 2 | The Loom `datagen` run config | `gradle/concord-common.gradle` (hub-owned; every member gets it) |
+| 3 | The `run-datagen` make target | `concord.mk` (hub-owned; every member gets it) |
+| 4 | `verifyDatagenIdempotent` | `gradle/concord-common.gradle` (hub-owned; every member gets it) |
 
 Any one missing degrades quietly rather than failing:
 
@@ -318,6 +308,11 @@ matches nothing, git exits 0 with empty output, and the task reports clean — a
 passing check that verified nothing. A member holding 2+3+4 without 1 is in the worst state of the
 four: it looks the most wired and proves the least.
 
+Anchors 2, 3 and 4 now ship from the hub (`gradle/concord-common.gradle`, `concord.mk`), so a
+member always has them; anchor 1, the entrypoint, is the only one a member owns. A member
+without it fails `verifyDatagenIdempotent` loudly (the task finds no tracked files under
+`src/main/generated/`) instead of passing vacuously.
+
 So a member is conformant when it is **4-of-4**, or when it deliberately has
 **none of the four** and records why in its `AGENTS.md`. Scaffolding 2+3+4 ahead
 of the entrypoint is a legitimate waypoint — it is how a member gets ready to
@@ -326,82 +321,32 @@ working guard, and it is not a resting state.
 
 ## Idempotency verification
 
-Add a CI-friendly task that runs datagen and asserts git reports no changes in the generated directory.
+`gradle/concord-common.gradle` ships a CI-friendly task, `verifyDatagenIdempotent`, that runs
+datagen and asserts git reports no changes in the generated directory. It is hub-owned: a member
+neither writes nor copies it, and a fix lands once in the hub.
 
 **Clear Fabric's hash cache first, or the task is falsely green locally.** Fabric datagen keeps
 a gitignored `src/main/generated/.cache/` index of provider hashes and skips rewriting any file
 whose provider hash is unchanged — so a hand edit to a generated file survives `runDatagen`
 and the check compares the edit to itself. CI (fresh checkout, no cache) sees the real
 result; a developer never does. `verifyDatagenIdempotent` therefore depends on a
-`cleanDatagenCache` task, and `runDatagen` must run after it. Mutation-test it once: edit a
+`cleanDatagenCache` task, and `runDatagen` is ordered after it. Mutation-test it once: edit a
 generated file, confirm red, revert, confirm clean.
 
-**Keep the cache out of the jars.** `src/main/generated` is a resource root, so the
-`.cache/` directory is packaged unless every task that copies it excludes it —
-`processResources`, `processClientResources`, `jar` and `sourcesJar` each need
-`exclude "**/.cache"` (the skeleton is in `mc-gradle-builds`). Check with
-`unzip -l build/libs/*.jar | grep .cache`, which must print nothing.
+**The cache stays out of the jars.** `src/main/generated` is a resource root, so the
+`.cache/` directory would be packaged unless every task that copies it excludes it. The shared
+file excludes `**/.cache` from `processResources`, `processClientResources`, `jar` and
+`sourcesJar`. Check with `unzip -l build/libs/*.jar | grep -c .cache` (and the `-sources.jar`)
+after a `runDatagen`; the count must be 0.
 
-```groovy
-tasks.register('cleanDatagenCache', Delete) {
-    description = 'Removes the Fabric datagen hash cache so the next runDatagen rewrites every file'
-    group = 'verification'
-    delete 'src/main/generated/.cache'
-}
+Each guard in the shared task earns its place:
 
-tasks.matching { it.name == 'runDatagen' }.configureEach {
-    mustRunAfter 'cleanDatagenCache'
-}
-
-tasks.register('verifyDatagenIdempotent') {
-    description = 'Runs datagen and asserts git reports no changes in src/main/generated/'
-    group = 'verification'
-    dependsOn 'cleanDatagenCache', 'runDatagen'
-    notCompatibleWithConfigurationCache('shells out to git against live working-tree state')
-    doLast {
-        def genDir = file('src/main/generated').absolutePath
-        def runGit = { List<String> argv ->
-            try {
-                def out = providers.exec {
-                    commandLine argv
-                    ignoreExitValue = true
-                }
-                out.result.get() // force resolution so a failure to start lands in the catch
-                return out
-            } catch (Exception e) {
-                throw new GradleException(
-                        'verifyDatagenIdempotent needs git on PATH to inspect ' +
-                        'src/main/generated/, and could not run it: ' + e.message, e)
-            }
-        }
-        def firstLines = { String text ->
-            def lines = text.trim().readLines()
-            lines.size() > 5 ? lines.take(5).join('\n') + "\n… (${lines.size()} lines total)"
-                             : lines.join('\n')
-        }
-
-        def statusResult = runGit(['git', '--no-optional-locks', 'status', '--porcelain', '--', genDir])
-        def statusExit = statusResult.result.get().exitValue
-        if (statusExit != 0) {
-            throw new GradleException(
-                    "git status failed with exit ${statusExit} while checking src/main/generated/:\n" +
-                    firstLines(statusResult.standardError.asText.get()))
-        }
-        def dirty = statusResult.standardOutput.asText.get().trim()
-        if (!dirty.isEmpty()) {
-            throw new GradleException(
-                    'src/main/generated/ is not clean after runDatagen:\n' +
-                    firstLines(dirty) +
-                    '\nRun ./gradlew runDatagen, then git add src/main/generated/ ' +
-                    'and commit the results ' +
-                    '(staged-but-uncommitted output also fails this check).')
-        }
-    }
-}
-```
-
-Each guard above earns its place:
-
+- **A clean `git status` proves nothing until git is shown to know the tree.**
+  The task first runs `git ls-files -- src/main/generated` and fails if it lists
+  nothing: `git status --porcelain` exits 0 with empty output for a path that
+  does not exist or holds nothing tracked, so a datagen entrypoint that stopped
+  running, a typo'd output-dir vmArg, or a bad merge would otherwise leave the
+  task green while verifying nothing at all.
 - **The `--` separator is required.** Without it git parses the path
   as a revision-or-path and aborts with exit 128 (`ambiguous
   argument`) whenever `src/main/generated/` is neither tracked nor
