@@ -193,9 +193,28 @@ public final class ProsperityNetworking {
         if (player.connection == null) {
             return;
         }
+        if (!protectionQueryAllowed(player, payload.pos())) {
+            return;
+        }
         float multiplier =
                 ContainerProtection.protectionMultiplierFor(player.serverLevel(), payload.pos(), player);
         sendProtectionResult(player, payload.pos(), multiplier);
+    }
+
+    /** Slack, in blocks, added to the player's block interaction range for protection queries. */
+    private static final double PROTECTION_QUERY_REACH_BUFFER = 1.0;
+
+    /**
+     * Whether a client-supplied protection-query position is safe to resolve: within the player's block
+     * interaction range and in an already-loaded chunk. The position is untrusted, and
+     * {@code getBlockEntity} on an unloaded chunk loads (or generates) it synchronously on the server
+     * thread, so the loaded check must come before any block-entity lookup.
+     */
+    public static boolean protectionQueryAllowed(ServerPlayer player, BlockPos pos) {
+        ServerLevel level = player.serverLevel();
+        return level.isInWorldBounds(pos)
+                && player.canInteractWithBlock(pos, PROTECTION_QUERY_REACH_BUFFER)
+                && level.hasChunkAt(pos);
     }
 
     /**
