@@ -1,6 +1,6 @@
 ---
 name: mc-gradle-builds
-description: Best practices for running Gradle builds, tests, gametests, and coverage in Fabric Minecraft mods. Prevents wasted reruns from partial output capture; wires the merged unit+gametest JaCoCo report. TRIGGER when running any Gradle command (build, test, runGametest, runDatagen, assemble, check), when inspecting build output/reports, when wiring or reading JaCoCo coverage, or when editing repositories/dependencies in build.gradle.
+description: Best practices for running Gradle builds, tests, gametests, and coverage in Fabric Minecraft mods. Prevents wasted reruns from partial output capture; documents the hub-owned gradle/concord-common.gradle every member applies (version, gametest/datagen wiring, merged unit+gametest JaCoCo report, packaging excludes). TRIGGER when running any Gradle command (build, test, runGametest, runDatagen, assemble, check), when inspecting build output/reports, when wiring or reading JaCoCo coverage, or when editing repositories/dependencies in build.gradle.
 ---
 
 The user is running a Gradle build, test, or gametest in a Fabric mod. Follow these rules to avoid losing output and forcing expensive reruns.
@@ -95,134 +95,16 @@ Use the `Read` tool to inspect reports — never re-run just to see results.
 ./gradlew verifyDatagenIdempotent 2>&1
 ```
 
-## The canonical build.gradle skeleton
+## The shared build logic: `gradle/concord-common.gradle`
 
-Concord members' `build.gradle` files share a common shape: the same blocks, in
-the same order, differing in their dependencies and in a handful of mod-id
-strings. The table below is that shape in source order — the assembly reference;
-each block's rationale and full text live in the section named beside it. A new
-member starts by copying a sibling's `build.gradle` and renaming. Treat it as the
-target shape rather than a checklist: it is a reading aid, not machine-checked,
-and a member is judged on having the blocks, not on matching line numbers.
+Everything in a member's `build.gradle` that is not specific to that mod lives in one
+hub-owned file, `gradle/concord-common.gradle`. It is propagated verbatim into every
+member by the `concord-sync` PR (it is `propagate/gradle/concord-common.gradle` in the
+hub), so a fix to it is one hub commit plus eight auto-merged sync PRs instead of eight
+hand-written ones. **Never edit it in a member** — the next sync overwrites the edit.
+Change it in `rfizzle/concord`.
 
-| # | Block | Documented in |
-|---|---|---|
-| 1 | `import java.util.concurrent.TimeUnit` | SemVer from the pushed tag |
-| 2 | `plugins { id 'fabric-loom' … ; id 'jacoco' }` | Coverage |
-| 3 | `jacoco { toolVersion = '0.8.12' }` | Coverage |
-| 4 | `version = computeModVersion()` / `group = project.maven_group` | SemVer from the pushed tag |
-| 5 | `tasks.register('printVersion')` | SemVer from the pushed tag |
-| 6 | `def computeModVersion()` / `def runGitDescribe(String)` | SemVer from the pushed tag |
-| 7 | `repositories { … }` — content-filtered, one group per block | Dependency-repository hygiene |
-| 8 | `loom { splitEnvironmentSourceSets() ; accessWidenerPath }` | Fabric Loom configuration |
-| 9 | `sourceSets { main, gametest, test }` | Fabric Loom configuration · testRuntimeClasspath fix |
-| 10 | `configurations { gametest* }` | Fabric Loom configuration |
-| 11 | `loom { runs { datagen, gametest } }` | Fabric Loom configuration |
-| 12 | `dependencies { … }` | Dependency scoping |
-| 13 | `configurations.testRuntimeClasspath { exclude … }` | testRuntimeClasspath fix |
-| 14 | JaCoCo agent on `runGametest` · `jacocoTestReport` · `jacocoMergedReport` | Coverage |
-| 15 | `verifyDatagenIdempotent` | the `mc-datagen` skill |
-| 16 | `processResources { … }` — version injection | Version management |
-| 17 | `java { withSourcesJar() }` / `jar { … }` / `tasks.named('sourcesJar')` | — |
-
-Rows 8 and 11 are one `loom` block split in two, straddling the source sets it
-configures — the environment split has to be declared before `sourceSets` reads
-it, while the run configs reference `sourceSets.gametest` and so must follow.
-Collapsing them into a single `loom` block placed after `configurations` is
-equally correct and some members do it.
-
-Rows 8 (`accessWidenerPath`), 11 (`datagen`), and 15 are **conditional**: a member
-with no access widener, or one that deliberately has no datagen at all, is not
-missing a block. The datagen pair travels with the other anchors in the
-`mc-datagen` skill — all four or none.
-
-Two properties the table cannot show:
-
-- **No toolchain version literal anywhere in the file.** `minecraft_version`,
-  `loader_version`, `fabric_version`, `loom_version`, and `java_version` come from
-  the concord-owned `versions-common.properties` via `settings.gradle`; everything
-  else from `gradle.properties`. See "Version management". The one deliberate
-  in-file pin is JaCoCo's `toolVersion`, which is not a suite toolchain key and is
-  pinned here so the coverage number stays comparable across members.
-- **The mod id appears in four places at most** — the `accessWidenerPath` filename
-  (where the mod has one), the `-Dfabric-api.datagen.modid=` vmArg, `jacoco.includes`,
-  and the `jacocoMergedReport` mixin exclusion. Each of those is a place the string
-  genuinely has to be literal. The jar name is **not** one of them: it comes from
-  `project.archives_base_name`. An occurrence anywhere else is worth a second look.
-
-**This skeleton is a reference, not a synced file.** It cannot ride the
-`concord-sync` PR the way `versions-common.properties` does: `propagate/` is copied
-into members **verbatim, whole-file**, and region-merging is wired for exactly
-`AGENTS.md` and `.gitignore`. A `propagate/build.gradle` would overwrite all eight
-members with one mod's build. Changes here reach members by being read and applied,
-which is why the drift this table exists to catch is real drift and not a sync bug.
-
-## Fabric Loom configuration
-
-### splitEnvironmentSourceSets
-Separates `main/` (common) from `client/` (client-only). Required for mods with client-side code:
-
-```groovy
-loom {
-    splitEnvironmentSourceSets()
-    accessWidenerPath = file("src/main/resources/mymod.accesswidener")
-}
-```
-
-### Source set wiring for gametest
-```groovy
-sourceSets {
-    main {
-        resources {
-            srcDirs += ["src/main/generated"]
-        }
-    }
-    gametest {
-        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
-        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
-    }
-}
-
-configurations {
-    gametestImplementation.extendsFrom implementation
-    gametestRuntimeOnly.extendsFrom runtimeOnly
-}
-```
-
-The source set carries its own `src/gametest/resources/fabric.mod.json` declaring a
-`<modid>-gametest` mod, which is where the `fabric-gametest` entrypoints belong — putting them
-in the shipped manifest breaks every dev run set. See `mc-mod-testing`, "Registering the suite,"
-for the manifest and the literal-version requirement that comes with it.
-
-### Run configurations
-```groovy
-loom {
-    runs {
-        datagen {
-            inherit server
-            name "Data Generation"
-            vmArg "-Dfabric-api.datagen"
-            vmArg "-Dfabric-api.datagen.output-dir=${file("src/main/generated")}"
-            vmArg "-Dfabric-api.datagen.modid=mymod"
-            runDir "build/datagen"
-        }
-        gametest {
-            server()
-            name "Game Test"
-            source sourceSets.gametest
-            vmArg "-Dfabric-api.gametest"
-            vmArg "-Dfabric-api.gametest.report-file=${layout.buildDirectory.file('junit-gametest.xml').get().asFile}"
-            runDir "build/gametest"
-        }
-    }
-}
-```
-
-## Coverage: merge unit-test and gametest execution data
-
-Apply the plugin and pin the tool version — the pin is what keeps the number
-comparable across members and reproducible between a local run and CI, since an
-unpinned JaCoCo tracks whatever the Gradle version ships:
+A member applies it after `plugins {}` and before `dependencies {}`:
 
 ```groovy
 plugins {
@@ -230,111 +112,127 @@ plugins {
     id 'jacoco'
 }
 
-jacoco {
-    toolVersion = '0.8.12'
+apply from: 'gradle/concord-common.gradle'
+
+repositories { /* only what the shared base does not cover */ }
+
+loom {
+    accessWidenerPath = file("src/main/resources/mymod.accesswidener")   // if it has one
+}
+
+dependencies { /* the mod's own */ }
+
+// mod-specific tasks, extra test inputs, ...
+```
+
+It is keyed on `archives_base_name` in `gradle.properties` (`mod_id` overrides it if a
+member ever needs a different id) and assumes the Java package is `com.rfizzle.<id>`.
+
+What the hub file **owns**:
+
+| Block | What it does |
+|---|---|
+| Version | `version = computeModVersion()` from `git describe` (bounded by a 10s timeout that warns), `group`, and `printVersion` — see "SemVer from the pushed tag" |
+| Repositories | The shared base only: `mavenCentral()`, Shedaniel (cloth), Modrinth, Bai |
+| Loom | `splitEnvironmentSourceSets()`, the `datagen` and `gametest` run configs, the `gametest` source set and its `gametestImplementation`/`gametestRuntimeOnly` configurations, `src/main/generated` as a resource root |
+| `runGametest` | The JaCoCo agent, the always-execute pin, and an `onlyIf` that skips the run until a real `@GameTest` exists; sets `-Dconcord.modid` for the shared `MockPlayers` |
+| `test` | `useJUnitPlatform()`, the `testRuntimeClasspath` fabric-api exclusion, the `concord.*` system properties and declared inputs the shared guard tests read (see `mc-mod-testing`) |
+| Coverage | `jacocoTestReport` and `jacocoMergedReport` — see "Coverage" |
+| Datagen | `cleanDatagenCache`, `verifyDatagenIdempotent` (with `--no-optional-locks`) — see the `mc-datagen` skill |
+| Packaging | `JavaCompile` release, `java { withSourcesJar() }`, the `fabric.mod.json` version expand, the `LICENSE` rename, and `**/.gitkeep` + `**/.cache` excludes on `processResources`, `processClientResources`, `jar`, and `sourcesJar` |
+
+What the member **keeps**: `plugins {}` (it must declare `fabric-loom` and `jacoco` — the
+file fails fast with a message if they are missing), `dependencies {}`, any repository
+beyond the base (TerraformersMC, BlameJared, Architectury, FTB, the GitHub-release ivy
+repo, ...), `accessWidenerPath`, and every mod-specific task or test input. The member
+configures the same tasks the hub file did (`test { inputs.files(...) }`,
+`repositories { maven { ... } }`); Gradle merges the blocks. Opt-in wiring stays per member
+too — for example the "client output on the test classpath" lines below, which some members
+deliberately omit.
+
+Rules that follow from the file being shared:
+
+- **A fix is a hub PR.** If a member needs something the file does not do, the answer is
+  a change to the file that every member can take, not a local fork of the block.
+- **No `Task.project` at execution.** Gradle 10 removes it. Capture every project value
+  into a local at configuration time (`def resolvedVersion = project.version.toString()`)
+  and use the local inside `doLast`, `filesMatching`, `rename`, and any closure whose
+  delegate is a task. Reading `project.foo` inside
+  `tasks.withType(JavaCompile).configureEach { ... }` counts: the delegate is the task.
+  `./gradlew build --warning-mode=all` surfaces any that slip in; `mod-ci.yml` passes it.
+- **Mod id literals.** The only place the id appears in the shared file is
+  `archives_base_name`. A member `build.gradle` should contain no mod-id literal beyond
+  `accessWidenerPath`.
+
+## Fabric Loom configuration
+
+`gradle/concord-common.gradle` owns the Loom wiring: `splitEnvironmentSourceSets()`
+(separating `main/` common code from `client/`), the `datagen` and `gametest` run configs,
+the `gametest` source set with its own configurations, and `src/main/generated` as a
+resource root. The member adds only what is its own:
+
+```groovy
+loom {
+    accessWidenerPath = file("src/main/resources/mymod.accesswidener")
 }
 ```
+
+The gametest source set carries its own `src/gametest/resources/fabric.mod.json` declaring a
+`<modid>-gametest` mod, which is where the `fabric-gametest` entrypoints belong — putting them
+in the shipped manifest breaks every dev run set. See `mc-mod-testing`, "Registering the suite,"
+for the manifest and the literal-version requirement that comes with it.
+
+## Coverage: merge unit-test and gametest execution data
 
 JaCoCo's default `jacocoTestReport` instruments only the `test` task, so code
 exercised exclusively in-game — event handlers, commands, registration, anything
 a gametest drives — reads as 0% even when it is thoroughly gametested. The
-merged report below is the mod's real coverage number; read per-package coverage
+merged report is the mod's real coverage number; read per-package coverage
 from it, never from the unit-test-only report.
 
-Attach the agent to the gametest server (Loom's `runGametest` is a `JavaExec`,
-so the JaCoCo task extension applies cleanly):
+`gradle/concord-common.gradle` wires all of it. The member declares `id 'jacoco'` in
+`plugins {}` and nothing else. What the hub file does:
 
-```groovy
-// Attach the JaCoCo agent to the gametest server so code only exercised
-// in-game counts toward coverage. The includes filter keeps the agent from
-// instrumenting Minecraft/Fabric classes.
-tasks.named('runGametest') {
-    jacoco.applyTo(it)
-    it.jacoco.destinationFile = layout.buildDirectory.file('jacoco/runGametest.exec').get().asFile
-    it.jacoco.includes = ['com.example.mymod.*']
-    // The agent's exec file is an @OutputFile, which would otherwise make this
-    // JavaExec up-to-date-checkable and silently skip the whole in-world suite
-    // on a repeat run — re-emitting the previous coverage number as if it were
-    // fresh. A gametest sweep must always execute.
-    it.outputs.upToDateWhen { false }
-}
-```
-
-Loom registers `runGametest` during `afterEvaluate`, so `tasks.named` resolves
-it only in repos where that has already happened by the time this block is
-evaluated. Where it hasn't, use the lazy form in both the agent attachment and
-the `mustRunAfter` below — same body, matched by name instead of resolved eagerly:
-
-```groovy
-tasks.matching { it.name == 'runGametest' }.configureEach { … }
-```
-
-Then merge both exec files into one report:
-
-```groovy
-// Single source of coverage truth: unit tests + gametests merged over src/main.
-tasks.register('jacocoMergedReport', JacocoReport) {
-    // The report reads compileJava/processResources output, so it must depend
-    // on them — without this, any invocation that compiles without also
-    // scheduling a test task (e.g. `gradlew jar jacocoMergedReport`) fails
-    // Gradle's implicit-dependency validation.
-    dependsOn tasks.named('classes')
-    // Ordering only — not dependsOn, so the report can run from existing exec
-    // data without forcing a gametest server spin-up.
-    mustRunAfter test, tasks.named('runGametest')
-    // fileTree only picks up exec files that exist, so the report still runs
-    // when one of the two sweeps hasn't.
-    executionData fileTree(layout.buildDirectory.dir('jacoco')) {
-        include 'test.exec', 'runGametest.exec'
-    }
-    sourceSets sourceSets.main
-    // A sweep that never ran leaves its exec file absent, and one that was
-    // interrupted leaves it empty — Gradle deletes the file before the run and
-    // the agent only dumps at JVM exit. A sweep that ran before the last
-    // recompile is worse: JaCoCo matches execution data by class ID, so a stale
-    // exec contributes nothing and its classes read 0% rather than failing.
-    // Every one of those is a partial number under the "merged" label with no
-    // indication, so say so.
-    doFirst {
-        def newestClass = classDirectories.asFileTree.files*.lastModified().max() ?: 0L
-        ['test.exec', 'runGametest.exec'].each { name ->
-            def execFile = layout.buildDirectory.file("jacoco/${name}").get().asFile
-            if (!execFile.exists() || execFile.length() == 0) {
-                logger.warn("jacocoMergedReport: ${name} is missing or empty — this report is NOT merged coverage")
-            } else if (execFile.lastModified() < newestClass) {
-                logger.warn("jacocoMergedReport: ${name} predates the compiled classes — anything recompiled " +
-                        'since that sweep reads 0%; re-run `make coverage`')
-            }
-        }
-    }
-    // Mixin bodies execute inside the transformed vanilla classes, so the
-    // agent can never attribute coverage to the mixin class files — excluding
-    // them keeps the denominator honest. Mixins stay thin (delegate to
-    // handlers, see mc-mixin-craft) so nothing measurable hides here.
-    // Derive from sourceSets.main lazily: the eager
-    // `files(classDirectories.files.collect { … })` form resolves at
-    // configuration time and discards the task dependency on `classes`.
-    classDirectories.setFrom(files(sourceSets.main.output).asFileTree.matching {
-        exclude 'com/example/mymod/mixin/**'
-    })
-    reports {
-        xml.required = true
-        html.required = true
-    }
-}
-```
-
-Full sweep and report:
+- Pins `jacoco { toolVersion = '0.8.12' }`. The pin keeps the number comparable across
+  members and reproducible between a local run and CI; an unpinned JaCoCo tracks whatever
+  the Gradle version ships.
+- Attaches the agent to `runGametest` (Loom's run task is a `JavaExec`, so the task
+  extension applies), with an `includes` filter of `com.rfizzle.<id>.*` so Minecraft and
+  Fabric classes are not instrumented, and pins `outputs.upToDateWhen { false }`. The agent's
+  exec file is an `@OutputFile`, which would otherwise make the run up-to-date-checkable and
+  silently skip the whole in-world suite on a repeat run, re-emitting the previous coverage
+  number as fresh. The task is matched lazily by name because Loom registers `runGametest`
+  during `afterEvaluate`.
+- Registers `jacocoMergedReport`, merging `build/jacoco/test.exec` and `runGametest.exec`
+  over `src/main`. It `dependsOn classes` (without it, `gradlew jar jacocoMergedReport` fails
+  implicit-dependency validation), `mustRunAfter` the two sweeps (ordering only, so it can run
+  from existing exec data without forcing a server spin-up), and derives its class
+  directories lazily from `sourceSets.main.output` (the eager `classDirectories.files.collect`
+  form resolves at configuration time and discards the dependency on `classes`).
+- Warns, without failing, when an exec file is missing, empty, or older than the compiled
+  classes. Each of those is a partial number under the "merged" label: JaCoCo keys execution
+  data by class id, so a stale exec contributes nothing and recompiled classes read 0%.
+- Excludes from the measured classes:
+  - **Mixins** (`com/rfizzle/<id>/mixin/**`). Their bodies execute inside the transformed
+    vanilla classes, so the agent can never attribute coverage to the mixin class files.
+    Mixins stay thin (see `mc-mixin-craft`), so nothing measurable hides.
+  - **Datagen providers.** They run only under `runDatagen`, never under `test` or
+    `runGametest`, so they sit in the denominator as permanently uncovered (a quarter to
+    two-fifths of a member's missed lines before the exclusion). The convention: anything under
+    a `datagen` package, plus any `*DataGenerator*` or `*Provider*` class inside the `data`
+    package. The rule is scoped to `data/` on purpose: the compat packages hold runtime
+    Jade/WTHIT `*Provider` classes, and `data/` also holds runtime persistence classes
+    (`PlayerData`, `*Attachments`, `*Data` records) that must stay measured. **Put datagen
+    classes in the `data` package, named `*DataGenerator` or `*Provider`** (or in a `datagen`
+    package) and they are excluded; name a runtime class in `data/` anything with `Provider`
+    in it and it silently drops out of the number.
 
 ```bash
-./gradlew test runGametest jacocoMergedReport 2>&1
+./gradlew test runGametest jacocoMergedReport 2>&1   # or: make coverage
 ```
 
-The report lands in `build/reports/jacoco/jacocoMergedReport/` (HTML + XML).
-Without `mustRunAfter`, Gradle 8 fails the report task with an
-implicit-dependency validation error whenever it runs in the same invocation as
-`test`/`runGametest` (both write into `build/jacoco`). What counts toward the
-number, which residual misses are acceptable, and the target live in the
+The report lands in `build/reports/jacoco/jacocoMergedReport/` (HTML + XML). What counts
+toward the number, which residual misses are acceptable, and the target live in the
 `mc-mod-testing` skill's coverage-accounting section.
 
 ## Dependency scoping
@@ -356,7 +254,9 @@ modLocalRuntime "dev.emi:emi-fabric:${project.emi_version}"
 
 ### Scope every third-party repository
 
-Every repository beyond `mavenCentral()` gets a `content { includeGroup ... }` block. Without it, Gradle probes every repo for every artifact — resolution is slower and non-deterministic, and any repo can answer for (and shadow) a group it doesn't own:
+The shared base (`mavenCentral()`, Shedaniel for `me.shedaniel.cloth`, Modrinth, Bai) comes
+from `gradle/concord-common.gradle`. Declare in the member's own `repositories {}` only what
+the base does not cover, with the same rule: every repository beyond `mavenCentral()` gets a `content { includeGroup ... }` block. Without it, Gradle probes every repo for every artifact — resolution is slower and non-deterministic, and any repo can answer for (and shadow) a group it doesn't own:
 
 ```groovy
 repositories {
@@ -476,26 +376,14 @@ file: add the loader above and delete the five toolchain keys from
 no ambiguity about which value the build uses. `toolchain-drift.yml` in concord
 reports any member still pinning a toolchain key to a stale value.
 
-Inject version into `fabric.mod.json`:
-```groovy
-processResources {
-    def projectVersion = project.version
-    inputs.property "version", projectVersion
-    filesMatching("fabric.mod.json") {
-        expand "version": projectVersion
-    }
-    exclude "**/.cache"
-}
-
-processClientResources { exclude "**/.cache" }   // when the client source set exists
-
-jar { exclude "**/.cache" }
-tasks.named('sourcesJar') { exclude "**/.cache" }
-```
-
-The `.cache` excludes keep Fabric datagen's hash index (`src/main/generated/.cache/`, see
-`mc-datagen`) out of the shipped jar and the sources jar. The datagen output dir is a
-resource root, so without them the index is packaged.
+`gradle/concord-common.gradle` injects the version into `fabric.mod.json` (a captured
+`resolvedVersion`, declared as a `processResources` input) and excludes `**/.cache` and
+`**/.gitkeep` from `processResources`, `processClientResources`, `jar`, and `sourcesJar`. The
+`.cache` excludes keep Fabric datagen's hash index (`src/main/generated/.cache/`, see
+`mc-datagen`) out of the shipped jar and the sources jar: the datagen output dir is a resource
+root, so without them the index is packaged. Verify with
+`unzip -l build/libs/<modid>-*.jar | grep -c .cache` after a `runDatagen` (expect 0), and the
+same on the `-sources.jar`.
 
 This configures the `main` source set only. Other source sets get an unconfigured
 `ProcessResources` task, so a `${version}` placeholder in a manifest they own is copied through
@@ -510,40 +398,11 @@ it as `-Pmod_version=<tag>`, so the built jar's version is exactly the tag. The
 injected, `computeModVersion()` derives `0.0.0+g<sha>` from git state so local builds are
 clearly non-releases, and it returns the injected tag verbatim on a release build (the
 `described == "v${base}"` branch) — so no build.gradle change is needed to adopt
-tag-driven releases:
+tag-driven releases.
 
-```groovy
-version = computeModVersion()
-
-def computeModVersion() {
-    def base = project.mod_version
-    def tagPrefix = "v"
-    def described = runGitDescribe(tagPrefix)
-    if (described == null || described.isEmpty()) {
-        return base
-    }
-    if (described == "${tagPrefix}${base}") {
-        return base
-    }
-    if (described == "${tagPrefix}${base}-dirty") {
-        return "${base}+dirty"
-    }
-    def postTag = described =~ /^\Q${tagPrefix}\E(\S+?)-(\d+)-g([0-9a-f]+)(-dirty)?$/
-    if (postTag.matches()) {
-        def commits = postTag[0][2]
-        def sha = postTag[0][3]
-        def dirty = postTag[0][4] ? '.dirty' : ''
-        return "${base}+${commits}.g${sha}${dirty}"
-    }
-    def shaOnly = described =~ /^([0-9a-f]+)(-dirty)?$/
-    if (shaOnly.matches()) {
-        def sha = shaOnly[0][1]
-        def dirty = shaOnly[0][2] ? '.dirty' : ''
-        return "${base}+g${sha}${dirty}"
-    }
-    return base
-}
-```
+`computeModVersion()` (in `gradle/concord-common.gradle`) maps the describe output onto SemVer
+build metadata: an exact tag is the bare version, commits past a tag are `+N.g<sha>`, a dirty tree
+adds `.dirty`, and no matching tag at all is `+g<sha>`.
 
 The `shaOnly` branch is what delivers the `0.0.0+g<sha>` promised above, and it is
 not optional. `git describe --always` falls back to a **bare sha** in a repo with
@@ -552,32 +411,8 @@ pattern does not match. Without that branch the version silently degrades to a
 bare `0.0.0`, and every untagged local build becomes indistinguishable from a
 release build of `0.0.0`.
 
-Run git through a helper with a **timeout**, never a bare `waitFor()`:
-
-```groovy
-import java.util.concurrent.TimeUnit   // at the top of build.gradle
-
-def runGitDescribe(String tagPrefix) {
-    try {
-        def proc = new ProcessBuilder('git', 'describe', '--tags',
-                '--match', "${tagPrefix}*", '--dirty', '--always')
-                .directory(rootDir)
-                .redirectErrorStream(true)
-                .start()
-        def finished = proc.waitFor(10, TimeUnit.SECONDS)
-        if (!finished) {
-            proc.destroyForcibly()
-            logger.warn('git describe timed out after 10s — version falls back to the mod_version base')
-            return null
-        }
-        def out = proc.inputStream.text.trim()
-        if (proc.exitValue() != 0) return null
-        return out
-    } catch (Exception ignored) {
-        return null
-    }
-}
-```
+The shared file runs git through a helper with a **timeout**, never a bare `waitFor()`:
+`waitFor(10, TimeUnit.SECONDS)`, then `destroyForcibly()` and a `logger.warn` on timeout.
 
 `waitFor()` with no bound blocks the **configuration phase** — every task in the
 build, not just the version computation — for as long as git hangs. Git does hang:
@@ -592,15 +427,9 @@ doing it silently is not: on a machine where git is slow rather than hung, every
 Gradle invocation pays the full ten seconds and then produces a jar versioned
 `0.0.0` with nothing in the log to say why.
 
-Expose a `printVersion` task for CI:
-```groovy
-tasks.register('printVersion') {
-    // Capture the value at configuration time: reaching for `project` inside a
-    // task action is a hard error under Gradle 10's configuration cache.
-    def resolvedVersion = version
-    doLast { println resolvedVersion }
-}
-```
+The shared file also exposes `printVersion` for CI and `make version`. It captures the version
+at configuration time (`def resolvedVersion = project.version.toString()`) because reaching for
+`project` inside a task action is removed in Gradle 10.
 
 ## Performance
 
@@ -614,13 +443,8 @@ org.gradle.jvmargs=-Xmx2G
 
 ## testRuntimeClasspath fix
 
-With `splitEnvironmentSourceSets`, an unmapped fabric-api sibling on `testRuntimeClasspath` conflicts with fabric-loader-junit:
-
-```groovy
-configurations.testRuntimeClasspath {
-    exclude group: 'net.fabricmc.fabric-api', module: 'fabric-api'
-}
-```
+With `splitEnvironmentSourceSets`, an unmapped fabric-api sibling on `testRuntimeClasspath` conflicts with fabric-loader-junit. `gradle/concord-common.gradle` applies the exclusion
+(`exclude group: 'net.fabricmc.fabric-api', module: 'fabric-api'` on `configurations.testRuntimeClasspath`), so a member does not repeat it.
 
 ### Client output on the test classpath
 
