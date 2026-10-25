@@ -43,9 +43,18 @@ in the local workspace. Normative for this repo:
 ./gradlew test runGametest jacocoMergedReport   # the mod's real coverage number
 ```
 
-`jacocoMergedReport` merges unit-test and gametest execution data over
-`src/main` — read coverage from it, never from the unit-test-only
+Read coverage from `jacocoMergedReport`, never from the unit-test-only
 `jacocoTestReport`, which scores every gametest-only line as 0%.
+
+The build wiring (version, base repositories, source sets, gametest/datagen
+runs, JaCoCo, packaging excludes) lives in the hub-owned
+`gradle/concord-common.gradle`, and the `make` targets in `concord.mk`. Both
+are synced verbatim from concord: change them there, never here.
+`build.gradle` keeps only the dependencies, this mod's extra repositories, and
+member-specific tasks. The shared guard tests (`com.rfizzle.concord.guard`) and
+the gametest `MockPlayers` helper (`com.rfizzle.concord.gametest`) are
+hub-owned too; gametests get mock players from `MockPlayers`, never from the
+deprecated `GameTestHelper.makeMockServerPlayerInLevel`.
 
 Run a single JUnit test:
 `./gradlew test --tests "com.rfizzle.prosperity.SomeTest"`

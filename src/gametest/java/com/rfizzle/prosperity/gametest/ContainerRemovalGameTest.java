@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
@@ -51,9 +52,8 @@ public class ContainerRemovalGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -111,7 +111,7 @@ public class ContainerRemovalGameTest implements FabricGameTest {
         assertNoBlockEntity(helper, rel,
                 "breaking the chest must remove its block entity (its attachment dies with it)");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -176,7 +176,7 @@ public class ContainerRemovalGameTest implements FabricGameTest {
                         && menu.getContainer().getContainerSize() == 27,
                 "the surviving primary half must serve a single 27-slot instance");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -206,7 +206,7 @@ public class ContainerRemovalGameTest implements FabricGameTest {
                         && menu.getContainer().getContainerSize() == 27,
                 "the surviving secondary half must serve a single 27-slot instance");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

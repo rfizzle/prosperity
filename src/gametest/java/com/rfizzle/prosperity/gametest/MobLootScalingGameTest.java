@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.api.LootModifierCallback;
 import com.rfizzle.prosperity.config.DistanceTier;
@@ -46,12 +47,11 @@ public class MobLootScalingGameTest implements FabricGameTest {
     }
 
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void resolveGatesHostilePlayerKills(GameTestHelper helper) {
         ProsperityConfig cfg = Prosperity.getConfig();
         List<DistanceTier> savedTiers = cfg.distanceTiers;
         boolean savedEnabled = cfg.enableMobLootScaling;
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(1, 1, 1));
         Cow cow = helper.spawn(EntityType.COW, new BlockPos(3, 1, 1));
         try {
@@ -86,7 +86,7 @@ public class MobLootScalingGameTest implements FabricGameTest {
             capturing = false;
             cfg.distanceTiers = savedTiers;
             cfg.enableMobLootScaling = savedEnabled;
-            player.discard();
+            MockPlayers.retire(player);
             zombie.discard();
             cow.discard();
         }

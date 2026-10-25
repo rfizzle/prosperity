@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.InstancedHopperMenu;
@@ -51,12 +52,10 @@ public class BlockHopperInstancingGameTest implements FabricGameTest {
         return be;
     }
 
-    // makeMockServerPlayerInLevel is the only factory that yields a connected ServerPlayer, which
-    // serveInstance needs to open the menu; makeMockPlayer returns a connection-less Player. The
-    // method is marked for removal in a later version but is the supported headless factory here.
-    @SuppressWarnings("removal")
+    // MockPlayers.serverPlayerInLevel is the only factory that yields a connected ServerPlayer, which
+    // serveInstance needs to open the menu; makeMockPlayer returns a connection-less Player.
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -106,8 +105,8 @@ public class BlockHopperInstancingGameTest implements FabricGameTest {
         helper.assertTrue(data.playerIds().size() == 2, "both players' UUIDs must be stored");
         helper.assertFalse(invA == invB, "each player must own a distinct inventory instance");
 
-        playerA.discard();
-        playerB.discard();
+        MockPlayers.retire(playerA);
+        MockPlayers.retire(playerB);
         helper.succeed();
     }
 
@@ -136,7 +135,7 @@ public class BlockHopperInstancingGameTest implements FabricGameTest {
         List<Entry> after = UnlootedContainers.scanChunk(level, chunk, player.getUUID());
         helper.assertFalse(entryAt(after, chunk, abs), "a generated hopper must drop the player's indicator");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -176,7 +175,7 @@ public class BlockHopperInstancingGameTest implements FabricGameTest {
                 helper.getLevel().getBlockEntity(helper.absolutePos(rel)) == null,
                 "breaking the hopper must remove its block entity (its attachment dies with it)");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

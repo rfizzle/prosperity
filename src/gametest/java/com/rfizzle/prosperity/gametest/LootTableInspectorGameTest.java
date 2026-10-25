@@ -24,7 +24,6 @@ public class LootTableInspectorGameTest implements FabricGameTest {
     private static final String BATCH = "loot_index";
 
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void enumeratesSimpleDungeonItemSources(GameTestHelper helper) {
         ReloadableServerRegistries.Holder registries = helper.getLevel().getServer().reloadableRegistries();
         Function<ResourceKey<LootTable>, LootTable> resolver = registries::getLootTable;

@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
@@ -59,12 +60,11 @@ public class PartyLootGameTest implements FabricGameTest {
         return be;
     }
 
-    // makeMockServerPlayerInLevel is the only factory that yields a connected ServerPlayer, which
-    // serveInstance needs to open the menu; every such player shares the name "test-mock-player" but
+    // MockPlayers.serverPlayerInLevel is the only factory that yields a connected ServerPlayer, which
+    // serveInstance needs to open the menu; every such player shares the name MockPlayers.MOCK_NAME but
     // has a distinct UUID, so two on one team both resolve to the team key by name.
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -90,7 +90,7 @@ public class PartyLootGameTest implements FabricGameTest {
     // Test teardown restores every piece of shared, cross-test state this batch touches: the placed
     // container (so a generated instance cannot leak into another batch's per-chunk indicator scan, which
     // reuses the same world region), the scoreboard team (mock players all share the name
-    // "test-mock-player", so a lingering membership would follow the next test's player), and the config.
+    // MockPlayers.MOCK_NAME, so a lingering membership would follow the next test's player), and the config.
     private void cleanup(GameTestHelper helper, boolean savedMode) {
         helper.setBlock(new BlockPos(1, 1, 1), Blocks.AIR);
         Scoreboard scoreboard = helper.getLevel().getScoreboard();
@@ -161,8 +161,8 @@ public class PartyLootGameTest implements FabricGameTest {
             helper.assertTrue(((ChestMenu) alice.containerMenu).getContainer().getItem(0).isEmpty(),
                     "an item a teammate took must be gone for the whole team");
         } finally {
-            alice.discard();
-            bob.discard();
+            MockPlayers.retire(alice);
+            MockPlayers.retire(bob);
             cleanup(helper, saved);
         }
         helper.succeed();
@@ -201,8 +201,8 @@ public class PartyLootGameTest implements FabricGameTest {
         } finally {
             alice.closeContainer();
             bob.closeContainer();
-            alice.discard();
-            bob.discard();
+            MockPlayers.retire(alice);
+            MockPlayers.retire(bob);
             cleanup(helper, saved);
         }
         helper.succeed();
@@ -226,7 +226,7 @@ public class PartyLootGameTest implements FabricGameTest {
             helper.assertTrue(data.teamKeys().isEmpty(),
                     "a teamless open must record no team membership snapshot");
         } finally {
-            player.discard();
+            MockPlayers.retire(player);
             cleanup(helper, saved);
         }
         helper.succeed();
@@ -267,7 +267,7 @@ public class PartyLootGameTest implements FabricGameTest {
             helper.assertTrue(data.getInventory(player.getUUID()) == null,
                     "a former member must not get a fresh individual roll from a team-looted chest");
         } finally {
-            player.discard();
+            MockPlayers.retire(player);
             cleanup(helper, saved);
         }
         helper.succeed();
@@ -305,7 +305,7 @@ public class PartyLootGameTest implements FabricGameTest {
             helper.assertTrue(data.teamKeys().isEmpty(),
                     "joining a team must not create a team instance for an already-looted chest");
         } finally {
-            player.discard();
+            MockPlayers.retire(player);
             cleanup(helper, saved);
         }
         helper.succeed();
@@ -330,7 +330,7 @@ public class PartyLootGameTest implements FabricGameTest {
             helper.assertTrue(data.teamKeys().isEmpty(),
                     "the mode being off must record no team snapshot even for a team member");
         } finally {
-            player.discard();
+            MockPlayers.retire(player);
             cleanup(helper, saved);
         }
         helper.succeed();

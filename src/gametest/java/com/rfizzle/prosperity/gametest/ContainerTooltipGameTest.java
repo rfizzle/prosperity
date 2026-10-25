@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.compat.LootTooltip;
 import com.rfizzle.prosperity.compat.LootTooltip.Status;
@@ -48,9 +49,8 @@ public class ContainerTooltipGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -119,7 +119,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
                 "the distance-tier line is present with scaling enabled");
         helper.assertTrue(lineWithKey(lines, "tooltip.prosperity.refresh") == null,
                 "no refresh timer with refresh disabled");
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -133,7 +133,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
 
         helper.assertTrue(LootTooltip.readStatus(writeData(helper, rel, player)) == Status.LOOTED,
                 "a generated container reads Looted for the player who opened it");
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -150,8 +150,8 @@ public class ContainerTooltipGameTest implements FabricGameTest {
                 "player A generated, so A sees Looted");
         helper.assertTrue(LootTooltip.readStatus(writeData(helper, rel, playerB)) == Status.UNLOOTED,
                 "player B never opened it, so B still sees Unlooted");
-        playerA.discard();
-        playerB.discard();
+        MockPlayers.retire(playerA);
+        MockPlayers.retire(playerB);
         helper.succeed();
     }
 
@@ -165,7 +165,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
         CompoundTag tag = writeData(helper, rel, player);
         helper.assertTrue(LootTooltip.readStatus(tag) == null, "plain storage must not write tooltip data");
         helper.assertTrue(LootTooltip.buildLines(tag).isEmpty(), "and so renders no lines");
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -183,7 +183,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
                     "a past-cooldown instance reads Refreshed");
             helper.assertTrue(lineWithKey(LootTooltip.buildLines(tag), "tooltip.prosperity.refresh") == null,
                     "an expired instance shows no running countdown");
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }
@@ -204,7 +204,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
             // generate and the read happen on the same tick, so the full one-day cooldown remains.
             Object arg = ((TranslatableContents) refresh.getContents()).getArgs()[0];
             helper.assertTrue("1d 0h".equals(arg), "a fresh one-day cooldown formats as '1d 0h', was " + arg);
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }
@@ -224,7 +224,7 @@ public class ContainerTooltipGameTest implements FabricGameTest {
             helper.assertTrue(lineWithKey(lines, "tooltip.prosperity.tier") == null,
                     "vanilla loot shows no scaling lines");
             helper.assertTrue(lines.size() == 1, "vanilla renders only the status line");
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }

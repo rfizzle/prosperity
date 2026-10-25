@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.LootStatsData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
@@ -54,9 +55,8 @@ public class LootStatsGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayer(GameTestHelper helper) {
-        return helper.makeMockServerPlayerInLevel();
+        return MockPlayers.serverPlayerInLevel(helper);
     }
 
     /** Generate the player's instance for the container at {@code rel}, as a real open would. */
@@ -97,7 +97,7 @@ public class LootStatsGameTest implements FabricGameTest {
         helper.assertTrue(ProsperityAttachments.stats(player).containersLooted() == 1,
                 "a return visit must not count again");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -119,7 +119,7 @@ public class LootStatsGameTest implements FabricGameTest {
         helper.assertTrue(stats.tierCounts().getOrDefault(tier, 0L) == 2L,
                 "both generations must land in the same tier bucket");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -151,7 +151,7 @@ public class LootStatsGameTest implements FabricGameTest {
         helper.assertTrue(stats != null && stats.containersLooted() == 1,
                 "a double chest must count as exactly one generation");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -171,8 +171,8 @@ public class LootStatsGameTest implements FabricGameTest {
         helper.assertTrue(ProsperityAttachments.stats(second).containersLooted() == 1,
                 "the second player's stats must count only their own generation");
 
-        first.discard();
-        second.discard();
+        MockPlayers.retire(first);
+        MockPlayers.retire(second);
         helper.succeed();
     }
 

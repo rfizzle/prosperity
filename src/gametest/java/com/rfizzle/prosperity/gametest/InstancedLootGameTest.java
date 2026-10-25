@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
@@ -53,12 +54,10 @@ public class InstancedLootGameTest implements FabricGameTest {
         return be;
     }
 
-    // makeMockServerPlayerInLevel is the only factory that yields a connected ServerPlayer, which
-    // serveInstance needs to open the menu; makeMockPlayer returns a connection-less Player. The
-    // method is marked for removal in a later version but is the supported headless factory here.
-    @SuppressWarnings("removal")
+    // MockPlayers.serverPlayerInLevel is the only factory that yields a connected ServerPlayer, which
+    // serveInstance needs to open the menu; makeMockPlayer returns a connection-less Player.
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -101,8 +100,8 @@ public class InstancedLootGameTest implements FabricGameTest {
         helper.assertTrue(ItemStack.matches(invB.get(0), bSlotZero),
                 "mutating one player's inventory must not affect the other's");
 
-        playerA.discard();
-        playerB.discard();
+        MockPlayers.retire(playerA);
+        MockPlayers.retire(playerB);
         helper.succeed();
     }
 
@@ -139,7 +138,7 @@ public class InstancedLootGameTest implements FabricGameTest {
         helper.assertTrue(ItemStack.matches(reopened.get(0), new ItemStack(Items.DIAMOND, 5)),
                 "a return visit must show the player's prior state, not new loot");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -182,7 +181,7 @@ public class InstancedLootGameTest implements FabricGameTest {
                     "an evicted instance must reopen empty, not with fresh loot");
         }
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -200,7 +199,7 @@ public class InstancedLootGameTest implements FabricGameTest {
         helper.assertTrue(ProsperityAttachments.get(be) == null,
                 "a non-loot container must not attach an instance");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -222,7 +221,7 @@ public class InstancedLootGameTest implements FabricGameTest {
             Prosperity.getConfig().enableInstancedLoot = saved;
         }
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -239,7 +238,7 @@ public class InstancedLootGameTest implements FabricGameTest {
         BlockState state = helper.getLevel().getBlockState(helper.absolutePos(rel));
         helper.assertTrue(state.getValue(BarrelBlock.OPEN), "the barrel lid must open on interaction");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 

@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.UnlootedContainers;
@@ -53,9 +54,8 @@ public class BlacklistGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnRealPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -109,7 +109,7 @@ public class BlacklistGameTest implements FabricGameTest {
                     "a blacklisted container must not appear in the unlooted scan");
         });
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -129,7 +129,7 @@ public class BlacklistGameTest implements FabricGameTest {
                     "a wildcard-blacklisted container must not appear in the unlooted scan");
         });
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -150,7 +150,7 @@ public class BlacklistGameTest implements FabricGameTest {
                     "a non-blacklisted first open must null the vanilla loot table (S-006)");
         });
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -168,7 +168,7 @@ public class BlacklistGameTest implements FabricGameTest {
                     "an empty blacklist must let the container instance");
         });
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

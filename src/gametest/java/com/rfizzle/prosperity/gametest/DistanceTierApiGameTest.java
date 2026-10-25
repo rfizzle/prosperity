@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.api.DistanceTierInfo;
 import com.rfizzle.prosperity.api.ProsperityAPI;
@@ -26,7 +27,6 @@ public class DistanceTierApiGameTest implements FabricGameTest {
     private static final String BATCH = "distance_tier_api";
 
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void distanceTierApiResolvesBandsAndDimensions(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         ServerLevel nether = level.getServer().getLevel(Level.NETHER);
@@ -47,14 +47,14 @@ public class DistanceTierApiGameTest implements FabricGameTest {
 
         // getTierForPlayer reads the player's own position; teleport to a known wilderness coordinate
         // and assert it agrees with getDistanceTier at the same block.
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         player.teleportTo(5000.5, 64.0, 0.5);
         DistanceTierInfo forPlayer = ProsperityAPI.getTierForPlayer(player);
         DistanceTierInfo atBlock = ProsperityAPI.getDistanceTier(level, player.blockPosition());
         assertTier(helper, forPlayer, "wilderness", 2);
         helper.assertTrue(forPlayer.name().equals(atBlock.name()) && forPlayer.index() == atBlock.index(),
                 "getTierForPlayer must match getDistanceTier at the player's position");
-        player.discard();
+        MockPlayers.retire(player);
 
         boolean savedEnd = Prosperity.getConfig().endAlwaysMaxTier;
         try {

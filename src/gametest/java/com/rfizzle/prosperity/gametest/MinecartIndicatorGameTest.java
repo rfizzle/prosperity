@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.loot.InstancedLootInteraction;
 import com.rfizzle.prosperity.loot.MinecartContainerAdapter;
 import com.rfizzle.prosperity.loot.MinecartLootInteraction;
@@ -33,9 +34,8 @@ public class MinecartIndicatorGameTest implements FabricGameTest {
     private static final ResourceKey<LootTable> TABLE = BuiltInLootTables.ABANDONED_MINESHAFT;
     private static final long SEED = 4242L;
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -79,7 +79,7 @@ public class MinecartIndicatorGameTest implements FabricGameTest {
         helper.assertTrue(scan(helper, rel, b).contains(cart.getId()),
                 "player B's unlooted set should be unaffected by player A generating");
 
-        playerA.discard();
+        MockPlayers.retire(playerA);
         helper.succeed();
     }
 

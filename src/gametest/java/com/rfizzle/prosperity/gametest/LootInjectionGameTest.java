@@ -62,7 +62,6 @@ public class LootInjectionGameTest implements FabricGameTest {
 
     /** The wildcard expanded at load: a vanilla chest table is a registered injection target. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void wildcardExpandsToVanillaChestTables(GameTestHelper helper) {
         helper.assertTrue(InjectionRegistry.targets().contains(SIMPLE_DUNGEON.location()),
                 "all_chests must expand to minecraft:chests/simple_dungeon after reload");
@@ -76,7 +75,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * the whether and the which of the bonus are both deterministic per (seed, salt, player).
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void frontierInjectionIsChanceGatedAndDeterministic(GameTestHelper helper) {
         int samples = 2000;
         int placed = 0;
@@ -111,7 +109,6 @@ public class LootInjectionGameTest implements FabricGameTest {
 
     /** Below the lowest injection tier (Local), nothing is injected. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void injectsNothingAtLocal(GameTestHelper helper) {
         NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
         LootInjectionManager.augment(items, SIMPLE_DUNGEON, ProsperityConfig.LOCAL_SENTINEL, helper.getLevel(), SEED, 0L, PLAYER);
@@ -128,7 +125,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * the unit test). An unscoped group at the same tier fires in both dimensions.
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void dimensionScopedInjectionSkipsOverworld(GameTestHelper helper) {
         ResourceLocation overworld = helper.getLevel().dimension().location();
         ProsperityConfig cfg = Prosperity.getConfig();
@@ -160,7 +156,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * once Fabric is loaded, so this cannot be a unit test.
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void fileLevelLoadConditionsAreHonored(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         helper.assertTrue(conditionMet(allModsLoaded("prosperity"), registries),
@@ -177,7 +172,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * issue #59).
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void generativeEntryDrawsOneTaggedEnchantment(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         Entry generative = new Entry(new ItemStack(Items.ENCHANTED_BOOK),
@@ -210,7 +204,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * wasted, and a pool of only unresolvable entries injects nothing.
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void emptyTagDoesNotConsumeTheDraw(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         Entry unresolvable = new Entry(new ItemStack(Items.ENCHANTED_BOOK),
@@ -236,7 +229,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * the treasure tag itself is all vanilla-treasure yet curse-free.
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void shippedRarityTagsResolveTreasureFree(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         for (String band : List.of("common", "uncommon", "rare", "very_rare")) {
@@ -269,7 +261,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * Sharpness 3 / Protection 3 (issue #68 acceptance).
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void frontierBookDrawVariesEnchantmentAndLevel(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         Entry frontierBook = new Entry(new ItemStack(Items.ENCHANTED_BOOK),
@@ -304,7 +295,6 @@ public class LootInjectionGameTest implements FabricGameTest {
      * structure seed — the completion is already earned, so the pool is drawn ungated.
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void completionBonusBypassesChanceGate(GameTestHelper helper) {
         for (long structureSeed = 0; structureSeed < 20; structureSeed++) {
             ItemStack bonus = LootInjectionManager.completionBonus(SIMPLE_DUNGEON, tier("frontier"),

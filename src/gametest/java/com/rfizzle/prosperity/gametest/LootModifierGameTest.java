@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.api.LootModifierCallback;
 import com.rfizzle.prosperity.api.LootModifierContext;
 import com.rfizzle.prosperity.config.DistanceTier;
@@ -66,9 +67,8 @@ public class LootModifierGameTest implements FabricGameTest {
 
     /** The default listener folds the player's vanilla {@code generic.luck} into the context luck. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void defaultLuckListenerAddsVanillaLuck(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         AttributeInstance luck = player.getAttribute(Attributes.LUCK);
         helper.assertTrue(luck != null, "a player must carry the generic.luck attribute");
         luck.setBaseValue(3.0);
@@ -84,9 +84,8 @@ public class LootModifierGameTest implements FabricGameTest {
 
     /** Listeners fire in registration order; a later listener sees the earlier listener's mutation. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void listenersFireInOrderAndAccumulate(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
         // Zero quality and zero vanilla luck so the seed and the default listener contribute nothing,
         // leaving only the two test listeners' additive contributions to observe.
@@ -109,10 +108,9 @@ public class LootModifierGameTest implements FabricGameTest {
     /** A listener's final stack multiplier scales the generated counts; luck is held fixed so the
      * rolled items are identical and only the counts differ. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void finalStackMultiplierFlowsIntoGeneration(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         Vec3 origin = Vec3.atCenterOf(helper.absolutePos(new BlockPos(1, 1, 1)));
         BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
         DistanceTier tier = new DistanceTier("test", 0, 1.0, 0);

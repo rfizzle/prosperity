@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.ContainerProtection;
@@ -39,7 +40,6 @@ public class ContainerProtectionGameTest implements FabricGameTest {
     private static final UUID PENDING = new UUID(0L, 2L);
 
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void protectionGateRespectsStateAndConfig(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
 
@@ -73,7 +73,7 @@ public class ContainerProtectionGameTest implements FabricGameTest {
         float savedMultiplier = Prosperity.getConfig().protectionBreakMultiplier;
         boolean savedUnbreakable = Prosperity.getConfig().protectionUnbreakable;
         boolean savedRefresh = Prosperity.getConfig().enableLootRefresh;
-        ServerPlayer creative = helper.makeMockServerPlayerInLevel();
+        ServerPlayer creative = MockPlayers.serverPlayerInLevel(helper);
         creative.setGameMode(GameType.CREATIVE);
         try {
             Prosperity.getConfig().enableContainerProtection = true;
@@ -150,7 +150,7 @@ public class ContainerProtectionGameTest implements FabricGameTest {
             Prosperity.getConfig().protectionBreakMultiplier = savedMultiplier;
             Prosperity.getConfig().protectionUnbreakable = savedUnbreakable;
             Prosperity.getConfig().enableLootRefresh = savedRefresh;
-            creative.discard();
+            MockPlayers.retire(creative);
         }
         helper.succeed();
     }
@@ -201,10 +201,9 @@ public class ContainerProtectionGameTest implements FabricGameTest {
      * load/generate the chunk on the server thread).
      */
     @GameTest(batch = "container_protection_query", template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void protectionQueryRejectsFarAndUnloadedPositions(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 
         BlockPos nearRel = new BlockPos(1, 1, 1);
         helper.setBlock(nearRel, Blocks.CHEST);

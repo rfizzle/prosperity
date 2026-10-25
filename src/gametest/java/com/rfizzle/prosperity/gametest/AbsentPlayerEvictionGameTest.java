@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
@@ -55,9 +56,8 @@ public class AbsentPlayerEvictionGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -111,7 +111,7 @@ public class AbsentPlayerEvictionGameTest implements FabricGameTest {
             helper.assertTrue(data.hasGenerated(opener.getUUID()),
                     "the opener's own fresh instance is stored after the prune");
 
-            opener.discard();
+            MockPlayers.retire(opener);
             helper.succeed();
         });
     }
@@ -135,7 +135,7 @@ public class AbsentPlayerEvictionGameTest implements FabricGameTest {
             helper.assertTrue(data.hasInventory(ghost), "an under-threshold player keeps their inventory");
             helper.assertTrue(data.getRefreshCount(ghost) == 1L, "and keeps their salt");
 
-            opener.discard();
+            MockPlayers.retire(opener);
             helper.succeed();
         });
     }
@@ -159,7 +159,7 @@ public class AbsentPlayerEvictionGameTest implements FabricGameTest {
             helper.assertTrue(data.getLastGeneratedTick(ghost) == 0L, "the tick is retained");
             helper.assertTrue(data.getRefreshCount(ghost) == 1L, "the salt is retained");
 
-            opener.discard();
+            MockPlayers.retire(opener);
             helper.succeed();
         });
     }
@@ -200,7 +200,7 @@ public class AbsentPlayerEvictionGameTest implements FabricGameTest {
             helper.assertTrue(helper.absolutePos(leftRel).equals(secondaryData.getRedirect()),
                     "eviction must not disturb the secondary's redirect to the primary");
 
-            opener.discard();
+            MockPlayers.retire(opener);
             helper.succeed();
         });
     }
@@ -241,7 +241,7 @@ public class AbsentPlayerEvictionGameTest implements FabricGameTest {
             helper.assertTrue(first == second,
                     "an online player's instance must survive the prune on a return visit");
 
-            opener.discard();
+            MockPlayers.retire(opener);
             helper.succeed();
         });
     }

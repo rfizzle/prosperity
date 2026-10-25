@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.api.LootModifierCallback;
 import com.rfizzle.prosperity.config.DistanceTier;
@@ -46,12 +47,11 @@ public class FishingLootScalingGameTest implements FabricGameTest {
     }
 
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void resolveGatesFishingCatches(GameTestHelper helper) {
         ProsperityConfig cfg = Prosperity.getConfig();
         List<DistanceTier> savedTiers = cfg.distanceTiers;
         boolean savedEnabled = cfg.enableFishingLootScaling;
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         player.moveTo(helper.absoluteVec(new BlockPos(1, 2, 1).getCenter()));
         FishingHook hook = new FishingHook(player, helper.getLevel(), 0, 0);
         try {
@@ -85,7 +85,7 @@ public class FishingLootScalingGameTest implements FabricGameTest {
             cfg.distanceTiers = savedTiers;
             cfg.enableFishingLootScaling = savedEnabled;
             hook.discard();
-            player.discard();
+            MockPlayers.retire(player);
         }
         helper.succeed();
     }

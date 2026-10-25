@@ -70,7 +70,7 @@ Fabric API is the only non-trivial required dependency — Prosperity attaches p
 ./gradlew runServer      # launch dev server
 ```
 
-See [`AGENTS.md`](AGENTS.md) for source layout, conventions, and the suite-wide standards this repo conforms to.
+See [`AGENTS.md`](AGENTS.md) for source layout, conventions, and the suite-wide standards this repo follows.
 
 ---
 

@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.LootStatsData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
@@ -64,14 +65,13 @@ public class LootNotificationGameTest implements FabricGameTest {
      * count's 0 → 1 transition, exercised end-to-end in {@code LootStatsGameTest}.
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void firstOpenMessageHonorsConfigToggle(GameTestHelper helper) {
         helper.assertTrue(
                 LootNotification.buildFirstOpen().getString()
                         .equals("This loot was rolled just for you — other players get their own."),
                 "the first-open message must render its plain chat sentence");
 
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         boolean saved = Prosperity.getConfig().enableLootNotifications;
         try {
             Prosperity.getConfig().enableLootNotifications = false;
@@ -86,7 +86,7 @@ public class LootNotificationGameTest implements FabricGameTest {
         } finally {
             Prosperity.getConfig().enableLootNotifications = saved;
         }
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -100,7 +100,6 @@ public class LootNotificationGameTest implements FabricGameTest {
      * real opens, not just a hand-built count.
      */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void firstOpenFiresOnceOnRealOpen(GameTestHelper helper) {
         ResourceKey<LootTable> table = BuiltInLootTables.SIMPLE_DUNGEON;
         BlockPos rel = new BlockPos(1, 1, 1);
@@ -109,7 +108,7 @@ public class LootNotificationGameTest implements FabricGameTest {
                 (RandomizableContainerBlockEntity) helper.getBlockEntity(rel);
         be.setLootTable(table);
         be.setLootTableSeed(8686L);
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 
         boolean saved = Prosperity.getConfig().enableLootNotifications;
         try {
@@ -130,16 +129,15 @@ public class LootNotificationGameTest implements FabricGameTest {
         } finally {
             Prosperity.getConfig().enableLootNotifications = saved;
         }
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
     /** {@code send} returns null (and shows nothing) when notifications are off, the message when on. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void sendHonorsConfigToggle(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         Vec3 origin = Vec3.atCenterOf(helper.absolutePos(new BlockPos(1, 1, 1)));
         // No structure, so the suffix never applies regardless of the base tier resolved at the origin.
         LootScaling.ScaledTier scaled = new LootScaling.ScaledTier(WILDERNESS, null);
@@ -158,7 +156,7 @@ public class LootNotificationGameTest implements FabricGameTest {
         } finally {
             Prosperity.getConfig().enableLootNotifications = saved;
         }
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }
