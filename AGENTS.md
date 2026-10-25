@@ -25,10 +25,10 @@ This mod is a member of Concord, a modular collection of system overhauls. Suite
 the [concord repo](https://github.com/rfizzle/concord) — checked out at `../concord/`
 in the local workspace. Normative for this repo:
 
-- [API-STANDARD.md](https://github.com/rfizzle/concord/blob/master/API-STANDARD.md) — the `api` package conventions (conforms to v1)
-- [HUD-STANDARD.md](https://github.com/rfizzle/concord/blob/master/HUD-STANDARD.md) — HUD slot, stacking, accessors (conforms to v1)
+- [API-STANDARD.md](https://github.com/rfizzle/concord/blob/master/API-STANDARD.md) — the `api` package conventions
+- [HUD-STANDARD.md](https://github.com/rfizzle/concord/blob/master/HUD-STANDARD.md) — HUD slot, stacking, accessors
 - [DESIGN-SYSTEM.md](https://github.com/rfizzle/concord/blob/master/design/DESIGN-SYSTEM.md) — palette, typography, logo rules
-- [REPO-LAYOUT.md](https://github.com/rfizzle/concord/blob/master/REPO-LAYOUT.md) — where non-code files live (conforms)
+- [REPO-LAYOUT.md](https://github.com/rfizzle/concord/blob/master/REPO-LAYOUT.md) — where non-code files live
 
 ## Build commands
 
@@ -100,13 +100,15 @@ Fabric APIs must use gametests instead.
 
 ## Compat integrations
 
-The mod has optional integrations (all `modCompileOnly` — not bundled —
-deferred to a later phase):
+The mod has optional integrations (all `modCompileOnly` or soft-detected -- none are bundled, and each
+is declared in `fabric.mod.json` `suggests` where it is a mod):
 
-- **Mod Menu** — config screen entry
-- **Cloth Config** — settings GUI builder
-- **Jade / WTHIT** — container loot-status tooltips
-- **EMI / REI / JEI** — loot index / recipe viewer support
+- **Mod Menu + Cloth Config** -- config screen (`compat/modmenu`; the Cloth screen is isolated in
+  `ProsperityConfigScreen` behind an `isModLoaded("cloth-config")` guard)
+- **Jade / WTHIT** -- container loot-status tooltips (`compat/jade`, `compat/wthit`)
+- **EMI / REI / JEI** -- loot index / recipe viewer support (`compat/emi`, `compat/rei`, `compat/jei`)
+- **Tribulation, Meridian** -- loot bias and tier-gear drops (`compat/tribulation`), enchant power (`compat/meridian`)
+- **Open Parties and Claims, FTB Teams** -- party/team loot sharing (`compat/opac`, `compat/ftbteams`)
 
 Compat classes live under `com.rfizzle.prosperity.compat.<modid>`.
 
