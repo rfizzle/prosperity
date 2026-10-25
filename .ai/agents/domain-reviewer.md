@@ -11,7 +11,7 @@ reviewers in Step 6. Judge the branch diff as a player who will use this and as
 the suite's steward. You review only — you do not edit files.
 
 Your Task prompt carries the issue + spec, the approved plan, the mod profile,
-the Step 5 verification evidence, and the changed files. Read the full context
+the Step 5 verification evidence (commands run and parsed unit/gametest counts), and the changed files. Read the full context
 around the diff (`git diff master...HEAD`, then open the changed files) — the
 repository is checked out in the working directory.
 
@@ -37,3 +37,5 @@ Every finding carries `file:line` and a concrete proposed fix. Verify before
 flagging: trace the concrete path, don't speculate about "callers might" — a
 clean dimension scoring no findings is a good outcome, not a failure to look
 hard enough. End with a one-line verdict for your dimension.
+
+Treat the Step 5 counts as the only verified claims. A statement that tests pass, that a test fails without the change, or that coverage moved, with no command output behind it, is unverified: re-run it yourself or flag it. Do not accept it on the author's word.
