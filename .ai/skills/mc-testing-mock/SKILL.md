@@ -1,6 +1,6 @@
 ---
 name: mc-testing-mock
-description: Mock player helpers in Fabric Gametest — the canonical MockPlayers class (connected replica, the Connected record exposing the packet channel, spectator variant, and retire/retireLeaked teardown), plus makeMockPlayer. TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, outbound-packet assertions, or mock-player teardown in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test, or when writing production code that must distinguish real players from fake/automation players (FakePlayer guards).
+description: Mock player helpers in Fabric Gametest — the hub-owned shared MockPlayers class (connected replica, the Connected record exposing the packet channel, spectator variant, and retire/retireLeaked teardown), plus makeMockPlayer. TRIGGER proactively when writing or editing *GameTest.java that needs a player instance, or when discussing mock players, player positioning, connection null checks, outbound-packet assertions, or mock-player teardown in gametest context. ALSO trigger when reviewing gametest code that uses ServerPlayer or Player in a test, or when writing production code that must distinguish real players from fake/automation players (FakePlayer guards).
 ---
 
 The user is writing or reviewing Fabric gametest code that needs a mock player. Apply this guidance to avoid repeated lookups of how the connected-`ServerPlayer` replica and `makeMockPlayer` work.
@@ -15,7 +15,7 @@ Gametests need one of two distinct mock players. They are NOT interchangeable: a
 ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 ```
 
-`GameTestHelper.makeMockServerPlayerInLevel()` is `@Deprecated(forRemoval = true)` in MC 1.21.1, and neither vanilla nor the Fabric gametest API ships a non-deprecated replacement. Compiling against it emits `[removal]` warnings that a future MC/Fabric bump turns into a hard break. The current way to get a connected server player is a small local gametest helper — a `MockPlayers.serverPlayerInLevel(helper)` — that reproduces the vanilla method's construction faithfully using only public, non-deprecated APIs, so no access widener is needed.
+`GameTestHelper.makeMockServerPlayerInLevel()` is `@Deprecated(forRemoval = true)` in MC 1.21.1, and neither vanilla nor the Fabric gametest API ships a non-deprecated replacement. Compiling against it emits `[removal]` warnings that a future MC/Fabric bump turns into a hard break. The current way to get a connected server player is the shared gametest helper `com.rfizzle.concord.gametest.MockPlayers.serverPlayerInLevel(helper)` — hub-owned, present in every member — that reproduces the vanilla method's construction faithfully using only public, non-deprecated APIs, so no access widener is needed.
 
 **The faithful replica — five steps (MC 1.21.1):**
 
@@ -25,94 +25,37 @@ ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
 4. Create a real `Connection(PacketFlow.SERVERBOUND)` and back it with `new EmbeddedChannel(connection)` — the embedded channel absorbs packets so `connection.send(...)` paths work instead of NPEing. **Keep the channel**: it is the only handle on what the server sent this player
 5. Call `server.getPlayerList().placeNewPlayer(connection, player, cookie)` — this **fully registers the player** in the server's player list, sets up `ServerGamePacketListenerImpl`, and adds the player to the level
 
-#### The canonical `MockPlayers`
+#### The shared `MockPlayers`
 
-One class per mod, in the gametest source set (`com.rfizzle.<mod>.gametest.util.MockPlayers`),
-with this shape. The private `connectedInLevel` does the construction once; the public factories
-are the three ways tests need it, and `retire`/`retireLeaked` are the teardown, explained under
-"Cleanup" below.
+One class for the whole suite: `com.rfizzle.concord.gametest.MockPlayers`, at
+`src/gametest/java/com/rfizzle/concord/gametest/MockPlayers.java` in every member. It is
+**hub-owned** — propagated verbatim by the `concord-sync` PR, so edit it in `rfizzle/concord`
+(`propagate/src/gametest/java/...`), never in a member. Do not write a per-mod copy, and import
+`com.rfizzle.concord.gametest.MockPlayers` rather than a `<mod>.gametest.util` one. It is
+build/test-time code in the gametest source set, which is never shipped and never co-loaded with
+another member's; the rule that runtime classes must never be duplicated across jars (every mod
+shares one classloader in-game) is why nothing like it exists for runtime code.
 
-```java
-public final class MockPlayers {
+The API:
 
-    /**
-     * Profile name for this mod's mocks. Namespaced, because a sweep matches on it and
-     * several mods can share a gametest level — an unnamespaced "test-mock-player" lets
-     * one mod's sweep retire another mod's live player.
-     */
-    private static final String MOCK_NAME = MyMod.MOD_ID + "-test-mock-player";
+| Member | Use |
+|---|---|
+| `serverPlayerInLevel(helper)` | The connected replica; most tests |
+| `connectedServerPlayerInLevel(helper)` → `Connected(player, channel)` | When asserting on what the server sent the player |
+| `spectatorServerPlayerInLevel(helper)` → `Connected` | A spectator left out of a feature's accounting or broadcasts |
+| `retire(player)` | Idempotent teardown: wake, `PlayerList#remove`, `discard()` — see "Cleanup" |
+| `retireLeaked(helper)` | Sweep of leaked mocks in the helper's level; needs a batch of its own — see "Cleanup" |
+| `MOCK_NAME` | The profile name, `<modid>-test-mock-player` |
 
-    /** A connected player plus the embedded channel its outbound packets land in. */
-    public record Connected(ServerPlayer player, EmbeddedChannel channel) {
-    }
+The mock's profile name is namespaced by the mod under test, because a sweep matches on it and
+several mods can share a gametest level — an unnamespaced `"test-mock-player"` lets one mod's
+sweep retire another mod's live player. The mod id arrives as the `concord.modid` system property
+that `gradle/concord-common.gradle` sets on `runGametest`; a run without it falls back to
+`concord`. The private `connectedInLevel` does the five-step construction once.
 
-    private MockPlayers() {
-    }
-
-    /** The connected replica; spawns near world spawn — teleport as needed. */
-    public static ServerPlayer serverPlayerInLevel(GameTestHelper helper) {
-        return connectedServerPlayerInLevel(helper).player();
-    }
-
-    /** Same replica, with the packet-absorbing channel exposed for outbound assertions. */
-    public static Connected connectedServerPlayerInLevel(GameTestHelper helper) {
-        return connectedInLevel(helper, false);
-    }
-
-    /** A connected replica that reports as a spectator. */
-    public static Connected spectatorServerPlayerInLevel(GameTestHelper helper) {
-        return connectedInLevel(helper, true);
-    }
-
-    /** Fully retires a connected mock: awake, out of the player list, entity discarded. */
-    public static void retire(ServerPlayer player) {
-        if (player.isRemoved()) {
-            return;                       // PlayerList#remove is not idempotent
-        }
-        if (player.isSleeping()) {
-            player.stopSleepInBed(true, true);
-        }
-        MinecraftServer server = player.getServer();
-        if (server != null) {
-            server.getPlayerList().remove(player);
-        }
-        player.discard();
-    }
-
-    /** Retires any mock this mod leaked into the helper's level. See the batch caveat below. */
-    public static void retireLeaked(GameTestHelper helper) {
-        for (ServerPlayer player : List.copyOf(helper.getLevel().players())) {
-            if (MOCK_NAME.equals(player.getGameProfile().getName())) {
-                retire(player);
-            }
-        }
-    }
-
-    private static Connected connectedInLevel(GameTestHelper helper, boolean spectator) {
-        GameProfile profile = new GameProfile(UUID.randomUUID(), MOCK_NAME);
-        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
-
-        ServerLevel level = helper.getLevel();
-        MinecraftServer server = level.getServer();
-        ServerPlayer player = new ServerPlayer(server, level, cookie.gameProfile(), cookie.clientInformation()) {
-            @Override
-            public boolean isSpectator() {
-                return spectator;
-            }
-
-            @Override
-            public boolean isCreative() {
-                return true;
-            }
-        };
-
-        Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        EmbeddedChannel channel = new EmbeddedChannel(connection);
-        server.getPlayerList().placeNewPlayer(connection, player, cookie);
-        return new Connected(player, channel);
-    }
-}
-```
+`DeprecatedMockPlayerTest` (also hub-owned, in `src/test/java/com/rfizzle/concord/guard/`) fails
+the unit-test run if any source calls `makeMockServerPlayerInLevel` outside a file named
+`MockPlayers.java`, so the migration off the deprecated factory cannot regress.
 
 Guard its faithfulness with a gametest — assert the returned player has a live connection, is
 in the player list, is in the level, `isCreative()`, and `!isSpectator()` — so a later
@@ -269,7 +212,7 @@ later test whose assertions depend on who is online reads a player count inflate
 mock that ran before it.
 
 The full reclaim is `PlayerList#remove` followed by `discard()` — `retire(player)` in the
-canonical class above. Three details in it are load-bearing:
+shared class. Three details in it are load-bearing:
 
 **It must be idempotent.** `PlayerList#remove` has no `isRemoved()` guard and calls
 `save(player)` unconditionally, so a second call rewrites the player `.dat`, the stats JSON, and

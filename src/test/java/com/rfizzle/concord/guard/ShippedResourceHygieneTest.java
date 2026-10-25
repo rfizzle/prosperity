@@ -1,5 +1,6 @@
 package com.rfizzle.concord.guard;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -125,6 +126,32 @@ class ShippedResourceHygieneTest {
         assertTrue(pinned.contains(Path.of("assets", modId(), "lang", "en_us.json").toString()),
                 "the shipped-resource walk did not find assets/" + modId() + "/lang/en_us.json, so the "
                         + "hygiene sweeps above are scanning the wrong tree and prove nothing; found: " + pinned);
+    }
+
+    /**
+     * Pins the walk against the datagen tree too: generated files reach the jar only because
+     * src/main/generated is a main resource root, and a walk that stopped seeing them would leave
+     * every generated recipe, tag and loot table outside the sweeps above.
+     */
+    @Test
+    void theScanReachesTheGeneratedTree() throws Exception {
+        Path generated = Path.of("src", "main", "generated");
+        Assumptions.assumeTrue(Files.isDirectory(generated), "this mod has no datagen output");
+        Path sample;
+        try (Stream<Path> tree = Files.walk(generated)) {
+            sample = tree.filter(Files::isRegularFile)
+                    .map(generated::relativize)
+                    .filter(relative -> !hasSegment(relative, ".cache"))
+                    .sorted()
+                    .findFirst()
+                    .orElse(null);
+        }
+        Assumptions.assumeTrue(sample != null, "src/main/generated holds no generated files");
+
+        List<String> pinned = scanShippedRoots(relative -> relative.equals(sample));
+        assertTrue(pinned.contains(sample.toString()),
+                "the shipped-resource walk did not find the generated file " + sample + ", so datagen "
+                        + "output is no longer merged into the shipped resources (or the walk misses it)");
     }
 
     /** Walks every shipped root, collecting root-relative paths of files matching the rule. */

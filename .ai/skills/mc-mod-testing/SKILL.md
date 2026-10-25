@@ -266,13 +266,7 @@ testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
 
 ### testRuntimeClasspath exclusion
 
-With `splitEnvironmentSourceSets`, Loom leaves an unmapped fabric-api sibling on `testRuntimeClasspath` that carries an intermediary-namespace access widener. fabric-loader-junit rejects it. Fix:
-
-```groovy
-configurations.testRuntimeClasspath {
-    exclude group: 'net.fabricmc.fabric-api', module: 'fabric-api'
-}
-```
+With `splitEnvironmentSourceSets`, Loom leaves an unmapped fabric-api sibling on `testRuntimeClasspath` that carries an intermediary-namespace access widener. fabric-loader-junit rejects it. `gradle/concord-common.gradle` excludes `net.fabricmc.fabric-api:fabric-api` from `configurations.testRuntimeClasspath`, so a member does not repeat it.
 
 ### Tier 2 sweet spot
 
@@ -402,7 +396,7 @@ this morning.
 #### Naming and package layout
 
 Gametest suites live in `com.rfizzle.<mod>.gametest` **or any subpackage of it other than
-`util`**, and are named `*GameTest`. Non-suite helpers — fixture builders, mock factories, floor
+`util`**, and are named `*GameTest`. Non-suite helpers — fixture builders, floor
 templates — live in `com.rfizzle.<mod>.gametest.util`, are *not* named `*GameTest`, and are not
 registered.
 
@@ -418,22 +412,12 @@ defect rather than a style difference the guard has to tolerate.
 
 The guard reads the source tree because the gametest source set is not on the test classpath
 and its classes cannot be enumerated from there. Gradle therefore sees no dependency between
-them — declare the inputs or the check stays `UP-TO-DATE` exactly when registration has
-drifted:
-
-```groovy
-test {
-    inputs.files(fileTree('src/gametest/java'),
-                 file('src/gametest/resources/fabric.mod.json'),
-                 file('src/main/resources/fabric.mod.json'))
-            .withPropertyName('gametestRegistration')
-            .withPathSensitivity(PathSensitivity.RELATIVE)
-}
-```
-
-The shipped manifest is in the list because the guard's third assertion reads it. It also
-arrives transitively through `processResources`, so leaving it out is not a live staleness hole
-— but declaring all three inputs keeps the block readable as "what this guard reads".
+them — without declared inputs the check stays `UP-TO-DATE` exactly when registration has
+drifted. `gradle/concord-common.gradle` (hub-owned, see `mc-gradle-builds`) declares them on
+`test` — the gametest sources and resources, the other source dirs, and the shipped manifest —
+so a member does not repeat the block. A mod-specific guard that reads some *other* file off
+disk (a glyph spec tree, a `.sfx` source, the build script) adds its own
+`test { inputs.files(...) }` in the member's `build.gradle`, for the same reason.
 
 The cost of this coupling is that any edit under `src/gametest/java` invalidates the whole
 `test` task, so the full Tier 1 suite reruns. That is the price of a guard that reads a source
@@ -474,69 +458,77 @@ set with no resources at all contributes no anchor and belongs out of the list; 
 number of roots you expect to resolve, so adding `src/client/resources` later cannot leave it
 quietly unscanned.
 
-#### Every mod ships this guard
+#### Every mod ships this guard — it arrives with the sync
 
-`ShippedResourceHygieneTest`, at `src/test/java/com/rfizzle/<mod>/resources/`, is a required
-deliverable, not an optional extra — the same standing as `GametestRegistrationTest`. The two
-guard opposite boundaries of the same mistake and neither one catches the other's failure:
-registration drift means the tests never run, fixture leak means the tests ship. Both fail
-silently.
+`ShippedResourceHygieneTest` is a required deliverable, the same standing as
+`GametestRegistrationTest`. The two guard opposite boundaries of the same mistake and neither one
+catches the other's failure: registration drift means the tests never run, fixture leak means the
+tests ship. Both fail silently.
 
-Three assertions, in widening order:
+Unlike `GametestRegistrationTest`, it is **hub-owned**: it is propagated verbatim to
+`src/test/java/com/rfizzle/concord/guard/ShippedResourceHygieneTest.java` in every member, so a
+member writes nothing and a prior member's copy is deleted when it adopts the shared build kit. It
+is mod-agnostic: the mod id and the gametest resource directory arrive as the `concord.modid` and
+`concord.gametest.resources` system properties that `gradle/concord-common.gradle` sets on `test`.
 
-- **Known fixtures are absent from the shipped classpath** — `getResource(path)` returns `null`
-  for each fixture the mod actually uses. Cheap, names the offender exactly, and doubles as a
-  regression test after a fixture is relocated. **Resolve the shipped roots before asserting
-  `null`**, or the whole assertion passes vacuously against an empty classpath — a guard that
-  cannot fail is worse than no guard, because it reads as coverage.
-- **No `gametest` path segment anywhere in the shipped roots** — catches the next fixture,
-  which by definition is not in the list above.
-- **No structure templates anywhere in the shipped roots** — `.snbt` is a test artifact for a
-  mod that ships no structures of its own. Drop this one only if the mod genuinely ships
-  structures, and say so in the test.
+Four assertions, in widening order:
 
-**Pick the anchor per source set.** The anchor is a resource you know sits at the top level of
-that root, whose parent directory therefore *is* the root. Meridian uses `/meridian.accesswidener`
-for `main` and `/meridian.client.mixins.json` for `client`. A mod with neither can anchor `main` on
-`/fabric.mod.json`, but note that only resolves the main root — the client root needs an anchor
-of its own, and a source set with no resources at all contributes no anchor and belongs out of
-the list entirely.
+- **Gametest fixtures are absent from the shipped classpath** — every file under
+  `src/gametest/resources` (bar the companion manifest) must not resolve through `getResource`.
+  Derived from the source set rather than pinned as a list, so the next fixture is covered without
+  anyone remembering to add it. The shipped roots are resolved first, or the assertion passes
+  vacuously against an empty classpath — a guard that cannot fail is worse than no guard, because
+  it reads as coverage.
+- **No `gametest` path segment anywhere in the shipped roots.**
+- **No structure templates anywhere in the shipped roots** — `.snbt` is a test artifact for a mod
+  that ships no structures of its own.
+- **The scan reaches the shipped tree** — it must find `assets/<modid>/lang/en_us.json`, which
+  every member ships, so a root that resolved to the wrong directory cannot pass by finding
+  nothing.
 
-Model: meridian's `ShippedResourceHygieneTest`, with its anchored-root resolution and
-moved-anchor failure. Meridian's own fixtures live
-in `src/gametest/resources/data/meridian/gametest/structure/`, which is the proof that relocating
-them costs nothing — resolution from the companion-mod root works exactly as described above.
+Shipped roots are located by anchoring on a file known to sit at a root's top level, whose parent
+directory therefore *is* the root: `<id>.mixins.json`, `<id>.client.mixins.json`, or
+`<id>.accesswidener`, whichever the mod has (the client source set ships its own root). At least
+one root must hold `fabric.mod.json`. A mod that ships none of the three anchors fails loudly
+rather than scanning nothing; add a mixin config or access widener, or raise it on the hub.
 
 Run the guard against a clean build. A stale `build/resources/` tree can still hold fixtures
 that were relocated in source, which reads as a live leak that a rebuild makes disappear.
 
-### Source set setup in build.gradle
-```groovy
-sourceSets {
-    gametest {
-        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
-        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
-    }
-}
+### Source set setup — hub-owned
 
-configurations {
-    gametestImplementation.extendsFrom implementation
-    gametestRuntimeOnly.extendsFrom runtimeOnly
-}
+The `gametest` source set, its `gametestImplementation`/`gametestRuntimeOnly` configurations, the
+`gametest` run config (with `-Dfabric-api.gametest` and the JUnit report file at
+`build/junit-gametest.xml`), the JaCoCo agent, and the always-execute pin all come from
+`gradle/concord-common.gradle`; see `mc-gradle-builds`. A member's `build.gradle` has no gametest
+wiring of its own. `runGametest` is skipped until a source file actually contains `@GameTest`, so
+the shared `MockPlayers` helper alone never trips Minecraft's "No test functions were given!".
 
-loom {
-    runs {
-        gametest {
-            server()
-            name "Game Test"
-            source sourceSets.gametest
-            vmArg "-Dfabric-api.gametest"
-            vmArg "-Dfabric-api.gametest.report-file=${layout.buildDirectory.file('junit-gametest.xml').get().asFile}"
-            runDir "build/gametest"
-        }
-    }
-}
-```
+### The shared test kit
+
+Build/test-time code that is identical in every member ships from the hub as source, through
+`propagate/`, and so is hub-owned in all eight. **Only test-time code**: all mods share one
+classloader in-game, so a runtime class duplicated across jars would collide, but nothing below
+ever enters a jar.
+
+| File (in every member) | What it is |
+|---|---|
+| `src/gametest/java/com/rfizzle/concord/gametest/MockPlayers.java` | The canonical connected mock player — see `mc-testing-mock` |
+| `src/test/java/com/rfizzle/concord/guard/ShippedResourceHygieneTest.java` | No test-only data on the shipped classpath (above) |
+| `src/test/java/com/rfizzle/concord/guard/ClothGuardTest.java` | The class registered as the `modmenu` entrypoint imports no `me.shedaniel.clothconfig2` type, and any production source importing Cloth means `fabric.mod.json` `suggests` `cloth-config` |
+| `src/test/java/com/rfizzle/concord/guard/DeprecatedMockPlayerTest.java` | No call to the deprecated-for-removal `makeMockServerPlayerInLevel` outside a `MockPlayers.java` |
+| `src/test/java/com/rfizzle/concord/guard/GuardSupport.java` | Package-private plumbing: system-property reading, comment stripping |
+
+The guards read their inputs from system properties that `gradle/concord-common.gradle` sets on
+`test`, as project-relative paths: `concord.modid`, `concord.main.manifest`,
+`concord.gametest.manifest`, `concord.gametest.sources`, `concord.gametest.resources`,
+`concord.sourceDirs.production`, `concord.sourceDirs.all`. A guard run without them fails with a
+message naming the missing property rather than passing over an empty tree.
+
+What the kit deliberately does **not** own: `GametestRegistrationTest`. Each member's copy carries
+mod-specific checks (suite naming, dependency floors, runtime entrypoints, batch prefixes), so it
+stays per member. A shared helper in `com.rfizzle.concord.gametest` is not a suite — it does not
+implement `FabricGameTest` — so it never trips that guard.
 
 ### Runtime patterns
 
@@ -549,7 +541,7 @@ player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
 // ... test body, then MockPlayers.retire(player) in a finally
 ```
 
-`GameTestHelper.makeMockServerPlayerInLevel()` is `@Deprecated(forRemoval = true)` in MC 1.21.1 — use the mod's `MockPlayers` helper instead, and retire the player in a `finally` so a failing assertion still reclaims it. That shape is for a synchronous test — a deferred or polled assertion (`succeedWhen`, below) moves the retire into the callback instead. The `mc-testing-mock` skill has the canonical class, the packet-channel variant, and the teardown rules.
+`GameTestHelper.makeMockServerPlayerInLevel()` is `@Deprecated(forRemoval = true)` in MC 1.21.1 — use the shared `com.rfizzle.concord.gametest.MockPlayers` helper instead (hub-owned, in every member), and retire the player in a `finally` so a failing assertion still reclaims it. That shape is for a synchronous test — a deferred or polled assertion (`succeedWhen`, below) moves the retire into the callback instead. The `mc-testing-mock` skill has the helper's API, the packet-channel variant, and the teardown rules.
 
 **Synchronous vs deferred assertions:**
 - `helper.succeed()` — immediate success (state is already correct)
