@@ -25,5 +25,5 @@ permissions:
 
 jobs:
   claude:
-    uses: rfizzle/concord/.github/workflows/claude-mention.yml@master
+    uses: rfizzle/concord/.github/workflows/claude-mention.yml@stable
     secrets: inherit

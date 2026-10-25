@@ -27,4 +27,4 @@ concurrency:
 
 jobs:
   site:
-    uses: rfizzle/concord/.github/workflows/build-site.yml@master
+    uses: rfizzle/concord/.github/workflows/build-site.yml@stable

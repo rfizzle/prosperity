@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   listing:
-    uses: rfizzle/concord/.github/workflows/mod-listing-sync.yml@master
+    uses: rfizzle/concord/.github/workflows/mod-listing-sync.yml@stable
     with:
       modrinth-id: "bD4rtHdZ"
     secrets: inherit
