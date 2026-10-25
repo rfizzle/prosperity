@@ -11,6 +11,7 @@ import com.rfizzle.prosperity.loot.completion.StructureCompletion;
 import com.rfizzle.prosperity.loot.eviction.AbsentPlayerEviction;
 import com.rfizzle.prosperity.loot.injection.LootInjectionManager;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
+import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
@@ -285,22 +286,59 @@ public final class InstancedLootInteraction {
         // (e.g. from its earlier life as a single chest).
         AbsentPlayerEviction.prune(primaryAdapter);
         AbsentPlayerEviction.prune(secondaryAdapter);
-        InstancedLootData primaryData = ProsperityAttachments.get(primary);
-        if (primaryData != null && primaryData.hasGenerated(lootKey)) {
-            if (!LootRefresh.isExpired(primaryData, lootKey, level.getGameTime())) {
-                // Return visit: serve the stored combined inventory, or an empty 54-slot one when it
-                // was evicted after being looted clean — never re-roll fresh loot (S-016).
-                NonNullList<ItemStack> stored = primaryData.getInventory(lootKey);
-                return stored != null ? stored
-                        : NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
+        // Each half may carry its own per-key state from an earlier life (a looted single chest that
+        // later joined a neighbour, a double whose primary was replaced). Honour it per half: a half
+        // that already generated for this key is never re-rolled before its refresh cooldown expires.
+        long now = level.getGameTime();
+        for (ChestBlockEntity half : List.of(primary, secondary)) {
+            InstancedLootData halfData = ProsperityAttachments.get(half);
+            if (halfData != null && halfData.hasGenerated(lootKey)
+                    && LootRefresh.isExpired(halfData, lootKey, now)) {
+                // Cooldown elapsed: clear this half's instance so it re-rolls below (S-016).
+                ProsperityAttachments.update(half, data -> data.clearForPlayer(lootKey));
             }
-            // Cooldown elapsed: clear the combined instance from the primary half, where the inventory
-            // and tick both live, so it re-rolls below (S-016).
-            ProsperityAttachments.update(primary, data -> data.clearForPlayer(lootKey));
+        }
+        InstancedLootData primaryData = ProsperityAttachments.get(primary);
+        InstancedLootData secondaryData = ProsperityAttachments.get(secondary);
+        boolean primaryGenerated = primaryData != null && primaryData.hasGenerated(lootKey);
+        boolean secondaryGenerated = secondaryData != null && secondaryData.hasGenerated(lootKey);
+        NonNullList<ItemStack> primaryStored = primaryGenerated ? primaryData.getInventory(lootKey) : null;
+        // The secondary is already part of the primary's instance when it redirects to it (it was
+        // stamped with the key's tick when the double was served).
+        boolean secondaryCovered = secondaryGenerated && primaryPos.equals(secondaryData.getRedirect());
+        boolean combinedStored = primaryStored != null && primaryStored.size() == DoubleChestLayout.TOTAL_SLOTS;
+        if (combinedStored || (primaryGenerated && secondaryCovered)) {
+            // Return visit: serve the stored combined inventory, or an empty 54-slot one when it was
+            // evicted after being looted clean — never re-roll fresh loot (S-016).
+            return combinedStored ? primaryStored
+                    : NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
+        }
+
+        // Merge the halves' existing state into the 54-slot instance. A stored list can be 27 slots (a
+        // former single chest), so copy by the shorter length, never assuming 54.
+        NonNullList<ItemStack> combined =
+                NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
+        copyHalf(primaryStored, combined, 0);
+        if (secondaryGenerated && !secondaryCovered) {
+            copyHalf(secondaryData.getInventory(lootKey), combined, DoubleChestLayout.PRIMARY_SLOTS);
         }
 
         LootRef primaryRef = resolveTable(primaryAdapter);
         LootRef secondaryRef = resolveTable(secondaryAdapter);
+        // Only a half that never generated for this key (and has a table to roll) rolls fresh loot.
+        boolean rollPrimary = !primaryGenerated && primaryRef.key() != null;
+        boolean rollSecondary = !secondaryGenerated && secondaryRef.key() != null;
+        boolean rolled = rollPrimary || rollSecondary;
+        // Earliest existing tick, so merging never extends a half's cooldown; now when nothing existed.
+        long tick = now;
+        if (primaryGenerated && primaryData.getLastGeneratedTick(lootKey) >= 0) {
+            tick = Math.min(tick, primaryData.getLastGeneratedTick(lootKey));
+        }
+        if (secondaryGenerated && secondaryData.getLastGeneratedTick(lootKey) >= 0) {
+            tick = Math.min(tick, secondaryData.getLastGeneratedTick(lootKey));
+        }
+        final long storedTick = tick;
+
         // The combined instance and its refresh count both live on the primary half, so the salt for
         // both halves is read there (after any cooldown clear above has advanced it).
         long salt = refreshSalt(primaryAdapter.data(), lootKey);
@@ -309,38 +347,56 @@ public final class InstancedLootInteraction {
         Vec3 origin = primaryAdapter.origin();
         LootScaling.ScaledTier scaled = LootScaling.resolveForGeneration(level, origin);
         DistanceTier tier = scaled.tier();
-        ResourceKey<LootTable> ctxTable = primaryRef.key() != null ? primaryRef.key() : secondaryRef.key();
-        ModifierResult mods = fireModifiers(player, origin, ctxTable, tier);
-        NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
-                level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), salt, player,
-                DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
-        NonNullList<ItemStack> secondaryLoot = InstancedLootGenerator.generate(
-                level, secondaryAdapter.origin(), secondaryRef.key(), secondaryRef.seed(), salt, player,
-                DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
-
-        NonNullList<ItemStack> combined =
-                NonNullList.withSize(DoubleChestLayout.TOTAL_SLOTS, ItemStack.EMPTY);
-        for (int slot = 0; slot < DoubleChestLayout.PRIMARY_SLOTS; slot++) {
-            combined.set(slot, primaryLoot.get(slot));
-            combined.set(DoubleChestLayout.PRIMARY_SLOTS + slot, secondaryLoot.get(slot));
+        ModifierResult mods = null;
+        boolean injected = false;
+        if (rolled) {
+            ResourceKey<LootTable> ctxTable = primaryRef.key() != null ? primaryRef.key() : secondaryRef.key();
+            mods = fireModifiers(player, origin, ctxTable, tier);
+            if (rollPrimary) {
+                NonNullList<ItemStack> primaryLoot = InstancedLootGenerator.generate(
+                        level, primaryAdapter.origin(), primaryRef.key(), primaryRef.seed(), salt, player,
+                        DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
+                copyHalf(primaryLoot, combined, 0);
+            }
+            if (rollSecondary) {
+                NonNullList<ItemStack> secondaryLoot = InstancedLootGenerator.generate(
+                        level, secondaryAdapter.origin(), secondaryRef.key(), secondaryRef.seed(), salt, player,
+                        DoubleChestLayout.PRIMARY_SLOTS, mods.luck(), mods.stackMultiplier());
+                copyHalf(secondaryLoot, combined, DoubleChestLayout.PRIMARY_SLOTS);
+            }
+            // One injected reward for the whole double chest, drawn against the rolled half's table (S-014).
+            injected = LootInjectionManager.augment(combined, ctxTable, tier, level,
+                    rollPrimary ? primaryRef.seed() : secondaryRef.seed(), salt, lootKey);
         }
-        // One injected reward for the whole double chest, drawn against the primary half's table (S-014).
-        boolean injected = LootInjectionManager.augment(combined, primaryRef.key(), tier, level,
-                primaryRef.seed(), salt, lootKey);
 
         primaryAdapter.update(data -> {
             data.markGenerated(primaryRef.key(), primaryRef.seed());
-            data.setInventory(lootKey, combined);
-            data.setLastGeneratedTick(lootKey, level.getGameTime());
-            data.setTierName(tier.name());
-            data.setStructure(scaled.structure());
+            if (rolled) {
+                data.setInventory(lootKey, combined);
+            } else {
+                data.storeOrEvict(lootKey, combined);
+            }
+            data.setLastGeneratedTick(lootKey, storedTick);
+            // A half that was a secondary in an earlier life is a primary now; drop its stale redirect.
+            data.setRedirect(null);
+            if (rolled) {
+                data.setTierName(tier.name());
+                data.setStructure(scaled.structure());
+            }
         });
         secondaryAdapter.update(data -> {
             data.markGenerated(secondaryRef.key(), secondaryRef.seed());
             data.setRedirect(primaryPos);
+            // Fold any inventory this half held as a single chest into the combined instance (already
+            // copied above) and keep only the key's tick, so a later primary replacement cannot re-roll.
+            data.storeOrEvict(lootKey, NonNullList.withSize(DoubleChestLayout.PRIMARY_SLOTS, ItemStack.EMPTY));
+            data.setLastGeneratedTick(lootKey, storedTick);
         });
         primaryAdapter.clearLootTable();
         secondaryAdapter.clearLootTable();
+        if (!rolled) {
+            return combined;
+        }
         // The double chest's single indicator is anchored at the primary half (the scan emits only
         // there), so drop that one on first generation — for the opener, and for every online teammate
         // sharing this instance in party loot mode (issue #53).
@@ -355,6 +411,17 @@ public final class InstancedLootInteraction {
         StructureCompletion.onLootGenerated(primaryAdapter, player, primaryRef.key(), tier,
                 primaryRef.seed(), salt);
         return combined;
+    }
+
+    /** Copy up to one chest's worth of {@code from} into {@code to} starting at {@code offset}; null-safe. */
+    private static void copyHalf(@Nullable NonNullList<ItemStack> from, NonNullList<ItemStack> to, int offset) {
+        if (from == null) {
+            return;
+        }
+        int count = Math.min(from.size(), DoubleChestLayout.PRIMARY_SLOTS);
+        for (int slot = 0; slot < count; slot++) {
+            to.set(offset + slot, from.get(slot));
+        }
     }
 
     /**

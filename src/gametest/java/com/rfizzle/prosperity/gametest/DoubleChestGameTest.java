@@ -186,4 +186,152 @@ public class DoubleChestGameTest implements FabricGameTest {
         player.discard();
         helper.succeed();
     }
+
+    private static BlockState chestState(ChestType type) {
+        return Blocks.CHEST.defaultBlockState()
+                .setValue(ChestBlock.FACING, Direction.NORTH)
+                .setValue(ChestBlock.TYPE, type);
+    }
+
+    private static int countItems(net.minecraft.world.Container container) {
+        int count = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            if (!container.getItem(slot).isEmpty()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Place a single loot chest, open it, leave exactly one marker stack in slot 3, and close it. */
+    private ChestBlockEntity partiallyLootedSingle(GameTestHelper helper, ServerPlayer player, BlockPos rel) {
+        helper.setBlock(rel, chestState(ChestType.SINGLE));
+        ChestBlockEntity be = (ChestBlockEntity) helper.getBlockEntity(rel);
+        be.setLootTable(TABLE);
+        be.setLootTableSeed(SEED);
+        helper.assertTrue(rightClick(helper, player, rel) == InteractionResult.SUCCESS,
+                "the single loot chest must be intercepted");
+        InstancedLootMenu menu = (InstancedLootMenu) player.containerMenu;
+        helper.assertTrue(menu.getContainer().getContainerSize() == 27, "a single chest serves 27 slots");
+        for (int slot = 0; slot < 27; slot++) {
+            menu.getContainer().setItem(slot, ItemStack.EMPTY);
+        }
+        menu.getContainer().setItem(3, new ItemStack(Items.DIAMOND, 7));
+        player.closeContainer();
+        return be;
+    }
+
+    /** Join the single at {@code existingRel} with a new empty chest on {@code newSide} (west = smaller x). */
+    private void joinWithNewChest(GameTestHelper helper, BlockPos existingRel, boolean newOnSmallerSide) {
+        BlockPos newRel = newOnSmallerSide ? existingRel.west() : existingRel.east();
+        helper.setBlock(newRel, chestState(newOnSmallerSide ? ChestType.LEFT : ChestType.RIGHT));
+        helper.setBlock(existingRel, chestState(newOnSmallerSide ? ChestType.RIGHT : ChestType.LEFT));
+    }
+
+    /** A looted single joined by a new chest on its smaller-coordinate side keeps its state: no re-roll. */
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
+    public void lootedSingleJoinedOnSmallerSideDoesNotReroll(GameTestHelper helper) {
+        BlockPos existing = new BlockPos(2, 1, 1);
+        ServerPlayer player = spawnPlayerAt(helper, existing);
+        partiallyLootedSingle(helper, player, existing);
+
+        joinWithNewChest(helper, existing, true);
+        helper.assertTrue(rightClick(helper, player, existing) == InteractionResult.SUCCESS,
+                "the merged double must still be intercepted");
+        InstancedLootMenu menu = (InstancedLootMenu) player.containerMenu;
+        helper.assertTrue(menu.getContainer().getContainerSize() == 54, "the double serves 54 slots");
+        helper.assertTrue(countItems(menu.getContainer()) == 1,
+                "joining must not re-roll the looted chest's table, found " + countItems(menu.getContainer()));
+        helper.assertTrue(ItemStack.matches(menu.getContainer().getItem(27 + 3), new ItemStack(Items.DIAMOND, 7)),
+                "the looted single's remaining stack must land in the secondary half");
+
+        player.discard();
+        helper.succeed();
+    }
+
+    /** A partially-looted single that becomes the primary opens without error and keeps its items. */
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
+    public void partiallyLootedSingleBecomingPrimaryOpens(GameTestHelper helper) {
+        BlockPos existing = new BlockPos(1, 1, 1);
+        ServerPlayer player = spawnPlayerAt(helper, existing);
+        partiallyLootedSingle(helper, player, existing);
+
+        joinWithNewChest(helper, existing, false);
+        helper.assertTrue(rightClick(helper, player, existing) == InteractionResult.SUCCESS,
+                "the merged double must still be intercepted");
+        InstancedLootMenu menu = (InstancedLootMenu) player.containerMenu;
+        helper.assertTrue(menu.getContainer().getContainerSize() == 54, "the double serves 54 slots");
+        helper.assertTrue(countItems(menu.getContainer()) == 1,
+                "the primary's leftover stack must be kept and nothing re-rolled, found "
+                        + countItems(menu.getContainer()));
+        helper.assertTrue(ItemStack.matches(menu.getContainer().getItem(3), new ItemStack(Items.DIAMOND, 7)),
+                "the looted single's remaining stack must stay in the primary half");
+
+        // Close and reopen via the new half: the merged instance persists as a normal 54-slot one.
+        player.closeContainer();
+        helper.assertTrue(rightClick(helper, player, existing.east()) == InteractionResult.SUCCESS,
+                "reopening via the new half must be intercepted");
+        InstancedLootMenu reopened = (InstancedLootMenu) player.containerMenu;
+        helper.assertTrue(reopened.getContainer().getContainerSize() == 54
+                        && ItemStack.matches(reopened.getContainer().getItem(3), new ItemStack(Items.DIAMOND, 7)),
+                "the merged instance must persist across a close and reopen");
+
+        player.discard();
+        helper.succeed();
+    }
+
+    /** Breaking and re-placing the primary of a looted double does not re-roll the secondary's table. */
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
+    public void replacedPrimaryOfLootedDoubleDoesNotReroll(GameTestHelper helper) {
+        DoubleChest chest = placeDoubleChest(helper, new BlockPos(1, 1, 1), true);
+        ServerPlayer player = spawnPlayerAt(helper, chest.leftRel);
+
+        helper.assertTrue(rightClick(helper, player, chest.leftRel) == InteractionResult.SUCCESS,
+                "the first open must be intercepted");
+        InstancedLootMenu first = (InstancedLootMenu) player.containerMenu;
+        helper.assertTrue(countItems(first.getContainer()) > 0, "precondition: the double rolled some loot");
+        for (int slot = 0; slot < 54; slot++) {
+            first.getContainer().setItem(slot, ItemStack.EMPTY);
+        }
+        player.closeContainer();
+
+        helper.setBlock(chest.leftRel, Blocks.AIR);
+        helper.setBlock(chest.leftRel, chestState(ChestType.LEFT));
+        helper.assertTrue(rightClick(helper, player, chest.leftRel) == InteractionResult.SUCCESS,
+                "the rebuilt double must still be intercepted");
+        InstancedLootMenu menu = (InstancedLootMenu) player.containerMenu;
+        helper.assertTrue(menu.getContainer().getContainerSize() == 54, "the double serves 54 slots");
+        helper.assertTrue(countItems(menu.getContainer()) == 0,
+                "replacing the primary must not re-roll the looted double, found "
+                        + countItems(menu.getContainer()));
+
+        player.discard();
+        helper.succeed();
+    }
+
+    /** Breaking the primary of a looted double leaves the surviving half serving its looted state. */
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
+    public void survivingSecondaryOfLootedDoubleDoesNotReroll(GameTestHelper helper) {
+        DoubleChest chest = placeDoubleChest(helper, new BlockPos(1, 1, 1), true);
+        ServerPlayer player = spawnPlayerAt(helper, chest.leftRel);
+
+        helper.assertTrue(rightClick(helper, player, chest.leftRel) == InteractionResult.SUCCESS,
+                "the first open must be intercepted");
+        InstancedLootMenu first = (InstancedLootMenu) player.containerMenu;
+        for (int slot = 0; slot < 54; slot++) {
+            first.getContainer().setItem(slot, ItemStack.EMPTY);
+        }
+        player.closeContainer();
+
+        helper.setBlock(chest.leftRel, Blocks.AIR);
+        helper.setBlock(chest.rightRel, chestState(ChestType.SINGLE));
+        helper.assertTrue(rightClick(helper, player, chest.rightRel) == InteractionResult.SUCCESS,
+                "the surviving half must be intercepted as a single chest");
+        InstancedLootMenu menu = (InstancedLootMenu) player.containerMenu;
+        helper.assertTrue(countItems(menu.getContainer()) == 0,
+                "the surviving half must not re-roll a looted double's table");
+
+        player.discard();
+        helper.succeed();
+    }
 }
