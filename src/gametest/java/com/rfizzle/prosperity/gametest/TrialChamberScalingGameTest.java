@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.api.LootModifierCallback;
 import com.rfizzle.prosperity.config.DistanceTier;
@@ -48,13 +49,12 @@ public class TrialChamberScalingGameTest implements FabricGameTest {
     }
 
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void resolveGatesTrialChamberRewards(GameTestHelper helper) {
         ProsperityConfig cfg = Prosperity.getConfig();
         List<DistanceTier> savedTiers = cfg.distanceTiers;
         boolean savedChamber = cfg.enableTrialChamberScaling;
         boolean savedDistance = cfg.enableDistanceScaling;
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos vaultPos = helper.absolutePos(new BlockPos(1, 1, 1));
         try {
             // A single tier covering every distance makes the resolved multiplier deterministic
@@ -109,7 +109,7 @@ public class TrialChamberScalingGameTest implements FabricGameTest {
             cfg.distanceTiers = savedTiers;
             cfg.enableTrialChamberScaling = savedChamber;
             cfg.enableDistanceScaling = savedDistance;
-            player.discard();
+            MockPlayers.retire(player);
         }
         helper.succeed();
     }

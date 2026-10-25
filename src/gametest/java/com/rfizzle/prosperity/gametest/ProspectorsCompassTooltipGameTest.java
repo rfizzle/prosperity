@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.item.ProsperityItems;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
@@ -36,9 +37,8 @@ public class ProspectorsCompassTooltipGameTest implements FabricGameTest {
 
     /** The rendered tooltip carries both behavior lines, keyed and below the name (index 0). */
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void tooltipShowsBothBehaviorLines(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         ItemStack stack = new ItemStack(ProsperityItems.PROSPECTORS_COMPASS);
 
         List<Component> lines =
@@ -48,7 +48,7 @@ public class ProspectorsCompassTooltipGameTest implements FabricGameTest {
         int spins = indexOfKey(lines, SPINS_KEY);
         helper.assertTrue(points > 0, "the 'points to nearest' line renders below the item name");
         helper.assertTrue(spins > points, "the 'spins when empty' line renders after the 'points' line");
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

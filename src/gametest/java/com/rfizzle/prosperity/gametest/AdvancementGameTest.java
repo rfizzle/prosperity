@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.BlockEntityContainerAdapter;
@@ -36,7 +37,7 @@ public class AdvancementGameTest implements FabricGameTest {
     private static final long SEED = 5050L;
 
     private ServerPlayer spawnListeningPlayer(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         // placeNewPlayer wires advancement listeners, but reload against the live manager guarantees our
         // freshly-registered trigger has a listener for this player before the first generation fires.
         player.getAdvancements().reload(helper.getLevel().getServer().getAdvancements());
@@ -86,7 +87,7 @@ public class AdvancementGameTest implements FabricGameTest {
         helper.assertFalse(isDone(player, advancement(helper, "volume_10")),
                 "one generation must not grant the 10-container milestone");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -110,7 +111,7 @@ public class AdvancementGameTest implements FabricGameTest {
         helper.assertFalse(isDone(player, advancement(helper, "volume_50")),
                 "10 containers must not yet grant the 50-container milestone");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

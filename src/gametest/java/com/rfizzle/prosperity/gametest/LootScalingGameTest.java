@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.config.DistanceTier;
 import com.rfizzle.prosperity.config.ProsperityConfig;
@@ -73,10 +74,9 @@ public class LootScalingGameTest implements FabricGameTest {
     /** The stack multiplier scales each stackable stack's count, caps at max stack, and leaves
      * non-stackables alone — verified against an identical baseline roll. */
     @GameTest(batch = BATCH, template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void quantityScalingMultipliesStackables(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         Vec3 origin = Vec3.atCenterOf(helper.absolutePos(new BlockPos(1, 1, 1)));
 
         // Identical luck (0) on both rolls keeps the rolled items identical; only the stack
@@ -111,7 +111,7 @@ public class LootScalingGameTest implements FabricGameTest {
         helper.assertTrue(sawStackableScaledUp,
                 "the loot must contain at least one stackable stack that scaled up");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

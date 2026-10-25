@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.loot.index.LootIndexDataSource;
 import com.rfizzle.prosperity.network.LootIndexS2CPayload;
 import com.rfizzle.prosperity.network.ProsperityNetworking;
@@ -41,9 +42,8 @@ public class LootIndexSyncGameTest implements FabricGameTest {
 
     /** Joining a mock player drives the join sync (config + index) without error; canSend is false. */
     @GameTest(template = FabricGameTest.EMPTY_STRUCTURE)
-    @SuppressWarnings("removal")
     public void joinSyncRunsForMockPlayer(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         ProsperityNetworking.sendJoinSync(player);
         helper.succeed();
     }

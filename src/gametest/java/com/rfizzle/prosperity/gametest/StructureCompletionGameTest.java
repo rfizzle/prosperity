@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
@@ -67,9 +68,8 @@ public class StructureCompletionGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayer(GameTestHelper helper) {
-        return helper.makeMockServerPlayerInLevel();
+        return MockPlayers.serverPlayerInLevel(helper);
     }
 
     /** Generate the player's instance for the container at {@code rel}, as a real open would. */
@@ -147,7 +147,7 @@ public class StructureCompletionGameTest implements FabricGameTest {
         helper.assertTrue(nonEmptySlots(inventory) == before + 1,
                 "a repeat check must not place a second bonus item");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -176,8 +176,8 @@ public class StructureCompletionGameTest implements FabricGameTest {
                         && state.isCompleted(key, second.getUUID()),
                 "both players' completions must be recorded");
 
-        first.discard();
-        second.discard();
+        MockPlayers.retire(first);
+        MockPlayers.retire(second);
         helper.succeed();
     }
 
@@ -201,7 +201,7 @@ public class StructureCompletionGameTest implements FabricGameTest {
         helper.assertTrue(award(helper, loot(helper, b, player), player, key, boxes, id),
                 "a broken unlooted container must no longer count toward completion");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -230,7 +230,7 @@ public class StructureCompletionGameTest implements FabricGameTest {
         helper.assertFalse(award(helper, relooted, player, key, boxes, id),
                 "re-looting the whole structure after a refresh must not re-earn the bonus");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -249,7 +249,7 @@ public class StructureCompletionGameTest implements FabricGameTest {
         helper.assertFalse(StructureCompletionState.get(helper.getLevel()).isCompleted(key, player.getUUID()),
                 "no completion may be recorded for a non-qualifying structure");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -286,7 +286,7 @@ public class StructureCompletionGameTest implements FabricGameTest {
         helper.assertTrue(census.total() == 1,
                 "a double chest must count once, not per half (counted " + census.total() + ")");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -356,7 +356,7 @@ public class StructureCompletionGameTest implements FabricGameTest {
         } finally {
             cfg.lootTableBlacklist = saved;
             cfg.clamp();
-            player.discard();
+            MockPlayers.retire(player);
         }
         helper.succeed();
     }
@@ -378,7 +378,7 @@ public class StructureCompletionGameTest implements FabricGameTest {
         } finally {
             Prosperity.getConfig().enableLootNotifications = saved;
         }
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.FakePlayers;
 import net.fabricmc.fabric.api.entity.FakePlayer;
@@ -44,11 +45,10 @@ public class FakePlayerGuardGameTest implements FabricGameTest {
         return be;
     }
 
-    // makeMockServerPlayerInLevel is the only factory that yields a connected, player-list-registered
+    // MockPlayers.serverPlayerInLevel is the only factory that yields a connected, player-list-registered
     // ServerPlayer — exactly the "real opener" the guard must let through (and openMenu needs it).
-    @SuppressWarnings("removal")
     private ServerPlayer spawnRealPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -109,7 +109,7 @@ public class FakePlayerGuardGameTest implements FabricGameTest {
         helper.assertTrue(be.getLootTable() == null,
                 "first real generation must null the vanilla loot table (S-006)");
 
-        real.discard();
+        MockPlayers.retire(real);
         helper.succeed();
     }
 
@@ -125,7 +125,7 @@ public class FakePlayerGuardGameTest implements FabricGameTest {
         helper.assertTrue(FakePlayers.isFakePlayer(fake),
                 "a Fabric FakePlayer must be treated as fake");
 
-        real.discard();
+        MockPlayers.retire(real);
         helper.succeed();
     }
 }

@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
@@ -45,9 +46,8 @@ public class LootNullificationGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -85,7 +85,7 @@ public class LootNullificationGameTest implements FabricGameTest {
         helper.assertTrue(AbstractContainerMenu.getRedstoneSignalFromContainer(be) == 0,
                 "a comparator must read zero from an instanced container");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -137,7 +137,7 @@ public class LootNullificationGameTest implements FabricGameTest {
             Container hopper = (Container) helper.getBlockEntity(hopperRel);
             helper.assertTrue(allEmpty(chest), "the chest's shared inventory must stay empty");
             helper.assertTrue(allEmpty(hopper), "the hopper must extract nothing from an instanced chest");
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }
@@ -168,7 +168,7 @@ public class LootNullificationGameTest implements FabricGameTest {
                     "regeneration must be deterministic for a given (seed, UUID)");
         }
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 

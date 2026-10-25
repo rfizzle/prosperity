@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.attachment.InstancedLootData;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.InstancedLootMenu;
@@ -71,9 +72,8 @@ public class DoubleChestGameTest implements FabricGameTest {
         return new DoubleChest(leftRel, rightRel, leftBe, rightBe);
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -118,7 +118,7 @@ public class DoubleChestGameTest implements FabricGameTest {
         helper.assertTrue(chest.left.getLootTable() == null, "the primary half's loot table must be nulled");
         helper.assertTrue(chest.right.getLootTable() == null, "the secondary half's loot table must be nulled");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -143,7 +143,7 @@ public class DoubleChestGameTest implements FabricGameTest {
         helper.assertTrue(ItemStack.matches(reopened.getContainer().getItem(40), new ItemStack(Items.DIAMOND, 7)),
                 "a change made via one half must be visible through the other");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -166,8 +166,8 @@ public class DoubleChestGameTest implements FabricGameTest {
         helper.assertFalse(invA == invB, "each player must own a distinct instance");
         helper.assertTrue(invA.size() == 54 && invB.size() == 54, "each instance spans the full double chest");
 
-        playerA.discard();
-        playerB.discard();
+        MockPlayers.retire(playerA);
+        MockPlayers.retire(playerB);
         helper.succeed();
     }
 
@@ -183,7 +183,7 @@ public class DoubleChestGameTest implements FabricGameTest {
                         && ProsperityAttachments.get(chest.right) == null,
                 "a non-loot double chest must not attach an instance on either half");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -245,7 +245,7 @@ public class DoubleChestGameTest implements FabricGameTest {
         helper.assertTrue(ItemStack.matches(menu.getContainer().getItem(27 + 3), new ItemStack(Items.DIAMOND, 7)),
                 "the looted single's remaining stack must land in the secondary half");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -276,7 +276,7 @@ public class DoubleChestGameTest implements FabricGameTest {
                         && ItemStack.matches(reopened.getContainer().getItem(3), new ItemStack(Items.DIAMOND, 7)),
                 "the merged instance must persist across a close and reopen");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -305,7 +305,7 @@ public class DoubleChestGameTest implements FabricGameTest {
                 "replacing the primary must not re-roll the looted double, found "
                         + countItems(menu.getContainer()));
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 
@@ -331,7 +331,7 @@ public class DoubleChestGameTest implements FabricGameTest {
         helper.assertTrue(countItems(menu.getContainer()) == 0,
                 "the surviving half must not re-roll a looted double's table");
 
-        player.discard();
+        MockPlayers.retire(player);
         helper.succeed();
     }
 }

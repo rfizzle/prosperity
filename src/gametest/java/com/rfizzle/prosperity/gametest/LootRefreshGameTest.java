@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.attachment.ProsperityAttachments;
 import com.rfizzle.prosperity.loot.BlockEntityContainerAdapter;
@@ -53,9 +54,8 @@ public class LootRefreshGameTest implements FabricGameTest {
         return be;
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayerAt(GameTestHelper helper, BlockPos rel) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.serverPlayerInLevel(helper);
         BlockPos abs = helper.absolutePos(rel);
         player.teleportTo(abs.getX() + 0.5, abs.getY(), abs.getZ() + 0.5);
         return player;
@@ -111,7 +111,7 @@ public class LootRefreshGameTest implements FabricGameTest {
             helper.assertTrue(ProsperityAttachments.get(be).getLastGeneratedTick(uuid) == now,
                     "regeneration must stamp the current game time as the new last-generated tick");
 
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }
@@ -131,7 +131,7 @@ public class LootRefreshGameTest implements FabricGameTest {
             helper.assertTrue(first == second,
                     "within the cooldown, a return visit must retrieve the same instance");
 
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }
@@ -157,7 +157,7 @@ public class LootRefreshGameTest implements FabricGameTest {
             helper.assertTrue(first == second,
                     "with refresh disabled, an instance must be retained, never re-rolled");
 
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }
@@ -174,7 +174,7 @@ public class LootRefreshGameTest implements FabricGameTest {
             helper.assertFalse(entryAt(scan(helper, rel, player.getUUID()), helper, rel),
                     "a freshly looted container must not show the unlooted sparkle");
 
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }
@@ -191,7 +191,7 @@ public class LootRefreshGameTest implements FabricGameTest {
             helper.assertTrue(entryAt(scan(helper, rel, player.getUUID()), helper, rel),
                     "once the cooldown elapses, the container reappears in the unlooted scan");
 
-            player.discard();
+            MockPlayers.retire(player);
             helper.succeed();
         });
     }

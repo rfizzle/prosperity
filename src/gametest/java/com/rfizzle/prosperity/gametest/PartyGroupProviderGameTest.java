@@ -1,5 +1,6 @@
 package com.rfizzle.prosperity.gametest;
 
+import com.rfizzle.concord.gametest.MockPlayers;
 import com.rfizzle.prosperity.Prosperity;
 import com.rfizzle.prosperity.api.PartyGroupProvider;
 import com.rfizzle.prosperity.api.ProsperityAPI;
@@ -52,9 +53,8 @@ public class PartyGroupProviderGameTest implements FabricGameTest {
         }
     }
 
-    @SuppressWarnings("removal")
     private ServerPlayer spawnPlayer(GameTestHelper helper) {
-        return helper.makeMockServerPlayerInLevel();
+        return MockPlayers.serverPlayerInLevel(helper);
     }
 
     private void joinTeam(GameTestHelper helper, ServerPlayer player) {
@@ -77,7 +77,7 @@ public class PartyGroupProviderGameTest implements FabricGameTest {
         ProsperityConfig cfg = Prosperity.getConfig();
         cfg.partyLootMode = savedMode;
         cfg.teamLeaveGraceMinutes = savedGrace;
-        player.discard();
+        MockPlayers.retire(player);
     }
 
     /** An API-supplied key overrides the scoreboard team: the player resolves to the party, not the team. */
